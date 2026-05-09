@@ -1,10 +1,21 @@
 "use client"
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import useUser from '@/hooks/useUser'
 
 export default function UserMenu() {
   const { user, role, isAdmin, logout } = useUser()
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   if (!user) return null
 
@@ -15,32 +26,40 @@ export default function UserMenu() {
     : name.slice(0, 2)
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <button
         className="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center font-semibold"
         onClick={() => setOpen(v => !v)}
+        aria-label="Menu użytkownika"
       >
         {initials.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded shadow p-2">
-          <p className="text-xs text-slate-500 px-2 pb-1 border-b border-slate-100 mb-1">
+        <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-slate-100 p-2 z-[200]">
+          <p className="text-xs text-slate-500 px-2 pb-2 border-b border-slate-100 mb-1">
             {user.email}<br/>
             <span className="font-medium text-slate-600">{role}</span>
           </p>
-          <a href="/profile" className="block px-2 py-1 hover:bg-slate-100 text-black rounded">Profil</a>
-          <a href="/settings" className="block px-2 py-1 hover:bg-slate-100 text-black rounded">Ustawienia</a>
+          <Link href="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-slate-700 rounded-lg text-sm">
+            👤 Profil
+          </Link>
+          <Link href="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-slate-700 rounded-lg text-sm">
+            ⚙️ Ustawienia
+          </Link>
+          <Link href="/moje-zapisy" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-slate-700 rounded-lg text-sm">
+            📋 Moje zapisy
+          </Link>
           {isAdmin && (
-            <a href="/admin/users" className="block px-2 py-1 hover:bg-slate-100 rounded text-sky-600">
-              👥 Użytkownicy
-            </a>
+            <Link href="/admin/users" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-sky-600 rounded-lg text-sm">
+              🛡️ Użytkownicy
+            </Link>
           )}
           <hr className="my-1 border-slate-100" />
           <button
-            onClick={() => logout()}
-            className="w-full text-left px-2 py-1 hover:bg-slate-100 rounded text-red-600"
+            onClick={() => { setOpen(false); logout() }}
+            className="w-full text-left flex items-center gap-2 px-2 py-1.5 hover:bg-red-50 rounded-lg text-red-600 text-sm"
           >
-            Wyloguj
+            🚪 Wyloguj
           </button>
         </div>
       )}

@@ -1,34 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
-import { getServerUser } from '@/lib/getServerUser'
-
-async function getOwnDog(dogId: string, userId: string) {
-  const supabase = createServerClient()
-  const { data } = await supabase
-    .from('dogs')
-    .select('*')
-    .eq('id', dogId)
-    .eq('user_id', userId)
-    .single()
-  return data
-}
+import { createAuthClient } from '@/lib/supabaseServer'
 
 // GET /api/dogs/[id]
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { user } = await getServerUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const dog = await getOwnDog(params.id, user.id)
+  const { data: dog } = await supabase
+    .from('dogs')
+    .select('*')
+    .eq('id', params.id)
+    .eq('user_id', user.id)
+    .single()
   if (!dog) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
   return NextResponse.json(dog)
 }
 
 // PATCH /api/dogs/[id]
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const { user } = await getServerUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const existing = await getOwnDog(params.id, user.id)
+  const { data: existing } = await supabase
+    .from('dogs').select('id').eq('id', params.id).eq('user_id', user.id).single()
   if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
   const body = await req.json()
@@ -41,7 +37,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
   const { data, error } = await supabase
     .from('dogs')
     .update(update)
@@ -56,10 +51,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/dogs/[id]
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { user } = await getServerUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const supabase = createServerClient()
   const { error } = await supabase
     .from('dogs')
     .delete()

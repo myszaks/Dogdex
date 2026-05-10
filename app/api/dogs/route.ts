@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
-import { getServerUser } from '@/lib/getServerUser'
+import { createAuthClient } from '@/lib/supabaseServer'
 
 // GET /api/dogs — lista psów zalogowanego użytkownika
 export async function GET() {
-  const { user } = await getServerUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const supabase = createServerClient()
   const { data, error } = await supabase
     .from('dogs')
     .select('*')
@@ -20,7 +19,8 @@ export async function GET() {
 
 // POST /api/dogs — dodaj psa
 export async function POST(req: NextRequest) {
-  const { user } = await getServerUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const body = await req.json()
@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
 
   if (!name?.trim()) return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
 
-  const supabase = createServerClient()
   const { data, error } = await supabase
     .from('dogs')
     .insert({

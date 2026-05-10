@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import MojePsyClient from './MojePsyClient'
 
@@ -7,11 +7,10 @@ export const metadata: Metadata = { title: 'Moje psy' }
 export const dynamic = 'force-dynamic'
 
 export default async function MojePsyPage() {
-  const auth = await createAuthClient()
-  const { data: { user } } = await auth.auth.getUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  const supabase = createServerClient()
   const { data: dogs } = await supabase
     .from('dogs')
     .select('*')

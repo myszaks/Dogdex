@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 
 interface Params {
@@ -11,7 +11,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   const { user: authUser } = await getServerUser()
   if (!authUser) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   // Verify ownership before delete
   const { data: template } = await supabase

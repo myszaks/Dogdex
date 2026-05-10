@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
 
 export async function GET() {
-  // Public read — service role bypasses RLS, always works
-  const supabase = createServerClient()
+  // Public read — auth client works for both authed and anon users
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   let body: Record<string, unknown>
   try {

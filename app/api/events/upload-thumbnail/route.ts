@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export const runtime = 'nodejs'
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   let formData: FormData
   try {
@@ -57,7 +57,7 @@ export async function DELETE(req: Request) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { searchParams } = new URL(req.url)
   const url = searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'Brak url' }, { status: 400 })

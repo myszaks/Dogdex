@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { requireRole } from '@/lib/getServerUser'
 import Link from 'next/link'
 import OrganizerEventCard from '@/components/OrganizerEventCard'
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function OrganizerPage() {
   await requireRole(['organizer', 'admin'])
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data: events } = await supabase
     .from('events')
     .select('*')

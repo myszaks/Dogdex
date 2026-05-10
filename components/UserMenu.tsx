@@ -45,10 +45,7 @@ export default function UserMenu() {
           </Link>
           <Link href="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-slate-700 rounded-lg text-sm">
             ⚙️ Ustawienia
-          </Link>
-          <Link href="/moje-zapisy" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-slate-700 rounded-lg text-sm">
-            📋 Moje zapisy
-          </Link>
+          </Link>          
           {isAdmin && (
             <Link href="/admin/users" onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 text-sky-600 rounded-lg text-sm">
               🛡️ Użytkownicy

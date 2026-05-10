@@ -3,6 +3,8 @@ import { notFound, redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatDate, formatTime, effectiveStatus, statusLabel, statusColor } from '@/lib/utils'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeSpeedKmh } from '@/lib/speedway'
+import type { SizeClass } from '@/lib/speedway'
 import type { Metadata } from 'next'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,7 +46,10 @@ export default async function EventArchivePage({ params }: Props) {
     .from('results')
     .select('*, participants(dog_name, owner_name, dog_breed)')
     .eq('event_id', event.id)
-    .order('rank', { ascending: true })
+    .order('class_rank', { ascending: true, nullsFirst: false })
+
+  const isSpeedway = event.event_type_id === 'speedway'
+  const distanceM: number | null = event.track_distance_m ?? null
 
   const dispStatus = effectiveStatus(event)
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
@@ -138,32 +143,128 @@ export default async function EventArchivePage({ params }: Props) {
           {event.has_results && event.results_public && results && results.length > 0 && (
             <div>
               <h2 className="section-title">🏆 Wyniki</h2>
-              <div className="card overflow-x-auto p-0">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-slate-500 border-b bg-slate-50">
-                      <th className="px-4 py-3">#</th>
-                      <th className="px-4 py-3">Pies</th>
-                      <th className="px-4 py-3">Właściciel</th>
-                      <th className="px-4 py-3 hidden sm:table-cell">Rasa</th>
-                      <th className="px-4 py-3">Czas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map((r: any) => (
-                      <tr key={r.id} className="border-b last:border-0 hover:bg-slate-50">
-                        <td className="px-4 py-3 font-bold text-lg">
-                          {r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank}
-                        </td>
-                        <td className="px-4 py-3 font-medium">{r.participants?.dog_name ?? '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{r.participants?.owner_name ?? '—'}</td>
-                        <td className="px-4 py-3 text-slate-400 text-xs hidden sm:table-cell">{r.participants?.dog_breed ?? '—'}</td>
-                        <td className="px-4 py-3 font-mono">{formatTime(r.time_ms)}</td>
+
+              {isSpeedway ? (
+                /* ── Speedway: per-class tables ── */
+                <div className="space-y-6">
+                  {SIZE_CLASSES.map(cls => {
+                    const classResults = results
+                      .filter((r: any) => r.size_class === cls)
+                      .sort((a: any, b: any) => {
+                        if (a.class_rank && b.class_rank) return a.class_rank - b.class_rank
+                        if (a.best_ms && b.best_ms) return a.best_ms - b.best_ms
+                        return 0
+                      })
+                    if (classResults.length === 0) return null
+
+                    return (
+                      <section key={cls}>
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">
+                          Klasa {SIZE_CLASS_LABELS[cls as SizeClass]}
+                        </h3>
+                        <div className="card overflow-x-auto p-0">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-slate-500 border-b bg-slate-50">
+                                <th className="px-4 py-3">#</th>
+                                <th className="px-4 py-3">Pies</th>
+                                <th className="px-4 py-3 hidden sm:table-cell">Właściciel</th>
+                                <th className="px-4 py-3 font-mono">Przebieg 1</th>
+                                <th className="px-4 py-3 font-mono">Przebieg 2</th>
+                                <th className="px-4 py-3 font-mono">Najlepszy</th>
+                                {distanceM && <th className="px-4 py-3 hidden md:table-cell">km/h</th>}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {classResults.map((r: any) => (
+                                <tr key={r.id} className="border-b last:border-0 hover:bg-slate-50">
+                                  <td className="px-4 py-3 text-lg font-bold">
+                                    {r.class_rank ? medalEmoji(r.class_rank) : '—'}
+                                  </td>
+                                  <td className="px-4 py-3 font-medium">{r.participants?.dog_name ?? '—'}</td>
+                                  <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{r.participants?.owner_name ?? '—'}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-600">{r.run1_ms ? formatRunTime(r.run1_ms) : '—'}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-600">{r.run2_ms ? formatRunTime(r.run2_ms) : '—'}</td>
+                                  <td className="px-4 py-3 font-mono font-semibold text-sky-700">
+                                    {r.best_ms ? formatRunTime(r.best_ms) : '—'}
+                                  </td>
+                                  {distanceM && (
+                                    <td className="px-4 py-3 font-mono text-slate-500 hidden md:table-cell">
+                                      {r.best_ms ? computeSpeedKmh(r.best_ms, distanceM).toFixed(2) : '—'}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                    )
+                  })}
+
+                  {/* Overall fastest / slowest */}
+                  {(() => {
+                    const withBest = [...results]
+                      .filter((r: any) => r.best_ms !== null)
+                      .sort((a: any, b: any) => a.best_ms - b.best_ms)
+                    const fastest = withBest[0]
+                    const slowest = withBest[withBest.length - 1]
+                    if (!fastest) return null
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <div className="rounded-xl bg-green-50 border border-green-200 p-4">
+                          <p className="text-xs text-green-600 font-semibold mb-1">⚡ Najszybszy pies zawodów</p>
+                          <p className="font-bold text-green-800">{fastest.participants?.dog_name ?? '—'}</p>
+                          <p className="text-sm text-green-600">{fastest.participants?.owner_name ?? '—'} · klasa {fastest.size_class}</p>
+                          <p className="font-mono text-green-700 mt-1">
+                            {formatRunTime(fastest.best_ms)}
+                            {distanceM && ` · ${computeSpeedKmh(fastest.best_ms, distanceM).toFixed(2)} km/h`}
+                          </p>
+                        </div>
+                        {slowest && slowest.id !== fastest.id && (
+                          <div className="rounded-xl bg-orange-50 border border-orange-200 p-4">
+                            <p className="text-xs text-orange-600 font-semibold mb-1">🐢 Najwolniejszy pies zawodów</p>
+                            <p className="font-bold text-orange-800">{slowest.participants?.dog_name ?? '—'}</p>
+                            <p className="text-sm text-orange-600">{slowest.participants?.owner_name ?? '—'} · klasa {slowest.size_class}</p>
+                            <p className="font-mono text-orange-700 mt-1">
+                              {formatRunTime(slowest.best_ms)}
+                              {distanceM && ` · ${computeSpeedKmh(slowest.best_ms, distanceM).toFixed(2)} km/h`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+                /* ── Standard results table ── */
+                <div className="card overflow-x-auto p-0">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-500 border-b bg-slate-50">
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Pies</th>
+                        <th className="px-4 py-3">Właściciel</th>
+                        <th className="px-4 py-3 hidden sm:table-cell">Rasa</th>
+                        <th className="px-4 py-3">Czas</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {[...results].sort((a: any, b: any) => (a.rank ?? 999) - (b.rank ?? 999)).map((r: any) => (
+                        <tr key={r.id} className="border-b last:border-0 hover:bg-slate-50">
+                          <td className="px-4 py-3 font-bold text-lg">
+                            {r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank}
+                          </td>
+                          <td className="px-4 py-3 font-medium">{r.participants?.dog_name ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{r.participants?.owner_name ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-400 text-xs hidden sm:table-cell">{r.participants?.dog_breed ?? '—'}</td>
+                          <td className="px-4 py-3 font-mono">{formatTime(r.time_ms)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -191,11 +292,11 @@ export default async function EventArchivePage({ params }: Props) {
             </div>
           </div>
 
-          {results && results.length > 0 && (
+          {results && results.length > 0 && !isSpeedway && (
             <div className="card">
               <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-3">Podium</p>
               <div className="space-y-2">
-                {results.slice(0, 3).map((r: any) => (
+                {[...results].sort((a: any, b: any) => (a.rank ?? 999) - (b.rank ?? 999)).slice(0, 3).map((r: any) => (
                   <div key={r.id} className="flex items-center gap-2 text-sm">
                     <span className="text-lg">{r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : '🥉'}</span>
                     <div className="min-w-0">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import useUser from '@/hooks/useUser'
 import type { FormField } from '@/types'
+import ConfirmModal from './ConfirmModal'
 
 interface Props {
   eventId: string
@@ -15,6 +16,7 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
   const [reg, setReg] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [cancelling, setCancelling] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!user?.email) {
@@ -52,7 +54,6 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
   const p = reg.participants as Record<string, string> | undefined
 
   async function handleCancel() {
-    if (!confirm('Czy na pewno chcesz zrezygnować z udziału w wydarzeniu?')) return
     setCancelling(true)
     try {
       const res = await fetch(`/api/registrations/${reg!.id}`, {
@@ -77,13 +78,22 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
       )}
       {status !== 'cancelled' && (
         <button
-          onClick={handleCancel}
+          onClick={() => setConfirmOpen(true)}
           disabled={cancelling}
           className="w-full text-sm text-red-600 border border-red-200 bg-white hover:bg-red-50 rounded-lg py-1.5 transition-colors disabled:opacity-50"
         >
           {cancelling ? 'Anulowanie...' : 'Zrezygnuj z udziału'}
         </button>
       )}
+      <ConfirmModal
+        open={confirmOpen}
+        title="Zrezygnować z udziału?"
+        message="Czy na pewno chcesz wycofać swój zapis na to wydarzenie?"
+        confirmLabel="Zrezygnuj"
+        danger
+        onConfirm={() => { setConfirmOpen(false); handleCancel() }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

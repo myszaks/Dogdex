@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export async function GET(req: Request) {
@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const eventId = searchParams.get('eventId')
   if (!eventId) return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   const [{ data: event }, { data: registrations }] = await Promise.all([
     supabase.from('events').select('title, form_fields').eq('id', eventId).single(),

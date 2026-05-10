@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser, checkRoleForApi } from '@/lib/getServerUser'
 
 export async function GET(req: Request) {
@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const eventTypeId = searchParams.get('event_type_id')
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   let query = supabase
     .from('form_templates')
     .select('id, name, event_type_id, fields, created_at')
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'fields musi być tablicą' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('form_templates')
     .insert([{

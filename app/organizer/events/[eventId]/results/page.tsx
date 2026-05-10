@@ -1,6 +1,8 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import ResultsForm from '@/components/ResultsForm'
+import SpeedwayResultsForm from '@/components/SpeedwayResultsForm'
+import type { SpeedwayParticipant } from '@/components/SpeedwayResultsForm'
 import NextStartButton from '@/components/NextStartButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -13,13 +15,13 @@ export const metadata: Metadata = { title: 'Wyniki' }
 
 export default async function ResultsPage({ params }: Props) {
   const { eventId } = await params
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   const [{ data: event }, { data: registrations }, { data: results }] = await Promise.all([
     supabase.from('events').select('*').eq('id', eventId).single(),
     supabase
       .from('registrations')
-      .select('id, participant_id, order_index, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, participant_id, order_index, form_data, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -56,6 +58,28 @@ export default async function ResultsPage({ params }: Props) {
     result: results?.find(res => res.participant_id === r.participant_id) ?? null,
   }))
 
+  const isSpeedway = event.event_type_id === 'speedway'
+
+  const speedwayParticipants: SpeedwayParticipant[] = (registrations ?? []).map((r: any) => {
+    const existingResult = results?.find(res => res.participant_id === r.participant_id) ?? null
+    return {
+      participantId: r.participants?.id ?? r.participant_id,
+      dogName: r.participants?.dog_name ?? '',
+      ownerName: r.participants?.owner_name ?? '',
+      breed: r.participants?.dog_breed ?? '',
+      heightCm: (r.form_data as any)?.height_cm ?? null,
+      result: existingResult ? {
+        id: existingResult.id,
+        run1_ms: existingResult.run1_ms ?? null,
+        run2_ms: existingResult.run2_ms ?? null,
+        best_ms: existingResult.best_ms ?? null,
+        speed_kmh: existingResult.speed_kmh ?? null,
+        size_class: existingResult.size_class ?? null,
+        class_rank: existingResult.class_rank ?? null,
+      } : null,
+    }
+  })
+
   return (
     <div>
       <h1 className="page-title">🏆 Wyniki</h1>
@@ -83,7 +107,16 @@ export default async function ResultsPage({ params }: Props) {
           Tylko uczestnicy z potwierdzonym zapisem są widoczni poniżej.
         </p>
       </div>
-      <ResultsForm eventId={eventId} participants={participantsWithResults} />
+
+      {isSpeedway ? (
+        <SpeedwayResultsForm
+          eventId={eventId}
+          initialTrackDistanceM={event.track_distance_m ?? null}
+          participants={speedwayParticipants}
+        />
+      ) : (
+        <ResultsForm eventId={eventId} participants={participantsWithResults} />
+      )}
     </div>
   )
 }

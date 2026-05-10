@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendEventChangeEmail } from '@/lib/email'
 
@@ -9,7 +9,7 @@ interface Params {
 
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
@@ -55,7 +55,7 @@ export async function PATCH(req: Request, { params }: Params) {
     'title', 'description', 'location', 'start_at', 'end_at', 'status',
     'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
     'has_results', 'results_public', 'auto_confirm', 'max_participants', 'organizer_name', 'slug',
-    'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index',
+    'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
   ]
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
@@ -130,7 +130,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { error } = await supabase.from('events').delete().eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

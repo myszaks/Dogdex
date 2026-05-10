@@ -26,6 +26,7 @@ export interface DogEvent {
   last_significant_change: string | null
   changed_fields: string[]
   current_start_index: number
+  track_distance_m: number | null
 }
 
 export interface Participant {
@@ -79,6 +80,13 @@ export interface Result {
   time_ms: number | null
   rank: number | null
   notes: string | null
+  // Speedway-specific
+  run1_ms: number | null
+  run2_ms: number | null
+  best_ms: number | null
+  speed_kmh: number | null
+  size_class: string | null
+  class_rank: number | null
   created_at: string
   participants?: Participant
 }

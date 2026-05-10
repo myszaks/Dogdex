@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import type { TimeSlot } from '@/types'
+import ConfirmModal from '@/components/ConfirmModal'
 
 interface Participant {
   registrationId: string
@@ -32,6 +33,7 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
   const [participants, setParticipants] = useState<Participant[]>(initialParticipants)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
+  const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null)
 
   // New slot form state
   const [newDate, setNewDate] = useState('')
@@ -72,7 +74,6 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
   }
 
   async function handleDeleteSlot(slotId: string) {
-    if (!confirm('Usunąć slot? Uczestnicy zostaną odpisani.')) return
     const res = await fetch(`/api/events/${eventId}/time-slots/${slotId}`, { method: 'DELETE' })
     if (res.ok) {
       setSlots(prev => prev.filter(s => s.id !== slotId))
@@ -249,7 +250,7 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleDeleteSlot(slot.id)}
+                        onClick={() => setDeletingSlotId(slot.id)}
                         className="text-red-400 hover:text-red-600 text-xs shrink-0"
                         title="Usuń slot"
                       >
@@ -274,11 +275,18 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
           <p>Dodaj pierwszy slot godzinowy powyżej</p>
         </div>
       )}
+      <ConfirmModal
+        open={deletingSlotId !== null}
+        title="Usunąć slot?"
+        message="Uczestnicy przypisani do tego slotu zostaną odpisani."
+        confirmLabel="Usuń"
+        danger
+        onConfirm={() => { const id = deletingSlotId!; setDeletingSlotId(null); handleDeleteSlot(id) }}
+        onCancel={() => setDeletingSlotId(null)}
+      />
     </div>
   )
-}
-
-function ParticipantCard({ participant, index }: { participant: Participant; index: number }) {
+}({ participant, index }: { participant: Participant; index: number }) {
   return (
     <Draggable draggableId={participant.registrationId} index={index}>
       {(provided, snapshot) => (

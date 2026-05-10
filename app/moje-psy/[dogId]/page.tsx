@@ -1,33 +1,35 @@
 import { redirect, notFound } from 'next/navigation'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import DogProfileClient from './DogProfileClient'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  params: { dogId: string }
-  searchParams: { edit?: string }
+  params: Promise<{ dogId: string }>
+  searchParams: Promise<{ edit?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase = createServerClient()
-  const { data } = await supabase.from('dogs').select('name').eq('id', params.dogId).single()
+  const { dogId } = await params
+  const supabase = await createAuthClient()
+  const { data } = await supabase.from('dogs').select('name').eq('id', dogId).single()
   return { title: data?.name ? `${data.name} – profil psa` : 'Profil psa' }
 }
 
 export default async function DogProfilePage({ params, searchParams }: Props) {
-  const auth = await createAuthClient()
-  const { data: { user } } = await auth.auth.getUser()
-  if (!user) redirect('/')
+  const { dogId } = await params
+  const { edit } = await searchParams
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
 
   // Pobierz psa (tylko własny)
   const { data: dog } = await supabase
     .from('dogs')
     .select('*')
-    .eq('id', params.dogId)
+    .eq('id', dogId)
     .eq('user_id', user.id)
     .single()
 
@@ -95,7 +97,7 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
     <DogProfileClient
       dog={dog}
       history={history}
-      isEditMode={searchParams.edit === '1'}
+      isEditMode={edit === '1'}
     />
   )
 }

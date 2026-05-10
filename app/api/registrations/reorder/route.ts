@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export async function PATCH(req: Request) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   let body: { items?: { id: string; order_index: number }[] }
   try {

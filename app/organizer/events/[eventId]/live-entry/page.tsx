@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import { requireRole } from '@/lib/getServerUser'
 import LiveEntryClient from './LiveEntryClient'
@@ -15,7 +15,7 @@ export default async function LiveEntryPage({ params }: Props) {
   const { eventId } = await params
   await requireRole(['organizer', 'admin'])
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   const [{ data: event }, { data: registrations }] = await Promise.all([
     supabase.from('events').select('*').eq('id', eventId).single(),

@@ -1,4 +1,3 @@
-import { createServerClient } from '@/lib/supabaseServer'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -14,9 +13,7 @@ export default async function MyRegistrationsPage() {
 
   if (!user || !user.email) redirect('/')
 
-  const supabase = createServerClient()
-
-  const { data: participants } = await supabase
+  const { data: participants } = await authClient
     .from('participants')
     .select('id')
     .ilike('owner_email', user.email)
@@ -24,7 +21,7 @@ export default async function MyRegistrationsPage() {
   const participantIds = participants?.map(p => p.id) ?? []
 
   const registrations = participantIds.length > 0
-    ? (await supabase
+    ? (await authClient
         .from('registrations')
         .select('*, participants(*), events(*)')
         .in('participant_id', participantIds)

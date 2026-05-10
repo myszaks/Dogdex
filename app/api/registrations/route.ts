@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 
@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const auth = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in auth) return auth.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
 
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   let body: Record<string, unknown>
   try {

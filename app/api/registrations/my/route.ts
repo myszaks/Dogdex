@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 
 export async function GET(req: Request) {
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'eventId wymagany' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   // Find all participants with this email
   const { data: participants } = await supabase

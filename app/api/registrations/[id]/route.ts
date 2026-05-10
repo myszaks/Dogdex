@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 
@@ -9,7 +9,7 @@ interface Params {
 
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })

@@ -1,7 +1,9 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import type { Dog } from '@/types'
 import { AGILITY_LEVELS, GENDER_LABELS } from './DogForm'
+import ConfirmModal from './ConfirmModal'
 
 interface Props {
   dog: Dog
@@ -9,6 +11,7 @@ interface Props {
 }
 
 export default function DogCard({ dog, onDelete }: Props) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const gender = dog.gender ? GENDER_LABELS[dog.gender] : null
   const agility = AGILITY_LEVELS.find(l => l.value === dog.agility_level)?.label
   const vaccineExpiry = dog.rabies_vaccine_expiry
@@ -35,7 +38,7 @@ export default function DogCard({ dog, onDelete }: Props) {
             <Link href={`/moje-psy/${dog.id}`} className="btn btn-secondary btn-sm">Profil</Link>
             <Link href={`/moje-psy/${dog.id}?edit=1`} className="btn btn-secondary btn-sm">✏️</Link>
             <button
-              onClick={() => { if (confirm(`Usunąć profil ${dog.name}?`)) onDelete(dog.id) }}
+              onClick={() => setConfirmOpen(true)}
               className="btn btn-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
             >
               🗑️
@@ -58,6 +61,15 @@ export default function DogCard({ dog, onDelete }: Props) {
           <p className="text-xs text-slate-400 mt-1">Chip/Rodowód: {dog.pedigree_or_chip}</p>
         )}
       </div>
+      <ConfirmModal
+        open={confirmOpen}
+        title={`Usunąć profil ${dog.name}?`}
+        message="Tej operacji nie można cofnąć. Wszystkie dane psa zostaną usunięte."
+        confirmLabel="Usuń"
+        danger
+        onConfirm={() => { setConfirmOpen(false); onDelete(dog.id) }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

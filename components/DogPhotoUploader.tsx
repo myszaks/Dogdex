@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import Image from 'next/image'
+import ConfirmModal from './ConfirmModal'
 
 interface Props {
   currentUrl?: string | null
@@ -53,7 +54,7 @@ export default function DogPhotoUploader({ currentUrl, onUrlChange }: Props) {
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
   const [uploading, setUploading] = useState(false)
-  const [removing, setRemoving] = useState(false)
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -110,13 +111,11 @@ export default function DogPhotoUploader({ currentUrl, onUrlChange }: Props) {
   }
 
   async function handleRemove() {
-    if (!currentUrl || !confirm('Usunąć zdjęcie psa?')) return
     setRemoving(true)
     try {
-      await fetch(`/api/dogs/upload-photo?url=${encodeURIComponent(currentUrl)}`, { method: 'DELETE' })
+      await fetch(`/api/dogs/upload-photo?url=${encodeURIComponent(currentUrl!)}`, { method: 'DELETE' })
       onUrlChange(null)
     } catch {
-      // ignore storage error — clear URL anyway
       onUrlChange(null)
     } finally {
       setRemoving(false)
@@ -150,7 +149,7 @@ export default function DogPhotoUploader({ currentUrl, onUrlChange }: Props) {
             </button>
             <button
               type="button"
-              onClick={handleRemove}
+              onClick={() => setConfirmRemoveOpen(true)}
               disabled={removing}
               className="btn btn-secondary btn-sm text-red-600 hover:bg-red-50"
             >
@@ -225,6 +224,15 @@ export default function DogPhotoUploader({ currentUrl, onUrlChange }: Props) {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={confirmRemoveOpen}
+        title="Usunąć zdjęcie?"
+        message="Zdjęcie psa zostanie trwale usunięte."
+        confirmLabel="Usuń"
+        danger
+        onConfirm={() => { setConfirmRemoveOpen(false); handleRemove() }}
+        onCancel={() => setConfirmRemoveOpen(false)}
+      />
     </div>
   )
 }

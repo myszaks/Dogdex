@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import CsvExportButton from '@/components/CsvExportButton'
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export default async function RegistrationsPage({ params }: Props) {
   const { eventId } = await params
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
 
   const [{ data: event }, { data: registrations, count }] = await Promise.all([
     supabase.from('events').select('*').eq('id', eventId).single(),

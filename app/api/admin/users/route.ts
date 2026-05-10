@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 // GET /api/admin/users — list all profiles (admin only)
@@ -7,7 +7,7 @@ export async function GET() {
   const auth = await checkRoleForApi(['admin'])
   if ('error' in auth) return auth.error
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('profiles')
     .select('id, role, full_name, company, created_at')
@@ -36,7 +36,7 @@ export async function PATCH(req: Request) {
 
   // Prevent removing last admin
   if (role !== 'admin') {
-    const supabaseCheck = createServerClient()
+    const supabaseCheck = await createAuthClient()
     const { count } = await supabaseCheck
       .from('profiles')
       .select('id', { count: 'exact', head: true })
@@ -56,7 +56,7 @@ export async function PATCH(req: Request) {
     }
   }
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('profiles')
     .update({ role })

@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import EditEventClient from './EditEventClient'
 import type { Metadata } from 'next'
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Edytuj wydarzenie' }
 
 export default async function EditEventPage({ params }: Props) {
   const { eventId } = await params
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data: event } = await supabase
     .from('events')
     .select('*')

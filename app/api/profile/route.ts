@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
 import { createAuthClient } from '@/lib/supabaseServer'
 
 export async function GET() {
-  const auth = await createAuthClient()
-  const { data: { user } } = await auth.auth.getUser()
+  const supabase = await createAuthClient()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 })
 
-  const supabase = createServerClient()
   const { data, error } = await supabase
     .from('profiles')
     .select('id, full_name, company, role, created_at')
@@ -39,8 +37,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Brak pól do aktualizacji' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
-  const { data, error } = await supabase
+  const { data, error } = await auth
     .from('profiles')
     .update(allowed)
     .eq('id', user.id)

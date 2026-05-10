@@ -135,18 +135,12 @@ export const EVENT_TYPES: EventType[] = [
     icon: '🏎️',
     defaultFields: [
       {
-        id: 'speed_class',
-        label: 'Klasa startowa',
-        type: 'select',
+        id: 'height_cm',
+        label: 'Wzrost psa w kłębie (cm)',
+        type: 'number',
         required: true,
-        options: ['Beginner', 'Junior', 'Senior', 'Open', 'Veteran'],
-      },
-      {
-        id: 'speed_discipline',
-        label: 'Dyscyplina',
-        type: 'select',
-        required: false,
-        options: ['Wyścig sprinterski', 'Slalom', 'Tor przeszkód', 'Dash'],
+        placeholder: 'np. 45',
+        description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (50–59.9cm), XL (≥60cm)',
       },
     ],
   },

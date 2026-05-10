@@ -15,8 +15,12 @@ export default function EventMap({ lat, lng, label }: Props) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
+    let cancelled = false
+
     async function init() {
       const L = (await import('leaflet')).default
+
+      if (cancelled || !containerRef.current) return
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -26,7 +30,7 @@ export default function EventMap({ lat, lng, label }: Props) {
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       })
 
-      const map = L.map(containerRef.current!, { scrollWheelZoom: false })
+      const map = L.map(containerRef.current, { scrollWheelZoom: false })
         .setView([lat, lng], 14)
       mapRef.current = map
 
@@ -37,11 +41,14 @@ export default function EventMap({ lat, lng, label }: Props) {
 
       const marker = L.marker([lat, lng]).addTo(map)
       if (label) marker.bindPopup(label)
+
+      setTimeout(() => { if (!cancelled) map.invalidateSize() }, 100)
     }
 
     init()
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null

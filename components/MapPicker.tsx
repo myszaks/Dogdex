@@ -21,8 +21,12 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
+    let cancelled = false
+
     async function init() {
       const L = (await import('leaflet')).default
+
+      if (cancelled || !containerRef.current) return
 
       // Fix default icon path issue with webpack
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,7 +41,7 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
       const initLng = lng ?? DEFAULT_LNG
       const initZoom = lat !== null ? 13 : DEFAULT_ZOOM
 
-      const map = L.map(containerRef.current!, { scrollWheelZoom: true }).setView([initLat, initLng], initZoom)
+      const map = L.map(containerRef.current, { scrollWheelZoom: true }).setView([initLat, initLng], initZoom)
       mapRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -46,7 +50,7 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
       }).addTo(map)
 
       // Force correct size after DOM is fully laid out
-      setTimeout(() => map.invalidateSize(), 100)
+      setTimeout(() => { if (!cancelled) map.invalidateSize() }, 100)
 
       if (lat !== null && lng !== null) {
         markerRef.current = L.marker([lat, lng]).addTo(map)
@@ -86,6 +90,7 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
     init()
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null

@@ -200,7 +200,7 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
 
   // Overall stats (fastest / slowest with at least run1 or best)
   const withBest = rows
-    .map(r => ({ row: r, best: rowBestMs(r) ?? r.result?.best_ms ?? null }))
+    .map(r => ({ row: r, best: rowBestMs(r) }))
     .filter(x => x.best !== null)
     .sort((a, b) => (a.best as number) - (b.best as number))
 

@@ -1,10 +1,18 @@
 'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
+import DateTimePicker from '@/components/DateTimePicker'
+import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import type { FormField } from '@/types'
+
+const MapPicker = dynamic(() => import('@/components/MapPicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-64 rounded-xl bg-slate-100 animate-pulse" />,
+})
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -18,10 +26,17 @@ export default function NewEventPage() {
   const [autoConfirm, setAutoConfirm] = useState(false)
   const [maxParticipants, setMaxParticipants] = useState<string>('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [galleryImages, setGalleryImages] = useState<string[]>([])
+  const [startAt, setStartAt] = useState<string | null>(null)
+  const [endAt, setEndAt] = useState<string | null>(null)
+  const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(null)
+  const [lat, setLat] = useState<number | null>(null)
+  const [lng, setLng] = useState<number | null>(null)
+  const [location, setLocation] = useState<string>('')
+  const [groupingField, setGroupingField] = useState<string>('')
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
-    // Clear template selection when type changes
     setSelectedTemplateId(null)
     setFormFields([])
   }
@@ -30,6 +45,16 @@ export default function NewEventPage() {
     setSelectedTemplateId(templateId)
     setFormFields(fields)
   }
+
+  function handleMapLocation(newLat: number, newLng: number, address: string) {
+    setLat(newLat)
+    setLng(newLng)
+    setLocation(address)
+  }
+
+  const groupableFields = formFields.filter(f =>
+    ['select', 'multiselect', 'multidate'].includes(f.type)
+  )
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -40,10 +65,10 @@ export default function NewEventPage() {
     const payload = {
       title: form.get('title'),
       description: form.get('description') || null,
-      location: form.get('location') || null,
-      start_at: form.get('start_at') || null,
-      end_at: form.get('end_at') || null,
-      registration_deadline: form.get('registration_deadline') || null,
+      location: location || null,
+      start_at: startAt,
+      end_at: endAt || null,
+      registration_deadline: registrationDeadline || null,
       status: 'upcoming',
       event_type_id: eventTypeId || null,
       form_fields: formFields,
@@ -53,6 +78,10 @@ export default function NewEventPage() {
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       image_url: imageUrl,
       organizer_name: (form.get('organizer_name') as string) || null,
+      lat,
+      lng,
+      gallery_images: galleryImages,
+      grouping_field: groupingField || null,
     }
 
     try {
@@ -128,27 +157,27 @@ export default function NewEventPage() {
               placeholder="Krótki opis wydarzenia, zasady, kategorie..."
             />
           </div>
+
+          {/* Location + Map */}
           <div>
             <label className="form-label">Lokalizacja</label>
-            <input
-              className="form-input"
-              name="location"
-              placeholder="Warszawa, ul. Psia 1"
-            />
+            <MapPicker lat={lat} lng={lng} location={location} onLocationChange={handleMapLocation} />
           </div>
+
+          {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Data rozpoczęcia *</label>
-              <input className="form-input" type="datetime-local" name="start_at" required />
+              <DateTimePicker value={startAt} onChange={setStartAt} required placeholder="Wybierz datę startu" />
             </div>
             <div>
               <label className="form-label">Data zakończenia</label>
-              <input className="form-input" type="datetime-local" name="end_at" />
+              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
           <div>
             <label className="form-label">Termin zapisów</label>
-            <input className="form-input" type="datetime-local" name="registration_deadline" />
+            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
             <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
           </div>
 
@@ -217,6 +246,11 @@ export default function NewEventPage() {
           <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
         </div>
 
+        {/* Gallery */}
+        <div className="card space-y-3">
+          <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
+        </div>
+
         {/* Template picker section */}
         <div className="card space-y-3">
           <div>
@@ -230,6 +264,24 @@ export default function NewEventPage() {
             selectedTemplateId={selectedTemplateId}
             onSelect={handleTemplateSelect}
           />
+
+          {/* Grouping field */}
+          {groupableFields.length > 0 && (
+            <div>
+              <label className="form-label">Grupuj zapisy według</label>
+              <select
+                className="form-input"
+                value={groupingField}
+                onChange={e => setGroupingField(e.target.value)}
+              >
+                <option value="">— brak grupowania —</option>
+                {groupableFields.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -254,3 +306,5 @@ export default function NewEventPage() {
     </div>
   )
 }
+
+

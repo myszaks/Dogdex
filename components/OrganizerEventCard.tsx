@@ -18,6 +18,12 @@ export default function OrganizerEventCard({ event }: { event: DogEvent }) {
           >
             👥 Zapisy
           </Link>
+          <Link
+            href={`/organizer/events/${event.id}/schedule`}
+            className="btn btn-secondary btn-sm"
+          >
+            📅 Grafik
+          </Link>
           {event.has_results && (
             <>
               <Link

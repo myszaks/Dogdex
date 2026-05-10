@@ -1,10 +1,18 @@
 'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
+import DateTimePicker from '@/components/DateTimePicker'
+import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import type { FormField } from '@/types'
+
+const MapPicker = dynamic(() => import('@/components/MapPicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-64 rounded-xl bg-slate-100 animate-pulse" />,
+})
 
 interface Props {
   eventId: string
@@ -24,6 +32,10 @@ interface Props {
     max_participants: number | null
     image_url: string | null
     organizer_name: string | null
+    lat: number | null
+    lng: number | null
+    gallery_images: string[]
+    grouping_field: string | null
   }
 }
 
@@ -42,15 +54,17 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   )
   const [imageUrl, setImageUrl] = useState<string | null>(initialData.image_url ?? null)
   const [organizerName, setOrganizerName] = useState<string>(initialData.organizer_name ?? '')
-
-  function toLocalDatetime(isoStr: string | null): string {
-    if (!isoStr) return ''
-    return isoStr.slice(0, 16)
-  }
+  const [startAt, setStartAt] = useState<string | null>(initialData.start_at ?? null)
+  const [endAt, setEndAt] = useState<string | null>(initialData.end_at ?? null)
+  const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(initialData.registration_deadline ?? null)
+  const [lat, setLat] = useState<number | null>(initialData.lat ?? null)
+  const [lng, setLng] = useState<number | null>(initialData.lng ?? null)
+  const [location, setLocation] = useState<string>(initialData.location ?? '')
+  const [galleryImages, setGalleryImages] = useState<string[]>(initialData.gallery_images ?? [])
+  const [groupingField, setGroupingField] = useState<string>(initialData.grouping_field ?? '')
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
-    // Only pre-fill default fields if currently empty (don't override existing)
     if (formFields.length === 0) {
       const et = EVENT_TYPES.find(t => t.id === id)
       if (et) {
@@ -64,6 +78,16 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     setFormFields(fields)
   }
 
+  function handleMapLocation(newLat: number, newLng: number, address: string) {
+    setLat(newLat)
+    setLng(newLng)
+    setLocation(address)
+  }
+
+  const groupableFields = formFields.filter(f =>
+    ['select', 'multiselect', 'multidate'].includes(f.type)
+  )
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
@@ -72,10 +96,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     const payload = {
       title: form.get('title'),
       description: form.get('description') || null,
-      location: form.get('location') || null,
-      start_at: form.get('start_at') || null,
-      end_at: form.get('end_at') || null,
-      registration_deadline: form.get('registration_deadline') || null,
+      location: location || null,
+      start_at: startAt,
+      end_at: endAt || null,
+      registration_deadline: registrationDeadline || null,
       status: form.get('status'),
       event_type_id: eventTypeId || null,
       form_fields: formFields,
@@ -85,6 +109,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       image_url: imageUrl,
       organizer_name: organizerName.trim() || null,
+      lat,
+      lng,
+      gallery_images: galleryImages,
+      grouping_field: groupingField || null,
     }
     try {
       const res = await fetch(`/api/events/${eventId}`, {
@@ -152,42 +180,27 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               defaultValue={initialData.description ?? ''}
             />
           </div>
+
+          {/* Location + Map */}
           <div>
             <label className="form-label">Lokalizacja</label>
-            <input
-              className="form-input"
-              name="location"
-              defaultValue={initialData.location ?? ''}
-            />
+            <MapPicker lat={lat} lng={lng} location={location} onLocationChange={handleMapLocation} />
           </div>
+
+          {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="form-label">Data rozpoczęcia</label>
-              <input
-                className="form-input"
-                type="datetime-local"
-                name="start_at"
-                defaultValue={toLocalDatetime(initialData.start_at)}
-              />
+              <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datę startu" />
             </div>
             <div>
               <label className="form-label">Data zakończenia</label>
-              <input
-                className="form-input"
-                type="datetime-local"
-                name="end_at"
-                defaultValue={toLocalDatetime(initialData.end_at)}
-              />
+              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
           <div>
             <label className="form-label">Termin zapisów</label>
-            <input
-              className="form-input"
-              type="datetime-local"
-              name="registration_deadline"
-              defaultValue={toLocalDatetime(initialData.registration_deadline)}
-            />
+            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
             <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
           </div>
 
@@ -265,7 +278,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
         </div>
 
-        {/* Form builder */}
+        {/* Gallery */}
+        <div className="card space-y-3">
+          <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
+        </div>
+
+        {/* Form builder + grouping */}
         <div className="card space-y-3">
           <div>
             <h2 className="font-semibold text-slate-800">📋 Formularz zapisów</h2>
@@ -278,6 +296,22 @@ export default function EditEventClient({ eventId, initialData }: Props) {
             selectedTemplateId={selectedTemplateId}
             onSelect={handleTemplateSelect}
           />
+          {groupableFields.length > 0 && (
+            <div>
+              <label className="form-label">Grupuj zapisy według</label>
+              <select
+                className="form-input"
+                value={groupingField}
+                onChange={e => setGroupingField(e.target.value)}
+              >
+                <option value="">— brak grupowania —</option>
+                {groupableFields.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
+            </div>
+          )}
         </div>
 
         {error && (

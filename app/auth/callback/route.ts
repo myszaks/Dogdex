@@ -16,36 +16,40 @@ import { createServerClient } from '@supabase/ssr'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type') as 'signup' | 'recovery' | 'magiclink' | 'email_change' | null
   const next = searchParams.get('next') ?? '/'
 
-  if (code) {
-    // Create the redirect response first so we can attach cookies to it
-    const redirectResponse = NextResponse.redirect(`${origin}${next}`)
+  const redirectResponse = NextResponse.redirect(`${origin}${next}`)
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            // Set cookies directly on the redirect response
-            cookiesToSet.forEach(({ name, value, options }) =>
-              redirectResponse.cookies.set(name, value, options)
-            )
-          },
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
         },
-      }
-    )
-
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      return redirectResponse
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            redirectResponse.cookies.set(name, value, options)
+          )
+        },
+      },
     }
+  )
+
+  // PKCE flow (code exchange)
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) return redirectResponse
   }
 
-  // On failure redirect to home with an error hint
+  // Legacy / non-PKCE flow (token_hash — e.g. email confirmation, magic link)
+  if (token_hash && type) {
+    const { error } = await supabase.auth.verifyOtp({ token_hash, type })
+    if (!error) return redirectResponse
+  }
+
   return NextResponse.redirect(`${origin}/?error=auth_callback_failed`)
 }

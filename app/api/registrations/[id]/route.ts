@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 
 interface Params {
@@ -9,16 +9,39 @@ interface Params {
 
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-
   const supabase = createServerClient()
+
+  const { user, role } = await getServerUser()
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+
+  const isOrganizerOrAdmin = role === 'organizer' || role === 'admin'
 
   let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
+  }
+
+  // Fetch registration + participant to check ownership
+  const { data: reg } = await supabase
+    .from('registrations')
+    .select('*, participants(*), events(*)')
+    .eq('id', id)
+    .single()
+
+  if (!reg) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+
+  const participantEmail = ((reg as Record<string, unknown>).participants as Record<string, string> | null)?.owner_email ?? null
+  const isOwner = participantEmail && participantEmail.toLowerCase() === user.email?.toLowerCase()
+
+  if (!isOrganizerOrAdmin && !isOwner) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  // Owners can only cancel their own registration
+  if (isOwner && !isOrganizerOrAdmin && body.status !== 'cancelled') {
+    return NextResponse.json({ error: 'Możesz tylko anulować własny zapis' }, { status: 403 })
   }
 
   const allowedStatuses = ['pending', 'confirmed', 'cancelled']
@@ -28,6 +51,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const update: Record<string, unknown> = {}
   if ('status' in body) update.status = body.status
+  // Organizer/admin can also update time_slot_id for schedule management
+  if ('time_slot_id' in body && isOrganizerOrAdmin) {
+    update.time_slot_id = body.time_slot_id
+  }
 
   const { data, error } = await supabase
     .from('registrations')
@@ -38,10 +65,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Send email when status changes to confirmed
-  if (update.status === 'confirmed') {
-    const participant = (data as any)?.participants
-    const event = (data as any)?.events
+  // Send email when organizer confirms a registration
+  if (update.status === 'confirmed' && isOrganizerOrAdmin) {
+    const participant = (data as Record<string, unknown>).participants as Record<string, string> | null
+    const event = (data as Record<string, unknown>).events as Record<string, string> | null
     if (participant?.owner_email) {
       sendRegistrationEmail({
         to: participant.owner_email,

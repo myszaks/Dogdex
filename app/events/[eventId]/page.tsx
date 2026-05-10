@@ -10,6 +10,8 @@ import {
   statusColor,
 } from '@/lib/utils'
 import RegisterModal from '@/components/RegisterModal'
+import UserRegistrationStatus from '@/components/UserRegistrationStatus'
+import EventMapClient from '@/components/EventMapClient'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 
@@ -50,11 +52,19 @@ export default async function EventDetailPage({ params }: Props) {
   if (!event) notFound()
   if (redirectTo) redirect(redirectTo)
 
+  const supabase = createServerClient()
+  // Check if there are any published time slots for this event
+  const { count: slotCount } = await supabase
+    .from('time_slots')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', event.id)
+
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
   const dispStatus = effectiveStatus(event)
   const isOngoing = event.status === 'ongoing'
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
+  const hasSchedule = (slotCount ?? 0) > 0
 
   return (
     <div>
@@ -143,8 +153,15 @@ export default async function EventDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* Google Maps */}
-          {mapsQuery && (
+          {/* Map: Leaflet (when lat/lng available) or Google Maps iframe fallback */}
+          {event.lat && event.lng ? (
+            <div className="card p-0 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
+              </div>
+              <EventMapClient lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
+            </div>
+          ) : mapsQuery ? (
             <div className="card p-0 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
@@ -157,6 +174,22 @@ export default async function EventDetailPage({ params }: Props) {
                 referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
+          ) : null}
+
+          {/* Gallery */}
+          {Array.isArray(event.gallery_images) && event.gallery_images.length > 0 && (
+            <div className="card space-y-3">
+              <h2 className="text-sm font-semibold text-slate-700">🖼️ Galeria</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {event.gallery_images.map((url: string, i: number) => (
+                  <a key={url + i} href={url} target="_blank" rel="noopener noreferrer">
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity">
+                      <Image src={url} alt={`Zdjęcie ${i + 1}`} fill className="object-cover" unoptimized />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -167,8 +200,15 @@ export default async function EventDetailPage({ params }: Props) {
           <div className="card">
             <h2 className="font-semibold text-slate-800 mb-3">Zapisy</h2>
 
+            {/* If user is logged in, show their registration status first */}
+            <UserRegistrationStatus
+              eventId={event.id}
+              eventTitle={event.title}
+              formFields={formFields}
+            />
+
             {event.status === 'upcoming' && regOpen && (
-              <>
+              <div className="mt-3">
                 {event.registration_deadline && (
                   <p className="text-sm text-slate-500 mb-3">
                     ⏳ Zapisy otwarte do<br />
@@ -185,7 +225,7 @@ export default async function EventDetailPage({ params }: Props) {
                   eventTitle={event.title}
                   formFields={formFields}
                 />
-              </>
+              </div>
             )}
 
             {event.status === 'upcoming' && !regOpen && (
@@ -206,6 +246,20 @@ export default async function EventDetailPage({ params }: Props) {
           {event.status === 'ongoing' && event.has_results && event.results_public && (
             <Link href={`/live/${event.id}`} className="btn btn-primary w-full">
               🔴 Wyniki live
+            </Link>
+          )}
+
+          {/* Results button for finished events */}
+          {event.status === 'finished' && event.has_results && (
+            <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full">
+              🏆 Zobacz wyniki
+            </Link>
+          )}
+
+          {/* Schedule button */}
+          {hasSchedule && (
+            <Link href={`/events/${event.slug ?? event.id}/schedule`} className="btn btn-secondary w-full">
+              📅 Grafik godzinowy
             </Link>
           )}
 

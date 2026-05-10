@@ -1,4 +1,5 @@
 import { createAuthClient } from '@/lib/supabaseServer'
+import { headers } from 'next/headers'
 import AuthGateClient from './AuthGateClient'
 
 /**
@@ -7,15 +8,26 @@ import AuthGateClient from './AuthGateClient'
  * can see the app. Others see a full-screen login prompt (unauthenticated)
  * or a 403 message (authenticated but not in the list).
  *
- * Runs on every RSC render, including client-side navigations — so it
- * cannot be bypassed by navigating around the app.
+ * Public paths (e.g. /register/..., /events/...) are excluded so that
+ * event participants can still sign up without an account.
  */
+
+// Paths that are always accessible regardless of ALLOWLIST
+const PUBLIC_PREFIXES = ['/register/', '/events/', '/auth/', '/archive/']
+
 export default async function AuthGate({ children }: { children: React.ReactNode }) {
   const enabled =
     process.env.ALLOWLIST_ENABLED === '1' ||
     process.env.ALLOWLIST_ENABLED === 'true'
 
   if (!enabled) return <>{children}</>
+
+  // Skip gate for public paths (event registration, event detail, auth callbacks)
+  const headersList = await headers()
+  const pathname = headersList.get('x-pathname') ?? headersList.get('next-url') ?? ''
+  if (PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    return <>{children}</>
+  }
 
   const supabase = await createAuthClient()
   const {

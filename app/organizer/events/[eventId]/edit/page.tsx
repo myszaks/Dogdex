@@ -41,6 +41,10 @@ export default async function EditEventPage({ params }: Props) {
           max_participants: event.max_participants ?? null,
           image_url: event.image_url ?? null,
           organizer_name: event.organizer_name ?? null,
+          lat: event.lat ?? null,
+          lng: event.lng ?? null,
+          gallery_images: Array.isArray(event.gallery_images) ? event.gallery_images : [],
+          grouping_field: event.grouping_field ?? null,
         }}
       />
     </div>

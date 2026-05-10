@@ -2,7 +2,6 @@ import { createServerClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import {
   formatDate,
   isRegistrationOpen,
@@ -12,10 +11,9 @@ import {
 } from '@/lib/utils'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
+import EventMapClient from '@/components/EventMapClient'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
-
-const EventMap = dynamic(() => import('@/components/EventMap'), { ssr: false })
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -153,7 +151,7 @@ export default async function EventDetailPage({ params }: Props) {
               <div className="px-4 py-3 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
               </div>
-              <EventMap lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
+              <EventMapClient lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
             </div>
           ) : mapsQuery ? (
             <div className="card p-0 overflow-hidden">

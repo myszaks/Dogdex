@@ -37,13 +37,16 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
       const initLng = lng ?? DEFAULT_LNG
       const initZoom = lat !== null ? 13 : DEFAULT_ZOOM
 
-      const map = L.map(containerRef.current!).setView([initLat, initLng], initZoom)
+      const map = L.map(containerRef.current!, { scrollWheelZoom: true }).setView([initLat, initLng], initZoom)
       mapRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(map)
+
+      // Force correct size after DOM is fully laid out
+      setTimeout(() => map.invalidateSize(), 100)
 
       if (lat !== null && lng !== null) {
         markerRef.current = L.marker([lat, lng]).addTo(map)

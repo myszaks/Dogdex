@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -122,12 +122,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       })
       if (!res.ok) {
         const json = await res.json()
-        throw new Error(json.error ?? 'BĹ‚Ä…d serwera')
+        throw new Error(json.error ?? 'Błąd serwera')
       }
       router.push('/organizer')
       router.refresh()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Nieznany bĹ‚Ä…d')
+      setError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setLoading(false)
     }
@@ -144,7 +144,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               value={eventTypeId}
               onChange={e => handleEventTypeChange(e.target.value)}
             >
-              <option value="">â€” brak / nie wybrano â€”</option>
+              <option value="">— brak / nie wybrano —</option>
               {EVENT_TYPES.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.icon} {t.name}
@@ -157,13 +157,13 @@ export default function EditEventClient({ eventId, initialData }: Props) {
             <label className="form-label">Organizator</label>
             <input
               className="form-input"
-              placeholder="ImiÄ™ i nazwisko lub nazwa klubu"
+              placeholder="Imię i nazwisko lub nazwa klubu"
               value={organizerName}
               onChange={e => setOrganizerName(e.target.value)}
             />
           </div>
           <div>
-            <label className="form-label">TytuĹ‚ *</label>
+            <label className="form-label">Tytuł *</label>
             <input
               className="form-input"
               name="title"
@@ -196,23 +196,23 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Data rozpoczÄ™cia</label>
-              <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datÄ™ startu" />
+              <label className="form-label">Data rozpoczęcia</label>
+              <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datę startu" />
             </div>
             <div>
-              <label className="form-label">Data zakoĹ„czenia</label>
+              <label className="form-label">Data zakończenia</label>
               <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
           <div>
-            <label className="form-label">Termin zapisĂłw</label>
+            <label className="form-label">Termin zapisów</label>
             <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
-            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostanÄ… automatycznie zamkniÄ™te.</p>
+            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
           </div>
 
           {/* Registrations settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">đź“ť Zapisy</p>
+            <p className="text-sm font-semibold text-slate-700">📝 Zapisy</p>
             <div>
               <label className="form-label">Limit miejsc</label>
               <input
@@ -232,15 +232,15 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 onChange={e => setAutoConfirm(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisĂłw</span>
-                <p className="text-xs text-slate-400 mt-0.5">KaĹĽdy zapis bÄ™dzie od razu potwierdzony (bez oczekiwania na akceptacjÄ™ organizatora).</p>
+                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisów</span>
+                <p className="text-xs text-slate-400 mt-0.5">Każdy zapis będzie od razu potwierdzony (bez oczekiwania na akceptację organizatora).</p>
               </div>
             </label>
           </div>
 
           {/* Results settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">đźŹ† Wyniki i ranking</p>
+            <p className="text-sm font-semibold text-slate-700">🏆 Wyniki i ranking</p>
             <label className="flex items-start gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -249,8 +249,8 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 onChange={e => setHasResults(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">WĹ‚Ä…cz wyniki i ranking</span>
-                <p className="text-xs text-slate-400 mt-0.5">Organizator bÄ™dzie mĂłgĹ‚ wpisywaÄ‡ wyniki; pojawi siÄ™ widok live dla uczestnikĂłw.</p>
+                <span className="text-sm font-medium text-slate-700">Włącz wyniki i ranking</span>
+                <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł wpisywać wyniki; pojawi się widok live dla uczestników.</p>
               </div>
             </label>
             {hasResults && (
@@ -263,7 +263,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 />
                 <div>
                   <span className="text-sm font-medium text-slate-700">Wyniki widoczne publicznie (live)</span>
-                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeĹ›li chcesz opublikowaÄ‡ wyniki dopiero po zakoĹ„czeniu rywalizacji.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeśli chcesz opublikować wyniki dopiero po zakończeniu rywalizacji.</p>
                 </div>
               </label>
             )}
@@ -271,10 +271,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <div>
             <label className="form-label">Status</label>
             <select className="form-input" name="status" defaultValue={initialData.status}>
-              <option value="upcoming">NadchodzÄ…ce</option>
+              <option value="upcoming">Nadchodzące</option>
               <option value="ongoing">W trakcie</option>
-              <option value="finished">ZakoĹ„czone</option>
-              <option value="cancelled">OdwoĹ‚ane</option>
+              <option value="finished">Zakończone</option>
+              <option value="cancelled">Odwołane</option>
             </select>
           </div>
         </div>
@@ -292,9 +292,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
         {/* Form builder + grouping */}
         <div className="card space-y-3">
           <div>
-            <h2 className="font-semibold text-slate-800">đź“‹ Formularz zapisĂłw</h2>
+            <h2 className="font-semibold text-slate-800">📋 Formularz zapisów</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Wybierz szablon lub edytuj pola rÄ™cznie.
+              Wybierz szablon lub edytuj pola ręcznie.
             </p>
           </div>
           <FormTemplatePicker
@@ -304,18 +304,18 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           />
           {groupableFields.length > 0 && (
             <div>
-              <label className="form-label">Grupuj zapisy wedĹ‚ug</label>
+              <label className="form-label">Grupuj zapisy według</label>
               <select
                 className="form-input"
                 value={groupingField}
                 onChange={e => setGroupingField(e.target.value)}
               >
-                <option value="">â€” brak grupowania â€”</option>
+                <option value="">— brak grupowania —</option>
                 {groupableFields.map(f => (
                   <option key={f.id} value={f.id}>{f.label}</option>
                 ))}
               </select>
-              <p className="text-xs text-slate-400 mt-1">Listy zapisĂłw bÄ™dÄ… pogrupowane wedĹ‚ug tego pola.</p>
+              <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
             </div>
           )}
         </div>

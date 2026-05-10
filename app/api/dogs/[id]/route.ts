@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 
 // GET /api/dogs/[id]
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
@@ -10,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data: dog } = await supabase
     .from('dogs')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
     .single()
   if (!dog) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
@@ -18,13 +19,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PATCH /api/dogs/[id]
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const { data: existing } = await supabase
-    .from('dogs').select('id').eq('id', params.id).eq('user_id', user.id).single()
+    .from('dogs').select('id').eq('id', id).eq('user_id', user.id).single()
   if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
   const body = await req.json()
@@ -40,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data, error } = await supabase
     .from('dogs')
     .update(update)
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
     .select()
     .single()
@@ -50,7 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/dogs/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
@@ -58,7 +61,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { error } = await supabase
     .from('dogs')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

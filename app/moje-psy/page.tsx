@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import MojePsyClient from './MojePsyClient'
 
@@ -11,7 +11,7 @@ export default async function MojePsyPage() {
   const { data: { user } } = await auth.auth.getUser()
   if (!user) redirect('/')
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data: dogs } = await supabase
     .from('dogs')
     .select('*')

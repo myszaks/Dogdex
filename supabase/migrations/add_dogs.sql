@@ -58,6 +58,26 @@ create policy "Users can delete own dogs"
 grant select, insert, update, delete on table dogs to authenticated;
 grant select on table dogs to anon;
 
--- Storage bucket na zdjęcia psów (uruchom raz)
--- insert into storage.buckets (id, name, public) values ('dog-photos', 'dog-photos', true)
--- on conflict do nothing;
+-- Storage bucket na zdjęcia psów
+insert into storage.buckets (id, name, public)
+values ('dog-photos', 'dog-photos', true)
+on conflict do nothing;
+
+-- Polityki storage: właściciel może upload/delete tylko w swoim folderze
+create policy "Dog photo upload own folder"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'dog-photos'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  );
+
+create policy "Dog photo delete own folder"
+  on storage.objects for delete
+  using (
+    bucket_id = 'dog-photos'
+    and auth.uid()::text = (string_to_array(name, '/'))[1]
+  );
+
+create policy "Dog photo public read"
+  on storage.objects for select
+  using (bucket_id = 'dog-photos');

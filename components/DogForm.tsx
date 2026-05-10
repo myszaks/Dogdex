@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { Dog, AgilityLevel, DogGender } from '@/types'
+import DogPhotoUploader from './DogPhotoUploader'
 
 export const AGILITY_LEVELS: { value: AgilityLevel; label: string }[] = [
   { value: 'none', label: 'Brak / nie dotyczy' },
@@ -58,6 +59,12 @@ export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Zdjęcie psa – okrągłe, z cropem */}
+      <DogPhotoUploader
+        currentUrl={form.photo_url}
+        onUrlChange={url => set('photo_url', url)}
+      />
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="form-label">Imię psa *</label>

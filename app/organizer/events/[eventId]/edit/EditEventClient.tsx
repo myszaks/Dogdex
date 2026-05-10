@@ -1,10 +1,18 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
+import DateTimePicker from '@/components/DateTimePicker'
+import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import type { FormField } from '@/types'
+
+const MapPicker = dynamic(() => import('@/components/MapPicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-64 rounded-xl bg-slate-100 animate-pulse" />,
+})
 
 interface Props {
   eventId: string
@@ -24,6 +32,10 @@ interface Props {
     max_participants: number | null
     image_url: string | null
     organizer_name: string | null
+    lat: number | null
+    lng: number | null
+    gallery_images: string[]
+    grouping_field: string | null
   }
 }
 
@@ -42,15 +54,17 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   )
   const [imageUrl, setImageUrl] = useState<string | null>(initialData.image_url ?? null)
   const [organizerName, setOrganizerName] = useState<string>(initialData.organizer_name ?? '')
-
-  function toLocalDatetime(isoStr: string | null): string {
-    if (!isoStr) return ''
-    return isoStr.slice(0, 16)
-  }
+  const [startAt, setStartAt] = useState<string | null>(initialData.start_at ?? null)
+  const [endAt, setEndAt] = useState<string | null>(initialData.end_at ?? null)
+  const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(initialData.registration_deadline ?? null)
+  const [lat, setLat] = useState<number | null>(initialData.lat ?? null)
+  const [lng, setLng] = useState<number | null>(initialData.lng ?? null)
+  const [location, setLocation] = useState<string>(initialData.location ?? '')
+  const [galleryImages, setGalleryImages] = useState<string[]>(initialData.gallery_images ?? [])
+  const [groupingField, setGroupingField] = useState<string>(initialData.grouping_field ?? '')
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
-    // Only pre-fill default fields if currently empty (don't override existing)
     if (formFields.length === 0) {
       const et = EVENT_TYPES.find(t => t.id === id)
       if (et) {
@@ -64,6 +78,16 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     setFormFields(fields)
   }
 
+  function handleMapLocation(newLat: number, newLng: number, address: string) {
+    setLat(newLat)
+    setLng(newLng)
+    setLocation(address)
+  }
+
+  const groupableFields = formFields.filter(f =>
+    ['select', 'multiselect', 'multidate'].includes(f.type)
+  )
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
@@ -72,10 +96,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     const payload = {
       title: form.get('title'),
       description: form.get('description') || null,
-      location: form.get('location') || null,
-      start_at: form.get('start_at') || null,
-      end_at: form.get('end_at') || null,
-      registration_deadline: form.get('registration_deadline') || null,
+      location: location || null,
+      start_at: startAt,
+      end_at: endAt || null,
+      registration_deadline: registrationDeadline || null,
       status: form.get('status'),
       event_type_id: eventTypeId || null,
       form_fields: formFields,
@@ -85,6 +109,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       image_url: imageUrl,
       organizer_name: organizerName.trim() || null,
+      lat,
+      lng,
+      gallery_images: galleryImages,
+      grouping_field: groupingField || null,
     }
     try {
       const res = await fetch(`/api/events/${eventId}`, {
@@ -94,12 +122,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       })
       if (!res.ok) {
         const json = await res.json()
-        throw new Error(json.error ?? 'Błąd serwera')
+        throw new Error(json.error ?? 'BĹ‚Ä…d serwera')
       }
       router.push('/organizer')
       router.refresh()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Nieznany błąd')
+      setError(err instanceof Error ? err.message : 'Nieznany bĹ‚Ä…d')
     } finally {
       setLoading(false)
     }
@@ -116,7 +144,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               value={eventTypeId}
               onChange={e => handleEventTypeChange(e.target.value)}
             >
-              <option value="">— brak / nie wybrano —</option>
+              <option value="">â€” brak / nie wybrano â€”</option>
               {EVENT_TYPES.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.icon} {t.name}
@@ -129,13 +157,13 @@ export default function EditEventClient({ eventId, initialData }: Props) {
             <label className="form-label">Organizator</label>
             <input
               className="form-input"
-              placeholder="Imię i nazwisko lub nazwa klubu"
+              placeholder="ImiÄ™ i nazwisko lub nazwa klubu"
               value={organizerName}
               onChange={e => setOrganizerName(e.target.value)}
             />
           </div>
           <div>
-            <label className="form-label">Tytuł *</label>
+            <label className="form-label">TytuĹ‚ *</label>
             <input
               className="form-input"
               name="title"
@@ -152,48 +180,39 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               defaultValue={initialData.description ?? ''}
             />
           </div>
+
+          {/* Location + Map */}
           <div>
             <label className="form-label">Lokalizacja</label>
             <input
-              className="form-input"
-              name="location"
-              defaultValue={initialData.location ?? ''}
+              className="form-input mb-2"
+              placeholder="Warszawa, ul. Psia 1"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
             />
+            <MapPicker lat={lat} lng={lng} onLocationChange={handleMapLocation} />
           </div>
+
+          {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Data rozpoczęcia</label>
-              <input
-                className="form-input"
-                type="datetime-local"
-                name="start_at"
-                defaultValue={toLocalDatetime(initialData.start_at)}
-              />
+              <label className="form-label">Data rozpoczÄ™cia</label>
+              <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datÄ™ startu" />
             </div>
             <div>
-              <label className="form-label">Data zakończenia</label>
-              <input
-                className="form-input"
-                type="datetime-local"
-                name="end_at"
-                defaultValue={toLocalDatetime(initialData.end_at)}
-              />
+              <label className="form-label">Data zakoĹ„czenia</label>
+              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
           <div>
-            <label className="form-label">Termin zapisów</label>
-            <input
-              className="form-input"
-              type="datetime-local"
-              name="registration_deadline"
-              defaultValue={toLocalDatetime(initialData.registration_deadline)}
-            />
-            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
+            <label className="form-label">Termin zapisĂłw</label>
+            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
+            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostanÄ… automatycznie zamkniÄ™te.</p>
           </div>
 
           {/* Registrations settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">📝 Zapisy</p>
+            <p className="text-sm font-semibold text-slate-700">đź“ť Zapisy</p>
             <div>
               <label className="form-label">Limit miejsc</label>
               <input
@@ -213,15 +232,15 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 onChange={e => setAutoConfirm(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisów</span>
-                <p className="text-xs text-slate-400 mt-0.5">Każdy zapis będzie od razu potwierdzony (bez oczekiwania na akceptację organizatora).</p>
+                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisĂłw</span>
+                <p className="text-xs text-slate-400 mt-0.5">KaĹĽdy zapis bÄ™dzie od razu potwierdzony (bez oczekiwania na akceptacjÄ™ organizatora).</p>
               </div>
             </label>
           </div>
 
           {/* Results settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">🏆 Wyniki i ranking</p>
+            <p className="text-sm font-semibold text-slate-700">đźŹ† Wyniki i ranking</p>
             <label className="flex items-start gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -230,8 +249,8 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 onChange={e => setHasResults(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">Włącz wyniki i ranking</span>
-                <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł wpisywać wyniki; pojawi się widok live dla uczestników.</p>
+                <span className="text-sm font-medium text-slate-700">WĹ‚Ä…cz wyniki i ranking</span>
+                <p className="text-xs text-slate-400 mt-0.5">Organizator bÄ™dzie mĂłgĹ‚ wpisywaÄ‡ wyniki; pojawi siÄ™ widok live dla uczestnikĂłw.</p>
               </div>
             </label>
             {hasResults && (
@@ -244,7 +263,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 />
                 <div>
                   <span className="text-sm font-medium text-slate-700">Wyniki widoczne publicznie (live)</span>
-                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeśli chcesz opublikować wyniki dopiero po zakończeniu rywalizacji.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeĹ›li chcesz opublikowaÄ‡ wyniki dopiero po zakoĹ„czeniu rywalizacji.</p>
                 </div>
               </label>
             )}
@@ -252,10 +271,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <div>
             <label className="form-label">Status</label>
             <select className="form-input" name="status" defaultValue={initialData.status}>
-              <option value="upcoming">Nadchodzące</option>
+              <option value="upcoming">NadchodzÄ…ce</option>
               <option value="ongoing">W trakcie</option>
-              <option value="finished">Zakończone</option>
-              <option value="cancelled">Odwołane</option>
+              <option value="finished">ZakoĹ„czone</option>
+              <option value="cancelled">OdwoĹ‚ane</option>
             </select>
           </div>
         </div>
@@ -265,12 +284,17 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
         </div>
 
-        {/* Form builder */}
+        {/* Gallery */}
+        <div className="card space-y-3">
+          <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
+        </div>
+
+        {/* Form builder + grouping */}
         <div className="card space-y-3">
           <div>
-            <h2 className="font-semibold text-slate-800">📋 Formularz zapisów</h2>
+            <h2 className="font-semibold text-slate-800">đź“‹ Formularz zapisĂłw</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Wybierz szablon lub edytuj pola ręcznie.
+              Wybierz szablon lub edytuj pola rÄ™cznie.
             </p>
           </div>
           <FormTemplatePicker
@@ -278,6 +302,22 @@ export default function EditEventClient({ eventId, initialData }: Props) {
             selectedTemplateId={selectedTemplateId}
             onSelect={handleTemplateSelect}
           />
+          {groupableFields.length > 0 && (
+            <div>
+              <label className="form-label">Grupuj zapisy wedĹ‚ug</label>
+              <select
+                className="form-input"
+                value={groupingField}
+                onChange={e => setGroupingField(e.target.value)}
+              >
+                <option value="">â€” brak grupowania â€”</option>
+                {groupableFields.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Listy zapisĂłw bÄ™dÄ… pogrupowane wedĹ‚ug tego pola.</p>
+            </div>
+          )}
         </div>
 
         {error && (

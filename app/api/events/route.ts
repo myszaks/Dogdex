@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, registration_deadline, has_results, results_public, auto_confirm, max_participants, image_url, organizer_name } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, registration_deadline, has_results, results_public, auto_confirm, max_participants, image_url, organizer_name, lat, lng, gallery_images, grouping_field } = body as Record<string, unknown>
 
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
@@ -68,6 +68,11 @@ export async function POST(req: Request) {
       max_participants: typeof max_participants === 'number' ? max_participants : null,
       image_url: (image_url as string | null) ?? null,
       organizer_name: (organizer_name as string | null) ?? null,
+      created_by: authResult.user.id,
+      lat: typeof lat === 'number' ? lat : null,
+      lng: typeof lng === 'number' ? lng : null,
+      gallery_images: Array.isArray(gallery_images) ? gallery_images : [],
+      grouping_field: (grouping_field as string | null) ?? null,
     }])
     .select()
     .single()

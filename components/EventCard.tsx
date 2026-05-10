@@ -46,9 +46,19 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-2">
           <h2 className="font-semibold text-lg text-slate-800 leading-tight">{event.title}</h2>
-          <span className={`badge ${statusColor(dispStatus)} shrink-0`}>
-            {statusLabel(dispStatus)}
-          </span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className={`badge ${statusColor(dispStatus)}`}>
+              {statusLabel(dispStatus)}
+            </span>
+            {event.last_significant_change &&
+              Array.isArray(event.changed_fields) &&
+              event.changed_fields.some((f: string) => ['start_at', 'end_at', 'location'].includes(f)) &&
+              Date.now() - new Date(event.last_significant_change).getTime() < 7 * 24 * 60 * 60 * 1000 && (
+                <span className="text-xs bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">
+                  ⚠️ Zmiana terminu/miejsca
+                </span>
+              )}
+          </div>
         </div>
         {event.organizer_name && (
           <p className="text-xs text-slate-400 mt-0.5">👤 {event.organizer_name}</p>

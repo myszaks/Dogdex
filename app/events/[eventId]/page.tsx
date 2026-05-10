@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   formatDate,
   isRegistrationOpen,
@@ -10,8 +11,11 @@ import {
   statusColor,
 } from '@/lib/utils'
 import RegisterModal from '@/components/RegisterModal'
+import UserRegistrationStatus from '@/components/UserRegistrationStatus'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
+
+const EventMap = dynamic(() => import('@/components/EventMap'), { ssr: false })
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -143,8 +147,15 @@ export default async function EventDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* Google Maps */}
-          {mapsQuery && (
+          {/* Map: Leaflet (when lat/lng available) or Google Maps iframe fallback */}
+          {event.lat && event.lng ? (
+            <div className="card p-0 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
+              </div>
+              <EventMap lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
+            </div>
+          ) : mapsQuery ? (
             <div className="card p-0 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
@@ -157,6 +168,22 @@ export default async function EventDetailPage({ params }: Props) {
                 referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
+          ) : null}
+
+          {/* Gallery */}
+          {Array.isArray(event.gallery_images) && event.gallery_images.length > 0 && (
+            <div className="card space-y-3">
+              <h2 className="text-sm font-semibold text-slate-700">🖼️ Galeria</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {event.gallery_images.map((url: string, i: number) => (
+                  <a key={url + i} href={url} target="_blank" rel="noopener noreferrer">
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity">
+                      <Image src={url} alt={`Zdjęcie ${i + 1}`} fill className="object-cover" unoptimized />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -167,8 +194,15 @@ export default async function EventDetailPage({ params }: Props) {
           <div className="card">
             <h2 className="font-semibold text-slate-800 mb-3">Zapisy</h2>
 
+            {/* If user is logged in, show their registration status first */}
+            <UserRegistrationStatus
+              eventId={event.id}
+              eventTitle={event.title}
+              formFields={formFields}
+            />
+
             {event.status === 'upcoming' && regOpen && (
-              <>
+              <div className="mt-3">
                 {event.registration_deadline && (
                   <p className="text-sm text-slate-500 mb-3">
                     ⏳ Zapisy otwarte do<br />
@@ -185,7 +219,7 @@ export default async function EventDetailPage({ params }: Props) {
                   eventTitle={event.title}
                   formFields={formFields}
                 />
-              </>
+              </div>
             )}
 
             {event.status === 'upcoming' && !regOpen && (

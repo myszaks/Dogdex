@@ -1,10 +1,18 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
+import DateTimePicker from '@/components/DateTimePicker'
+import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import type { FormField } from '@/types'
+
+const MapPicker = dynamic(() => import('@/components/MapPicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-64 rounded-xl bg-slate-100 animate-pulse" />,
+})
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -18,10 +26,17 @@ export default function NewEventPage() {
   const [autoConfirm, setAutoConfirm] = useState(false)
   const [maxParticipants, setMaxParticipants] = useState<string>('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [galleryImages, setGalleryImages] = useState<string[]>([])
+  const [startAt, setStartAt] = useState<string | null>(null)
+  const [endAt, setEndAt] = useState<string | null>(null)
+  const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(null)
+  const [lat, setLat] = useState<number | null>(null)
+  const [lng, setLng] = useState<number | null>(null)
+  const [location, setLocation] = useState<string>('')
+  const [groupingField, setGroupingField] = useState<string>('')
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
-    // Clear template selection when type changes
     setSelectedTemplateId(null)
     setFormFields([])
   }
@@ -30,6 +45,16 @@ export default function NewEventPage() {
     setSelectedTemplateId(templateId)
     setFormFields(fields)
   }
+
+  function handleMapLocation(newLat: number, newLng: number, address: string) {
+    setLat(newLat)
+    setLng(newLng)
+    setLocation(address)
+  }
+
+  const groupableFields = formFields.filter(f =>
+    ['select', 'multiselect', 'multidate'].includes(f.type)
+  )
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -40,10 +65,10 @@ export default function NewEventPage() {
     const payload = {
       title: form.get('title'),
       description: form.get('description') || null,
-      location: form.get('location') || null,
-      start_at: form.get('start_at') || null,
-      end_at: form.get('end_at') || null,
-      registration_deadline: form.get('registration_deadline') || null,
+      location: location || null,
+      start_at: startAt,
+      end_at: endAt || null,
+      registration_deadline: registrationDeadline || null,
       status: 'upcoming',
       event_type_id: eventTypeId || null,
       form_fields: formFields,
@@ -53,6 +78,10 @@ export default function NewEventPage() {
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       image_url: imageUrl,
       organizer_name: (form.get('organizer_name') as string) || null,
+      lat,
+      lng,
+      gallery_images: galleryImages,
+      grouping_field: groupingField || null,
     }
 
     try {
@@ -63,12 +92,12 @@ export default function NewEventPage() {
       })
       if (!res.ok) {
         const json = await res.json()
-        throw new Error(json.error ?? 'Błąd serwera')
+        throw new Error(json.error ?? 'BĹ‚Ä…d serwera')
       }
       router.push('/organizer')
       router.refresh()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Nieznany błąd')
+      setError(err instanceof Error ? err.message : 'Nieznany bĹ‚Ä…d')
     } finally {
       setLoading(false)
     }
@@ -78,7 +107,7 @@ export default function NewEventPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="page-title">➕ Nowe wydarzenie</h1>
+      <h1 className="page-title">âž• Nowe wydarzenie</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card space-y-4">
           <div>
@@ -89,7 +118,7 @@ export default function NewEventPage() {
               onChange={e => handleEventTypeChange(e.target.value)}
               required
             >
-              <option value="">— wybierz typ —</option>
+              <option value="">â€” wybierz typ â€”</option>
               {EVENT_TYPES.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.icon} {t.name}
@@ -103,19 +132,19 @@ export default function NewEventPage() {
             <input
               className="form-input"
               name="organizer_name"
-              placeholder="Imię i nazwisko lub nazwa klubu"
+              placeholder="ImiÄ™ i nazwisko lub nazwa klubu"
             />
           </div>
           <div>
-            <label className="form-label">Tytuł *</label>
+            <label className="form-label">TytuĹ‚ *</label>
             <input
               className="form-input"
               name="title"
               required
               placeholder={
                 selectedType
-                  ? `${selectedType.icon} ${selectedType.name} – Wiosna 2026`
-                  : 'Tytuł wydarzenia'
+                  ? `${selectedType.icon} ${selectedType.name} â€“ Wiosna 2026`
+                  : 'TytuĹ‚ wydarzenia'
               }
             />
           </div>
@@ -125,36 +154,42 @@ export default function NewEventPage() {
               className="form-input"
               name="description"
               rows={3}
-              placeholder="Krótki opis wydarzenia, zasady, kategorie..."
+              placeholder="KrĂłtki opis wydarzenia, zasady, kategorie..."
             />
           </div>
+
+          {/* Location + Map */}
           <div>
             <label className="form-label">Lokalizacja</label>
             <input
-              className="form-input"
-              name="location"
+              className="form-input mb-2"
               placeholder="Warszawa, ul. Psia 1"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
             />
+            <MapPicker lat={lat} lng={lng} onLocationChange={handleMapLocation} />
           </div>
+
+          {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Data rozpoczęcia *</label>
-              <input className="form-input" type="datetime-local" name="start_at" required />
+              <label className="form-label">Data rozpoczÄ™cia *</label>
+              <DateTimePicker value={startAt} onChange={setStartAt} required placeholder="Wybierz datÄ™ startu" />
             </div>
             <div>
-              <label className="form-label">Data zakończenia</label>
-              <input className="form-input" type="datetime-local" name="end_at" />
+              <label className="form-label">Data zakoĹ„czenia</label>
+              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
           <div>
-            <label className="form-label">Termin zapisów</label>
-            <input className="form-input" type="datetime-local" name="registration_deadline" />
-            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
+            <label className="form-label">Termin zapisĂłw</label>
+            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
+            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostanÄ… automatycznie zamkniÄ™te.</p>
           </div>
 
           {/* Registrations settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">📝 Zapisy</p>
+            <p className="text-sm font-semibold text-slate-700">đź“ť Zapisy</p>
             <div>
               <label className="form-label">Limit miejsc</label>
               <input
@@ -174,15 +209,15 @@ export default function NewEventPage() {
                 onChange={e => setAutoConfirm(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisów</span>
-                <p className="text-xs text-slate-400 mt-0.5">Każdy zapis będzie od razu potwierdzony (bez oczekiwania na akceptację organizatora).</p>
+                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisĂłw</span>
+                <p className="text-xs text-slate-400 mt-0.5">KaĹĽdy zapis bÄ™dzie od razu potwierdzony (bez oczekiwania na akceptacjÄ™ organizatora).</p>
               </div>
             </label>
           </div>
 
           {/* Results settings */}
           <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">🏆 Wyniki i ranking</p>
+            <p className="text-sm font-semibold text-slate-700">đźŹ† Wyniki i ranking</p>
             <label className="flex items-start gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -191,8 +226,8 @@ export default function NewEventPage() {
                 onChange={e => setHasResults(e.target.checked)}
               />
               <div>
-                <span className="text-sm font-medium text-slate-700">Włącz wyniki i ranking</span>
-                <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł wpisywać wyniki; pojawi się widok live dla uczestników.</p>
+                <span className="text-sm font-medium text-slate-700">WĹ‚Ä…cz wyniki i ranking</span>
+                <p className="text-xs text-slate-400 mt-0.5">Organizator bÄ™dzie mĂłgĹ‚ wpisywaÄ‡ wyniki; pojawi siÄ™ widok live dla uczestnikĂłw.</p>
               </div>
             </label>
             {hasResults && (
@@ -205,7 +240,7 @@ export default function NewEventPage() {
                 />
                 <div>
                   <span className="text-sm font-medium text-slate-700">Wyniki widoczne publicznie (live)</span>
-                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeśli chcesz opublikować wyniki dopiero po zakończeniu rywalizacji.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeĹ›li chcesz opublikowaÄ‡ wyniki dopiero po zakoĹ„czeniu rywalizacji.</p>
                 </div>
               </label>
             )}
@@ -217,12 +252,17 @@ export default function NewEventPage() {
           <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
         </div>
 
+        {/* Gallery */}
+        <div className="card space-y-3">
+          <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
+        </div>
+
         {/* Template picker section */}
         <div className="card space-y-3">
           <div>
-            <h2 className="font-semibold text-slate-800">📋 Formularz zapisów</h2>
+            <h2 className="font-semibold text-slate-800">đź“‹ Formularz zapisĂłw</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Wybierz szablon pól dodatkowych lub stwórz nowy.
+              Wybierz szablon pĂłl dodatkowych lub stwĂłrz nowy.
             </p>
           </div>
           <FormTemplatePicker
@@ -230,6 +270,24 @@ export default function NewEventPage() {
             selectedTemplateId={selectedTemplateId}
             onSelect={handleTemplateSelect}
           />
+
+          {/* Grouping field */}
+          {groupableFields.length > 0 && (
+            <div>
+              <label className="form-label">Grupuj zapisy wedĹ‚ug</label>
+              <select
+                className="form-input"
+                value={groupingField}
+                onChange={e => setGroupingField(e.target.value)}
+              >
+                <option value="">â€” brak grupowania â€”</option>
+                {groupableFields.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Listy zapisĂłw bÄ™dÄ… pogrupowane wedĹ‚ug tego pola.</p>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -247,10 +305,12 @@ export default function NewEventPage() {
             Anuluj
           </button>
           <button type="submit" disabled={loading} className="btn btn-primary flex-1">
-            {loading ? 'Tworzenie...' : 'Utwórz wydarzenie'}
+            {loading ? 'Tworzenie...' : 'UtwĂłrz wydarzenie'}
           </button>
         </div>
       </form>
     </div>
   )
 }
+
+

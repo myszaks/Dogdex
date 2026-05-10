@@ -9,8 +9,12 @@ export interface DogEvent {
   location: string | null
   status: string
   created_at: string
+  created_by: string | null
   metadata: Record<string, unknown>
   image_url: string | null
+  gallery_images: string[]
+  lat: number | null
+  lng: number | null
   event_type_id: string | null
   form_fields: FormField[]
   has_results: boolean
@@ -18,6 +22,10 @@ export interface DogEvent {
   auto_confirm: boolean
   max_participants: number | null
   organizer_name: string | null
+  grouping_field: string | null
+  last_significant_change: string | null
+  changed_fields: string[]
+  current_start_index: number
 }
 
 export interface Participant {
@@ -37,8 +45,21 @@ export interface Registration {
   status: string
   created_at: string
   form_data: Record<string, unknown>
+  order_index: number | null
+  time_slot_id: string | null
+  schedule_sent_at: string | null
   participants?: Participant
   events?: DogEvent
+}
+
+export interface TimeSlot {
+  id: string
+  event_id: string
+  slot_date: string
+  slot_time: string
+  label: string | null
+  max_participants: number | null
+  created_at: string
 }
 
 export interface Heat {

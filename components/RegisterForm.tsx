@@ -126,7 +126,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           eventId,
-          ownerName: isLoggedIn ? (profileName || user?.email?.split('@')[0] ?? '') : base.ownerName,
+          ownerName: isLoggedIn ? (profileName || (user?.email?.split('@')[0] ?? '')) : base.ownerName,
           ownerEmail: isLoggedIn ? (user?.email ?? '') : base.ownerEmail,
           dogName: base.dogName,
           dogBreed: base.dogBreed,

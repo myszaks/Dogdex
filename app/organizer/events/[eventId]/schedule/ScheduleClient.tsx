@@ -288,7 +288,7 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
   )
 }
 
-function DraggableCard({ participant, index }: { participant: Participant; index: number }) {
+function ParticipantCard({ participant, index }: { participant: Participant; index: number }) {
   return (
     <Draggable draggableId={participant.registrationId} index={index}>
       {(provided, snapshot) => (

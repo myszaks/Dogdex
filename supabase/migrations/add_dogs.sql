@@ -53,6 +53,11 @@ create policy "Users can update own dogs"
 create policy "Users can delete own dogs"
   on dogs for delete using (auth.uid() = user_id);
 
+-- GRANTs: rola authenticated musi mieć uprawnienia na poziomie tabeli
+-- (RLS kontroluje wiersze, ale GRANT kontroluje dostęp do tabeli)
+grant select, insert, update, delete on table dogs to authenticated;
+grant select on table dogs to anon;
+
 -- Storage bucket na zdjęcia psów (uruchom raz)
 -- insert into storage.buckets (id, name, public) values ('dog-photos', 'dog-photos', true)
 -- on conflict do nothing;

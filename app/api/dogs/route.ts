@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 
 // GET /api/dogs — lista psów zalogowanego użytkownika
@@ -7,7 +7,7 @@ export async function GET() {
   const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('dogs')
     .select('*')
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   if (!name?.trim()) return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('dogs')
     .insert({

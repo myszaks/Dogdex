@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 
 async function getOwnDog(dogId: string, userId: string) {
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data } = await supabase
     .from('dogs')
     .select('*')
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('dogs')
     .update(update)
@@ -61,7 +61,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const existing = await getOwnDog(params.id, user.id)
   if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
-  const supabase = createServerClient()
+  const supabase = await createAuthClient()
   const { error } = await supabase.from('dogs').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return new NextResponse(null, { status: 204 })

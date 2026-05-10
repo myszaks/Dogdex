@@ -1,6 +1,8 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import ResultsForm from '@/components/ResultsForm'
+import NextStartButton from '@/components/NextStartButton'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 
 interface Props {
@@ -17,9 +19,10 @@ export default async function ResultsPage({ params }: Props) {
     supabase.from('events').select('*').eq('id', eventId).single(),
     supabase
       .from('registrations')
-      .select('id, participant_id, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, participant_id, order_index, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
-      .eq('status', 'confirmed'),
+      .eq('status', 'confirmed')
+      .order('order_index', { ascending: true, nullsFirst: false }),
     supabase
       .from('results')
       .select('*')
@@ -56,6 +59,24 @@ export default async function ResultsPage({ params }: Props) {
   return (
     <div>
       <h1 className="page-title">🏆 Wyniki</h1>
+
+      {/* Live control panel – only for ongoing events with ordered participants */}
+      {event.status === 'ongoing' && (registrations?.length ?? 0) > 0 && (
+        <div className="space-y-3 mb-5">
+          <NextStartButton
+            eventId={eventId}
+            currentIndex={event.current_start_index ?? 0}
+            totalCount={registrations?.length ?? 0}
+          />
+          <Link
+            href={`/organizer/events/${eventId}/live-entry`}
+            className="btn btn-primary w-full"
+          >
+            ⚡ Szybkie wprowadzanie wyników
+          </Link>
+        </div>
+      )}
+
       <div className="card mb-5 bg-sky-50 border-sky-200">
         <p className="font-semibold text-sky-800">{event.title}</p>
         <p className="text-xs text-sky-600 mt-0.5">

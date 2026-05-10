@@ -52,11 +52,19 @@ export default async function EventDetailPage({ params }: Props) {
   if (!event) notFound()
   if (redirectTo) redirect(redirectTo)
 
+  const supabase = createServerClient()
+  // Check if there are any published time slots for this event
+  const { count: slotCount } = await supabase
+    .from('time_slots')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', event.id)
+
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
   const dispStatus = effectiveStatus(event)
   const isOngoing = event.status === 'ongoing'
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
+  const hasSchedule = (slotCount ?? 0) > 0
 
   return (
     <div>
@@ -238,6 +246,20 @@ export default async function EventDetailPage({ params }: Props) {
           {event.status === 'ongoing' && event.has_results && event.results_public && (
             <Link href={`/live/${event.id}`} className="btn btn-primary w-full">
               🔴 Wyniki live
+            </Link>
+          )}
+
+          {/* Results button for finished events */}
+          {event.status === 'finished' && event.has_results && (
+            <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full">
+              🏆 Zobacz wyniki
+            </Link>
+          )}
+
+          {/* Schedule button */}
+          {hasSchedule && (
+            <Link href={`/events/${event.slug ?? event.id}/schedule`} className="btn btn-secondary w-full">
+              📅 Grafik godzinowy
             </Link>
           )}
 

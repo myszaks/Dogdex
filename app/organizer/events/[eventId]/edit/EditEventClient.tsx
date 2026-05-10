@@ -184,13 +184,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           {/* Location + Map */}
           <div>
             <label className="form-label">Lokalizacja</label>
-            <input
-              className="form-input mb-2"
-              placeholder="Warszawa, ul. Psia 1"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-            />
-            <MapPicker lat={lat} lng={lng} onLocationChange={handleMapLocation} />
+            <MapPicker lat={lat} lng={lng} location={location} onLocationChange={handleMapLocation} />
           </div>
 
           {/* Dates */}

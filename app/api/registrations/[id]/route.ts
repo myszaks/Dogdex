@@ -51,6 +51,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const update: Record<string, unknown> = {}
   if ('status' in body) update.status = body.status
+  // Organizer/admin can also update time_slot_id for schedule management
+  if ('time_slot_id' in body && isOrganizerOrAdmin) {
+    update.time_slot_id = body.time_slot_id
+  }
 
   const { data, error } = await supabase
     .from('registrations')

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 interface Props {
   lat: number | null
   lng: number | null
+  location?: string
   onLocationChange: (lat: number, lng: number, address: string) => void
 }
 
@@ -12,11 +13,12 @@ const DEFAULT_LAT = 52.069
 const DEFAULT_LNG = 19.48
 const DEFAULT_ZOOM = 6
 
-export default function MapPicker({ lat, lng, onLocationChange }: Props) {
+export default function MapPicker({ lat, lng, location, onLocationChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const markerRef = useRef<any>(null)
   const [geocoding, setGeocoding] = useState(false)
+  const [searchInput, setSearchInput] = useState(location ?? '')
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -108,15 +110,84 @@ export default function MapPicker({ lat, lng, onLocationChange }: Props) {
     }
   }, [lat, lng])
 
+  // Keep searchInput in sync when location prop changes from outside
+  useEffect(() => {
+    if (location !== undefined) setSearchInput(location)
+  }, [location])
+
+  async function handleSearch(e?: React.FormEvent | React.KeyboardEvent) {
+    e?.preventDefault()
+    const query = searchInput.trim()
+    if (!query) return
+
+    setGeocoding(true)
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        {
+          headers: {
+            'Accept-Language': 'pl',
+            'User-Agent': 'Dogdex/1.0 (dog events platform)',
+          },
+        }
+      )
+      const data = await res.json()
+      if (!data || data.length === 0) {
+        alert('Nie znaleziono lokalizacji. Spróbuj wpisać dokładniejszy adres.')
+        return
+      }
+      const { lat: foundLat, lon: foundLng, display_name } = data[0]
+      const newLat = parseFloat(foundLat)
+      const newLng = parseFloat(foundLng)
+
+      onLocationChange(newLat, newLng, display_name)
+      setSearchInput(display_name)
+
+      if (mapRef.current) {
+        mapRef.current.setView([newLat, newLng], 14)
+        const L = (await import('leaflet')).default
+        if (markerRef.current) {
+          markerRef.current.setLatLng([newLat, newLng])
+        } else {
+          markerRef.current = L.marker([newLat, newLng]).addTo(mapRef.current)
+        }
+      }
+    } catch {
+      alert('Błąd podczas wyszukiwania adresu.')
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
   return (
     <div className="space-y-2">
+      {/* Address search input */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearch() } }}
+          placeholder="Wpisz adres i kliknij Szukaj…"
+          className="form-input flex-1"
+        />
+        <button
+          type="button"
+          onClick={() => handleSearch()}
+          disabled={geocoding}
+          className="btn btn-secondary btn-sm shrink-0 px-3"
+        >
+          {geocoding ? '⏳' : '🔍 Szukaj'}
+        </button>
+      </div>
+
       <div
         ref={containerRef}
         className="w-full h-64 rounded-xl overflow-hidden border border-slate-200 z-0"
       />
       {geocoding && <p className="text-xs text-slate-400">⏳ Pobieranie adresu...</p>}
       <p className="text-xs text-slate-400">
-        Kliknij na mapie, aby ustawić pin. Adres lokalizacji zostanie wypełniony automatycznie.
+        Wpisz adres i kliknij Szukaj, lub kliknij bezpośrednio na mapie, aby ustawić pin.
       </p>
     </div>
   )

@@ -1,0 +1,76 @@
+import { NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabaseServer'
+import { checkRoleForApi } from '@/lib/getServerUser'
+
+interface Params {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(_req: Request, { params }: Params) {
+  const { id } = await params
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .from('time_slots')
+    .select('*')
+    .eq('event_id', id)
+    .order('slot_date', { ascending: true })
+    .order('slot_time', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data ?? [])
+}
+
+export async function POST(req: Request, { params }: Params) {
+  const { id } = await params
+
+  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  if ('error' in authResult) return authResult.error
+
+  const supabase = createServerClient()
+
+  // Verify ownership
+  const { data: event } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', id)
+    .single()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
+  }
+
+  const { slot_date, slot_time, label, max_participants } = body as {
+    slot_date: string
+    slot_time: string
+    label?: string
+    max_participants?: number | null
+  }
+
+  if (!slot_date || !slot_time) {
+    return NextResponse.json({ error: 'Wymagane: slot_date, slot_time' }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('time_slots')
+    .insert([{
+      event_id: id,
+      slot_date,
+      slot_time,
+      label: label ?? null,
+      max_participants: max_participants ?? null,
+    }])
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
+}

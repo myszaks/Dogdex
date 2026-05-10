@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import LiveResults from '@/components/LiveResults'
+import LiveStartPanel from '@/components/LiveStartPanel'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -20,19 +21,32 @@ export default async function LivePage({ params }: Props) {
   const { eventId } = await params
   const supabase = createServerClient()
 
-  const [{ data: event }, { data: results }] = await Promise.all([
+  const [{ data: event }, { data: results }, { data: registrations }] = await Promise.all([
     supabase.from('events').select('*').eq('id', eventId).single(),
     supabase
       .from('results')
       .select('*, participants(dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .order('rank', { ascending: true }),
+    supabase
+      .from('registrations')
+      .select('id, order_index, participants(dog_name, owner_name, dog_breed)')
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .order('order_index', { ascending: true, nullsFirst: false }),
   ])
 
   if (!event) notFound()
   if (!event.has_results) notFound()
 
   const isPublic = event.results_public ?? true
+
+  const startParticipants = (registrations ?? []).map((r: any) => ({
+    registration_id: r.id as string,
+    dog_name: r.participants?.dog_name ?? null,
+    owner_name: r.participants?.owner_name ?? null,
+    dog_breed: r.participants?.dog_breed ?? null,
+  }))
 
   return (
     <div>
@@ -48,7 +62,14 @@ export default async function LivePage({ params }: Props) {
       )}
 
       {isPublic ? (
-        <LiveResults eventId={eventId} initialResults={results ?? []} />
+        <>
+          <LiveStartPanel
+            eventId={eventId}
+            initialStartIndex={event.current_start_index ?? 0}
+            participants={startParticipants}
+          />
+          <LiveResults eventId={eventId} initialResults={results ?? []} />
+        </>
       ) : (
         <div className="card text-center py-12 text-slate-500">
           <p className="text-4xl mb-3">🔒</p>

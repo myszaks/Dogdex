@@ -32,7 +32,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status')
+    .select('created_by, start_at, end_at, location, title, status, results_public')
     .eq('id', id)
     .single()
 
@@ -75,6 +75,14 @@ export async function PATCH(req: Request, { params }: Params) {
   if (changedFields.length > 0) {
     update.last_significant_change = new Date().toISOString()
     update.changed_fields = changedFields
+  }
+
+  // 4b: When transitioning to 'finished', close the live stream
+  if ('status' in body && body.status === 'finished' && existingEvent.status !== 'finished') {
+    if (existingEvent.results_public === true) {
+      // Results already in DB from live session – mark stream as closed
+      update.results_public = false
+    }
   }
 
   const { data, error } = await supabase

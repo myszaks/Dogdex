@@ -1,27 +1,33 @@
  'use client'
 import Link from 'next/link'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import AuthModal from './AuthModal'
 import UserMenu from './UserMenu'
 import useUser from '@/hooks/useUser'
 
-export default function Navigation() {
-  const pathname = usePathname()
+/** Isolated component so useSearchParams() stays inside a Suspense boundary */
+function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const router = useRouter()
-  const [open, setOpen] = useState(false)
-  const { isOrganizer, user } = useUser()
 
-  // Auto-open login modal when ?auth_required=1 is present in URL
   useEffect(() => {
     if (!searchParams) return
     if (searchParams.get('auth_required')) {
-      setOpen(true)
+      onOpen()
       router.replace(pathname ?? '/')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()])
+
+  return null
+}
+
+export default function Navigation() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const { isOrganizer, user } = useUser()
 
   const navLinks = [
     { href: '/', label: 'Główna', icon: '🏠' },
@@ -82,6 +88,9 @@ export default function Navigation() {
         </div>
       </nav>
 
+      <Suspense fallback={null}>
+        <AuthParamHandler onOpen={() => setOpen(true)} />
+      </Suspense>
       <AuthModal open={open} onClose={() => setOpen(false)} />
     </>
   )

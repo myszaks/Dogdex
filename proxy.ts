@@ -26,6 +26,9 @@ export async function proxy(request: NextRequest) {
   // Refresh session if expired — required for Server Components to see the session
   await supabase.auth.getUser()
 
+  // Pass current pathname to server components via header (used by AuthGate)
+  supabaseResponse.headers.set('x-pathname', request.nextUrl.pathname)
+
   return supabaseResponse
 }
 

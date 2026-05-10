@@ -31,6 +31,7 @@ export interface DogEvent {
 export interface Participant {
   id: string
   user_id?: string | null
+  dog_id?: string | null
   dog_name: string | null
   dog_breed: string | null
   owner_name: string | null
@@ -98,6 +99,26 @@ export interface FormTemplate {
   event_type_id: string | null
   created_by: string
   fields: FormField[]
+  created_at: string
+  updated_at: string
+}
+
+export type AgilityLevel = 'none' | 'beginner' | 'intermediate' | 'advanced' | 'competition'
+export type DogGender = 'male' | 'female'
+
+export interface Dog {
+  id: string
+  user_id: string
+  name: string
+  breed: string | null
+  gender: DogGender | null
+  pedigree_or_chip: string | null
+  coat_color: string | null
+  weight_kg: number | null
+  height_cm: number | null
+  agility_level: AgilityLevel | null
+  photo_url: string | null
+  rabies_vaccine_expiry: string | null
   created_at: string
   updated_at: string
 }

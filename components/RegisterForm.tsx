@@ -1,7 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatDateShort } from '@/lib/utils'
-import type { FormField } from '@/types'
+import type { FormField, Dog } from '@/types'
+import useUser from '@/hooks/useUser'
+import { supabase } from '@/lib/supabaseClient'
 
 interface Props {
   eventId: string
@@ -25,12 +27,57 @@ const BASE_INITIAL: BaseValues = {
 
 
 export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
+  const { user } = useUser()
+  const isLoggedIn = !!user
+
   const [base, setBase] = useState<BaseValues>(BASE_INITIAL)
   const [dynamic, setDynamic] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  // Dog picker state (only when logged in)
+  const [userDogs, setUserDogs] = useState<Dog[]>([])
+  const [selectedDogId, setSelectedDogId] = useState<string>('')
+  const [profileName, setProfileName] = useState<string>('')
+
+  useEffect(() => {
+    if (!isLoggedIn || !user) return
+
+    // Fetch user's full name from profile
+    supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.full_name) setProfileName(data.full_name)
+      })
+
+    // Fetch user's dogs
+    fetch('/api/dogs')
+      .then(r => r.json())
+      .then((dogs: Dog[]) => {
+        if (Array.isArray(dogs)) setUserDogs(dogs)
+      })
+      .catch(() => {})
+  }, [isLoggedIn, user?.id])
+
+  function handleDogSelect(dogId: string) {
+    setSelectedDogId(dogId)
+    const dog = userDogs.find(d => d.id === dogId)
+    if (dog) {
+      setBase(prev => ({
+        ...prev,
+        dogName: dog.name,
+        dogBreed: dog.breed ?? '',
+      }))
+    } else {
+      // "Inny pies" — clear dog fields for manual entry
+      setBase(prev => ({ ...prev, dogName: '', dogBreed: '' }))
+    }
+  }
 
   function handleBase(e: React.ChangeEvent<HTMLInputElement>) {
     const name = e.target.name
@@ -79,10 +126,11 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           eventId,
-          ownerName: base.ownerName,
-          ownerEmail: base.ownerEmail,
+          ownerName: isLoggedIn ? (profileName || user?.email?.split('@')[0] ?? '') : base.ownerName,
+          ownerEmail: isLoggedIn ? (user?.email ?? '') : base.ownerEmail,
           dogName: base.dogName,
           dogBreed: base.dogBreed,
+          dogId: selectedDogId || null,
           extraFields: processedExtra,
         }),
       })
@@ -121,62 +169,119 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
 
   return (
     <form onSubmit={handleSubmit} className="card space-y-4">
-      {/* ── Base fields ── */}
-      <div>
-        <label className="form-label">Imię i nazwisko właściciela *</label>
-        <input
-          className="form-input"
-          name="ownerName"
-          value={base.ownerName}
-          onChange={handleBase}
-          required
-          placeholder="Jan Kowalski"
-          autoComplete="name"
-        />
-      </div>
 
-      <div>
-        <label className="form-label">Adres e-mail *</label>
-        <input
-          className="form-input"
-          type="email"
-          name="ownerEmail"
-          value={base.ownerEmail}
-          onChange={handleBase}
-          required
-          placeholder="jan@example.com"
-          autoComplete="email"
-        />
-        {fieldErrors.ownerEmail && (
-          <p className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
-        )}
-      </div>
+      {/* ── Zalogowany: info o użytkowniku + picker psa ── */}
+      {isLoggedIn ? (
+        <>
+          <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-sm text-sky-700">
+            <p className="font-medium">📧 Zapis jako: {user?.email}</p>
+            {profileName && <p className="text-sky-600 text-xs mt-0.5">👤 {profileName}</p>}
+          </div>
 
-      <div>
-        <label className="form-label">Imię psa *</label>
-        <input
-          className="form-input"
-          name="dogName"
-          value={base.dogName}
-          onChange={handleBase}
-          required
-          placeholder="Burek"
-        />
-        {fieldErrors.dogName && (
-          <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
-        )}
-      </div>
+          {userDogs.length > 0 && (
+            <div>
+              <label className="form-label">Wybierz psa z profilu</label>
+              <select
+                className="form-input"
+                value={selectedDogId}
+                onChange={e => handleDogSelect(e.target.value)}
+              >
+                <option value="">— inny pies (wpisz ręcznie) —</option>
+                {userDogs.map(dog => (
+                  <option key={dog.id} value={dog.id}>
+                    {dog.name}{dog.breed ? ` – ${dog.breed}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      <div>
-        <label className="form-label">Rasa psa</label>
-        <input
-          className="form-input"
-          name="dogBreed"
-          value={base.dogBreed}
-          onChange={handleBase}
-          placeholder="Border Collie"
-        />
-      </div>
+          <div>
+            <label className="form-label">Imię psa *</label>
+            <input
+              className="form-input"
+              name="dogName"
+              value={base.dogName}
+              onChange={handleBase}
+              required
+              placeholder="Burek"
+            />
+            {fieldErrors.dogName && (
+              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="form-label">Rasa psa</label>
+            <input
+              className="form-input"
+              name="dogBreed"
+              value={base.dogBreed}
+              onChange={handleBase}
+              placeholder="Border Collie"
+            />
+          </div>
+        </>
+      ) : (
+        /* ── Niezalogowany: pełne pola ── */
+        <>
+          <div>
+            <label className="form-label">Imię i nazwisko właściciela *</label>
+            <input
+              className="form-input"
+              name="ownerName"
+              value={base.ownerName}
+              onChange={handleBase}
+              required
+              placeholder="Jan Kowalski"
+              autoComplete="name"
+            />
+          </div>
+
+          <div>
+            <label className="form-label">Adres e-mail *</label>
+            <input
+              className="form-input"
+              type="email"
+              name="ownerEmail"
+              value={base.ownerEmail}
+              onChange={handleBase}
+              required
+              placeholder="jan@example.com"
+              autoComplete="email"
+            />
+            {fieldErrors.ownerEmail && (
+              <p className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="form-label">Imię psa *</label>
+            <input
+              className="form-input"
+              name="dogName"
+              value={base.dogName}
+              onChange={handleBase}
+              required
+              placeholder="Burek"
+            />
+            {fieldErrors.dogName && (
+              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="form-label">Rasa psa</label>
+            <input
+              className="form-input"
+              name="dogBreed"
+              value={base.dogBreed}
+              onChange={handleBase}
+              placeholder="Border Collie"
+            />
+          </div>
+        </>
+      )}
 
       {/* ── Dynamic fields ── */}
       {formFields.map(field => (

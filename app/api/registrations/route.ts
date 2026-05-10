@@ -33,13 +33,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { eventId, ownerName, ownerEmail, dogName, dogBreed, extraFields } =
+  const { eventId, ownerName, ownerEmail, dogName, dogBreed, dogId, extraFields } =
     body as {
       eventId: string
       ownerName: string
       ownerEmail?: string
       dogName: string
       dogBreed?: string
+      dogId?: string | null
       extraFields?: Record<string, unknown>
     }
 
@@ -107,6 +108,7 @@ export async function POST(req: Request) {
       dog_breed: dogBreed?.trim() || null,
       owner_name: ownerName.trim(),
       owner_email: ownerEmail?.trim() || null,
+      dog_id: dogId || null,
       extra: {},
     }])
     .select()

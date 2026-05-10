@@ -35,6 +35,7 @@ export default function Navigation() {
   ]
 
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', icon: '📋' })
+  if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', icon: '🐕' })
   if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', icon: '⚙️' })
 
   function isActive(href: string) {

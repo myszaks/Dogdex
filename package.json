@@ -23,7 +23,7 @@
     "react-datepicker": "^9.1.0",
     "react-dom": "^18.3.1",
     "react-image-crop": "^11.0.10",
-    "react-leaflet": "^5.0.0",
+    "react-leaflet": "^4.2.1",
     "resend": "^6.12.3"
   },
   "devDependencies": {

@@ -130,9 +130,25 @@ export async function PATCH(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = await createAuthClient()
-  const { error } = await supabase.from('events').delete().eq('id', id)
 
+  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  if ('error' in authResult) return authResult.error
+
+  const supabase = await createAuthClient()
+
+  const { data: existing } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', id)
+    .single()
+
+  if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+
+  if (authResult.role !== 'admin' && existing.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Nie masz uprawnień do usunięcia tego wydarzenia' }, { status: 403 })
+  }
+
+  const { error } = await supabase.from('events').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

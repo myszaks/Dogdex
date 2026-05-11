@@ -1,0 +1,62 @@
+import { createAuthClient } from '@/lib/supabaseServer'
+import { notFound } from 'next/navigation'
+import { extractSizeClassFromFormData } from '@/lib/speedway'
+import type { SizeClass } from '@/lib/speedway'
+import CheckInClient from '@/components/CheckInClient'
+import type { Metadata } from 'next'
+import Link from 'next/link'
+
+interface Props {
+  params: Promise<{ eventId: string }>
+}
+
+export const metadata: Metadata = { title: 'Odprawa' }
+export const dynamic = 'force-dynamic'
+
+export default async function CheckInPage({ params }: Props) {
+  const { eventId } = await params
+  const supabase = await createAuthClient()
+
+  const [{ data: event }, { data: registrations }] = await Promise.all([
+    supabase.from('events').select('id, title, event_type_id').eq('id', eventId).single(),
+    supabase
+      .from('registrations')
+      .select('id, checked_in, form_data, participants(id, dog_name, owner_name)')
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .order('order_index', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true }),
+  ])
+
+  if (!event) notFound()
+
+  const participants = (registrations ?? []).map((r: any) => {
+    const pid = r.participants?.id ?? r.id
+    const sizeClass: SizeClass = extractSizeClassFromFormData(r.form_data as Record<string, unknown>) ?? 'M'
+    return {
+      registrationId: r.id as string,
+      participantId: pid as string,
+      dogName: (r.participants?.dog_name ?? '') as string,
+      ownerName: (r.participants?.owner_name ?? '') as string,
+      sizeClass,
+      checkedIn: Boolean(r.checked_in),
+    }
+  })
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href={`/organizer/events/${eventId}/registrations`}
+          className="text-slate-400 hover:text-slate-600 text-sm"
+        >
+          ← Zapisy
+        </Link>
+        <span className="text-slate-300">/</span>
+        <h1 className="page-title mb-0">🐾 Odprawa – {event.title}</h1>
+      </div>
+
+      <CheckInClient eventId={eventId} initialParticipants={participants} />
+    </div>
+  )
+}

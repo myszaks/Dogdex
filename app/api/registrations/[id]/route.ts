@@ -55,6 +55,11 @@ export async function PATCH(req: Request, { params }: Params) {
   if ('time_slot_id' in body && isOrganizerOrAdmin) {
     update.time_slot_id = body.time_slot_id
   }
+  // Organizer/admin can toggle check-in
+  if ('checked_in' in body && isOrganizerOrAdmin) {
+    update.checked_in = Boolean(body.checked_in)
+    update.checked_in_at = body.checked_in ? new Date().toISOString() : null
+  }
 
   const { data, error } = await supabase
     .from('registrations')

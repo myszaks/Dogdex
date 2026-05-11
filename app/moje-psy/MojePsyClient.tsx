@@ -48,9 +48,11 @@ export default function MojePsyClient({ initialDogs }: Props) {
         </div>
       )}
 
-      {dogs.map(dog => (
-        <DogCard key={dog.id} dog={dog} onDelete={handleDelete} />
-      ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {dogs.map(dog => (
+          <DogCard key={dog.id} dog={dog} onDelete={handleDelete} />
+        ))}
+      </div>
 
       {adding ? (
         <div className="card">

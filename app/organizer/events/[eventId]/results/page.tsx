@@ -1,11 +1,12 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import ResultsForm from '@/components/ResultsForm'
-import SpeedwayResultsForm from '@/components/SpeedwayResultsForm'
-import type { SpeedwayParticipant } from '@/components/SpeedwayResultsForm'
+import SpeedwayLiveEntry from '@/components/SpeedwayLiveEntry'
+import type { SpeedwayLiveParticipant } from '@/components/SpeedwayLiveEntry'
 import NextStartButton from '@/components/NextStartButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { extractSizeClassFromFormData } from '@/lib/speedway'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -21,7 +22,7 @@ export default async function ResultsPage({ params }: Props) {
     supabase.from('events').select('*').eq('id', eventId).single(),
     supabase
       .from('registrations')
-      .select('id, participant_id, order_index, form_data, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -60,18 +61,22 @@ export default async function ResultsPage({ params }: Props) {
 
   const isSpeedway = event.event_type_id === 'speedway'
 
-  const speedwayParticipants: SpeedwayParticipant[] = (registrations ?? []).map((r: any) => {
+  const speedwayParticipants: SpeedwayLiveParticipant[] = (registrations ?? []).map((r: any) => {
     const existingResult = results?.find(res => res.participant_id === r.participant_id) ?? null
     return {
       participantId: r.participants?.id ?? r.participant_id,
       dogName: r.participants?.dog_name ?? '',
       ownerName: r.participants?.owner_name ?? '',
       breed: r.participants?.dog_breed ?? '',
-      heightCm: (r.form_data as any)?.height_cm ?? null,
+      heightCm: null,
+      formSizeClass: extractSizeClassFromFormData(r.form_data as Record<string, unknown>) ?? null,
+      checkedIn: Boolean(r.checked_in),
       result: existingResult ? {
         id: existingResult.id,
         run1_ms: existingResult.run1_ms ?? null,
         run2_ms: existingResult.run2_ms ?? null,
+        run1_status: (existingResult.run1_status as 'DNS' | 'DNF' | null) ?? null,
+        run2_status: (existingResult.run2_status as 'DNS' | 'DNF' | null) ?? null,
         best_ms: existingResult.best_ms ?? null,
         speed_kmh: existingResult.speed_kmh ?? null,
         size_class: existingResult.size_class ?? null,
@@ -109,7 +114,7 @@ export default async function ResultsPage({ params }: Props) {
       </div>
 
       {isSpeedway ? (
-        <SpeedwayResultsForm
+        <SpeedwayLiveEntry
           eventId={eventId}
           initialTrackDistanceM={event.track_distance_m ?? null}
           participants={speedwayParticipants}

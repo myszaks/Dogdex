@@ -140,7 +140,7 @@ export default async function EventArchivePage({ params }: Props) {
           )}
 
           {/* Results */}
-          {event.has_results && event.results_public && results && results.length > 0 && (
+          {event.has_results && results && results.length > 0 && (
             <div>
               <h2 className="section-title">🏆 Wyniki</h2>
 
@@ -268,11 +268,6 @@ export default async function EventArchivePage({ params }: Props) {
             </div>
           )}
 
-          {event.has_results && !event.results_public && (
-            <div className="card text-center py-10 text-slate-400">
-              🔒 Wyniki nie są jeszcze publiczne
-            </div>
-          )}
         </div>
 
         {/* Right: summary sidebar */}

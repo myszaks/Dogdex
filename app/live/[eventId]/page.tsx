@@ -2,6 +2,9 @@ import { createServerClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
+import SpeedwayLiveView from '@/components/SpeedwayLiveView'
+import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
+import { getSizeClass, extractSizeClassFromFormData } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -30,7 +33,7 @@ export default async function LivePage({ params }: Props) {
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, order_index, participants(dog_name, owner_name, dog_breed)')
+      .select('id, order_index, form_data, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -40,6 +43,7 @@ export default async function LivePage({ params }: Props) {
   if (!event.has_results) notFound()
 
   const isPublic = event.results_public ?? true
+  const isSpeedway = event.event_type_id === 'speedway'
 
   const startParticipants = (registrations ?? []).map((r: any) => ({
     registration_id: r.id as string,
@@ -47,6 +51,22 @@ export default async function LivePage({ params }: Props) {
     owner_name: r.participants?.owner_name ?? null,
     dog_breed: r.participants?.dog_breed ?? null,
   }))
+
+  const speedwayParticipants: SpeedwayLiveParticipantInfo[] = (registrations ?? []).map((r: any) => {
+    const pid = r.participants?.id ?? r.id
+    const existingResult = (results ?? []).find((res: any) => res.participant_id === pid)
+    const formClass = extractSizeClassFromFormData(r.form_data as Record<string, unknown>)
+    const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
+      ? existingResult.size_class as import('@/lib/speedway').SizeClass
+      : null
+    const sizeClass: import('@/lib/speedway').SizeClass = formClass ?? existingClass ?? 'M'
+    return {
+      participantId: pid,
+      dogName: r.participants?.dog_name ?? null,
+      ownerName: r.participants?.owner_name ?? null,
+      sizeClass,
+    }
+  })
 
   return (
     <div>
@@ -63,12 +83,24 @@ export default async function LivePage({ params }: Props) {
 
       {isPublic ? (
         <>
-          <LiveStartPanel
-            eventId={eventId}
-            initialStartIndex={event.current_start_index ?? 0}
-            participants={startParticipants}
-          />
-          <LiveResults eventId={eventId} initialResults={results ?? []} />
+          {isSpeedway ? (
+            <SpeedwayLiveView
+              eventId={eventId}
+              initialStartIndex={event.current_start_index ?? 0}
+              initialLivePhase={event.live_phase ?? null}
+              participants={speedwayParticipants}
+              initialResults={results ?? []}
+            />
+          ) : (
+            <>
+              <LiveStartPanel
+                eventId={eventId}
+                initialStartIndex={event.current_start_index ?? 0}
+                participants={startParticipants}
+              />
+              <LiveResults eventId={eventId} initialResults={results ?? []} />
+            </>
+          )}
         </>
       ) : (
         <div className="card text-center py-12 text-slate-500">

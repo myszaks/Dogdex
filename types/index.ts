@@ -27,6 +27,7 @@ export interface DogEvent {
   changed_fields: string[]
   current_start_index: number
   track_distance_m: number | null
+  live_phase: string | null
 }
 
 export interface Participant {
@@ -50,6 +51,8 @@ export interface Registration {
   order_index: number | null
   time_slot_id: string | null
   schedule_sent_at: string | null
+  checked_in: boolean
+  checked_in_at: string | null
   participants?: Participant
   events?: DogEvent
 }
@@ -83,6 +86,8 @@ export interface Result {
   // Speedway-specific
   run1_ms: number | null
   run2_ms: number | null
+  run1_status: 'DNS' | 'DNF' | null
+  run2_status: 'DNS' | 'DNF' | null
   best_ms: number | null
   speed_kmh: number | null
   size_class: string | null

@@ -50,3 +50,34 @@ export function medalEmoji(rank: number): string {
   if (rank === 3) return '🥉'
   return `#${rank}`
 }
+
+/**
+ * Wyciąga klasę rozmiarową z form_data rejestracji.
+ * Obsługuje trzy przypadki:
+ *   1. Pole `height_cm` (number/string) → oblicza klasę automatycznie
+ *   2. Pole `size_class` z wartością XS/S/M/L/XL → używa bezpośrednio
+ *   3. JAKIEKOLWIEK inne pole, którego wartość to XS/S/M/L/XL → używa go
+ *      (obsługa niestandardowych nazw pól, np. `klasa`, `dog_class`, itp.)
+ */
+export function extractSizeClassFromFormData(
+  formData: Record<string, unknown> | null | undefined
+): SizeClass | null {
+  if (!formData) return null
+
+  // 1. height_cm → przelicz wzrost na klasę
+  const heightRaw = formData.height_cm
+  if (heightRaw !== null && heightRaw !== undefined && heightRaw !== '') {
+    const n = parseFloat(String(heightRaw))
+    if (!isNaN(n)) return getSizeClass(n)
+  }
+
+  // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana
+  //    jako klasa (obsługuje size_class, klasa, dog_class, kategoria, etc.)
+  for (const v of Object.values(formData)) {
+    if (typeof v === 'string' && (SIZE_CLASSES as readonly string[]).includes(v)) {
+      return v as SizeClass
+    }
+  }
+
+  return null
+}

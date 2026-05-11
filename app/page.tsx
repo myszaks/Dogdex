@@ -15,11 +15,15 @@ interface Props {
 export default async function HomePage({ searchParams }: Props) {
   const sp = await searchParams
   const supabase = createServerClient()
+  const now = new Date().toISOString()
+  // Show events not yet ended: end_at in future, OR no end_at (and started within 48h), OR no start_at
+  const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
   let query = supabase
     .from('events')
     .select('*')
     .in('status', ['upcoming', 'ongoing'])
+    .or(`end_at.gt.${now},and(end_at.is.null,start_at.gt.${twoDaysAgo}),start_at.is.null`)
     .order('start_at', { ascending: true })
 
   if (sp.typ) query = query.eq('event_type_id', sp.typ)
@@ -70,7 +74,7 @@ export default async function HomePage({ searchParams }: Props) {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((event: DogEvent) => (
             <EventCard key={event.id} event={event} />
           ))}

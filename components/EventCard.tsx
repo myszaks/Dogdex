@@ -33,7 +33,7 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
           )}
         </div>
       ) : (
-        <div className="relative w-full h-28 shrink-0 bg-gradient-to-br from-sky-100 to-blue-200 flex items-center justify-center text-4xl">
+        <div className="relative w-full aspect-video shrink-0 bg-gradient-to-br from-sky-100 to-blue-200 flex items-center justify-center text-4xl">
           🐾
           {isOngoing && (
             <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-green-600/90 text-white text-xs font-semibold px-2 py-1 rounded-full">

@@ -15,11 +15,13 @@ interface Props {
 export default async function ArchivePage({ searchParams }: Props) {
   const sp = await searchParams
   const supabase = createServerClient()
+  const now = new Date().toISOString()
+  const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
   let query = supabase
     .from('events')
     .select('*')
-    .in('status', ['finished', 'cancelled'])
+    .or(`status.in.(finished,cancelled),end_at.lt.${now},and(end_at.is.null,start_at.lt.${twoDaysAgo})`)
     .order('start_at', { ascending: false })
 
   if (sp.typ) query = query.eq('event_type_id', sp.typ)
@@ -52,7 +54,7 @@ export default async function ArchivePage({ searchParams }: Props) {
           <p className="text-slate-500">Brak zarchiwizowanych wydarzeń</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((event: DogEvent) => (
             <EventCard key={event.id} event={event} />
           ))}

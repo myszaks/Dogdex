@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     eventId, participantId, resultId,
     time_ms, rank, notes,
     // Speedway-specific
-    run1_ms, run2_ms, size_class, track_distance_m,
+    run1_ms, run2_ms, run1_status, run2_status, size_class, track_distance_m,
   } = body as Record<string, unknown>
 
   if (!eventId || !participantId) {
@@ -46,6 +46,8 @@ export async function POST(req: Request) {
   // Compute speedway derived fields
   const r1 = typeof run1_ms === 'number' ? run1_ms : null
   const r2 = typeof run2_ms === 'number' ? run2_ms : null
+  const s1 = run1_status === 'DNS' || run1_status === 'DNF' ? run1_status : null
+  const s2 = run2_status === 'DNS' || run2_status === 'DNF' ? run2_status : null
   const best = computeBestMs(r1, r2)
   const distM = typeof track_distance_m === 'number' ? track_distance_m : null
   const speed = best !== null && distM !== null ? computeSpeedKmh(best, distM) : null
@@ -59,6 +61,8 @@ export async function POST(req: Request) {
     notes: typeof notes === 'string' ? notes || null : null,
     run1_ms: r1,
     run2_ms: r2,
+    run1_status: s1,
+    run2_status: s2,
     best_ms: best,
     speed_kmh: speed,
     size_class: typeof size_class === 'string' ? size_class : null,

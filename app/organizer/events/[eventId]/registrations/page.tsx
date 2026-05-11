@@ -5,6 +5,7 @@ import CsvExportButton from '@/components/CsvExportButton'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 import RegistrationsClientList from '@/components/RegistrationsClientList'
+import Link from 'next/link'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -58,7 +59,14 @@ export default async function RegistrationsPage({ params }: Props) {
               <p className="text-sm text-sky-600 mt-0.5">📅 {formatDate(event.start_at)}</p>
             )}
           </div>
-          <CsvExportButton eventId={eventId} />
+          <div className="flex items-center gap-2 flex-wrap">
+            {(event as any).event_type_id === 'speedway' && (
+              <Link href={`/organizer/events/${eventId}/checkin`} className="btn btn-secondary btn-sm">
+                🐾 Odprawa
+              </Link>
+            )}
+            <CsvExportButton eventId={eventId} />
+          </div>
         </div>
       </div>
 

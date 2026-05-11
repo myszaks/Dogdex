@@ -72,10 +72,28 @@ export function isRegistrationOpen(event: { status: string; registration_deadlin
   return new Date() < new Date(event.registration_deadline)
 }
 
-/** Returns the effective display status (adds upcoming_closed when past deadline) */
-export function effectiveStatus(event: { status: string; registration_deadline: string | null }): string {
-  if (event.status === 'upcoming' && event.registration_deadline && new Date() >= new Date(event.registration_deadline)) {
+/** Returns the effective display status (adds upcoming_closed when past deadline, or auto-derives ongoing/finished from dates) */
+export function effectiveStatus(event: {
+  status: string
+  registration_deadline: string | null
+  start_at?: string | null
+  end_at?: string | null
+}): string {
+  if (event.status === 'cancelled') return 'cancelled'
+  if (event.status === 'finished') return 'finished'
+  const now = Date.now()
+  // Auto-derive from dates when DB status hasn't been updated
+  if (event.end_at && now >= new Date(event.end_at).getTime()) return 'finished'
+  if (event.start_at) {
+    const startMs = new Date(event.start_at).getTime()
+    if (now >= startMs) {
+      // No end_at: treat as finished after 24h grace
+      if (!event.end_at && now >= startMs + 24 * 60 * 60 * 1000) return 'finished'
+      return 'ongoing'
+    }
+  }
+  if (event.registration_deadline && now >= new Date(event.registration_deadline).getTime()) {
     return 'upcoming_closed'
   }
-  return event.status
+  return 'upcoming'
 }

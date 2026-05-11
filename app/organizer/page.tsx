@@ -54,7 +54,7 @@ export default async function OrganizerPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((event: DogEvent) => (
             <OrganizerEventCard key={event.id} event={event} />
           ))}

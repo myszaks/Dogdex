@@ -7,26 +7,24 @@ import {
   isRegistrationOpen,
   effectiveStatus,
   statusLabel,
-  statusColor,
+  statusBadgeClasses,
 } from '@/lib/utils'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
 import EventMapClient from '@/components/EventMapClient'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
+import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight, Banknote } from 'lucide-react'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function resolveEvent(param: string) {
   const supabase = createServerClient()
-  // Try slug first
   const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).maybeSingle()
   if (bySlug) return { event: bySlug, redirectTo: null }
-  // Fallback: UUID
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      // Redirect to canonical slug URL if one exists
       const target = byId.slug ? `/events/${byId.slug}` : null
       return { event: byId, redirectTo: target }
     }
@@ -53,137 +51,159 @@ export default async function EventDetailPage({ params }: Props) {
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()
-  // Check if there are any published time slots for this event
-  const { count: slotCount } = await supabase
-    .from('time_slots')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_id', event.id)
+  const [{ count: slotCount }, { count: regCount }] = await Promise.all([
+    supabase.from('time_slots').select('id', { count: 'exact', head: true }).eq('event_id', event.id),
+    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', event.id).neq('status', 'cancelled'),
+  ])
 
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
-  const regOpen = isRegistrationOpen(event)
   const dispStatus = effectiveStatus(event)
-  const isOngoing = event.status === 'ongoing'
+  const regOpen = isRegistrationOpen(event)
+  const isOngoing = dispStatus === 'ongoing'
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
   const hasSchedule = (slotCount ?? 0) > 0
 
+  // Days remaining to registration deadline or event start
+  const now = new Date()
+  const deadlineDate = event.registration_deadline ? new Date(event.registration_deadline) : null
+  const startDate = event.start_at ? new Date(event.start_at) : null
+  const targetDate = deadlineDate && deadlineDate > now ? deadlineDate : startDate
+  const daysRemaining = dispStatus === 'upcoming' && targetDate
+    ? Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+
+  const registeredCount = regCount ?? 0
+  const maxParticipants = event.max_participants
+  const fillPct = maxParticipants && maxParticipants > 0
+    ? Math.min(100, Math.round((registeredCount / maxParticipants) * 100))
+    : null
+
+  const statusDotColor: Record<string, string> = {
+    upcoming: 'bg-blue-400',
+    ongoing: 'bg-emerald-500',
+    finished: 'bg-muted-foreground',
+    cancelled: 'bg-red-500',
+  }
+
   return (
-    <div>
+    <div className="max-w-6xl mx-auto">
       {/* Back link */}
-      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
-        ← Powrót do wydarzeń
+      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        <ArrowLeft className="w-4 h-4" />
+        Powrót do wydarzeń
       </Link>
 
-      {/* Hero */}
-      {event.image_url ? (
-        <div className="relative w-full aspect-[3/1] rounded-2xl overflow-hidden mb-6 shadow">
-          <Image src={event.image_url} alt={event.title} fill className="object-cover" unoptimized />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute bottom-0 left-0 p-5">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight drop-shadow">
+      {/* ── Hero ───────────────────────────────────────────────── */}
+      <div className="relative w-full aspect-[21/8] min-h-[220px] rounded-3xl overflow-hidden mb-8 shadow-lg">
+        {event.image_url ? (
+          <Image
+            src={event.image_url}
+            alt={event.title}
+            fill
+            className="object-cover"
+            unoptimized
+            loading="eager"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center">
+            <ImageIcon className="w-20 h-20 text-primary/20" />
+          </div>
+        )}
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+
+        {/* Bottom: title + meta + CTA */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-heading font-bold text-white leading-tight drop-shadow mb-2">
               {event.title}
             </h1>
-            {isOngoing && (
-              <span className="mt-2 inline-flex items-center gap-1.5 bg-green-600/90 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-                TRWA TERAZ
-              </span>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="relative w-full h-40 rounded-2xl overflow-hidden mb-6 bg-gradient-to-br from-sky-100 to-blue-200 flex items-center justify-center">
-          <span className="text-7xl">🐾</span>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-          <div className="absolute bottom-0 left-0 p-5">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight drop-shadow">
-              {event.title}
-            </h1>
-            {isOngoing && (
-              <span className="mt-2 inline-flex items-center gap-1.5 bg-green-600/90 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-                TRWA TERAZ
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Left: details + map */}
-        <div className="lg:col-span-2 space-y-5">
-
-          {/* Info card */}
-          <div className="card space-y-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className={`badge ${statusColor(dispStatus)} text-sm`}>
-                {statusLabel(dispStatus)}
-              </span>
-              {event.organizer_name && (
-                <span className="text-sm text-slate-500">👤 {event.organizer_name}</span>
-              )}
-            </div>
-
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-white/80 text-sm">
               {event.start_at && (
-                <div>
-                  <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">Początek</dt>
-                  <dd className="text-slate-800 font-medium">📅 {formatDate(event.start_at)}</dd>
-                </div>
-              )}
-              {event.end_at && (
-                <div>
-                  <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">Koniec</dt>
-                  <dd className="text-slate-700">📅 {formatDate(event.end_at)}</dd>
-                </div>
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                  {formatDate(event.start_at)}
+                  {event.end_at && <> – {formatDate(event.end_at)}</>}
+                </span>
               )}
               {event.location && (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">Lokalizacja</dt>
-                  <dd className="text-slate-800 font-medium">📍 {event.location}</dd>
-                </div>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                  {event.location}
+                </span>
               )}
-            </dl>
-
-            {event.description && (
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-slate-700 leading-relaxed whitespace-pre-line">{event.description}</p>
-              </div>
-            )}
+              {event.organizer_name && (
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 shrink-0" />
+                  {event.organizer_name}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Map: Leaflet (when lat/lng available) or Google Maps iframe fallback */}
-          {event.lat && event.lng ? (
-            <div className="card p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100">
-                <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
-              </div>
-              <EventMapClient lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
-            </div>
-          ) : mapsQuery ? (
-            <div className="card p-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100">
-                <h2 className="text-sm font-semibold text-slate-700">📍 Mapa dojazdu</h2>
-              </div>
-              <iframe
-                title="Mapa lokalizacji"
-                src={`https://maps.google.com/maps?q=${mapsQuery}&output=embed&hl=pl`}
-                className="w-full h-64 sm:h-80 border-0"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
+          {/* Hero CTA */}
+          {dispStatus === 'upcoming' && regOpen && (
+            <div className="shrink-0">
+              <RegisterModal
+                eventId={event.id}
+                eventTitle={event.title}
+                formFields={formFields}
+                triggerClassName="btn btn-primary px-6 py-2.5 text-sm font-semibold shadow-lg"
+                triggerLabel={<>Zapisz się <ChevronRight className="w-4 h-4" /></>}
               />
             </div>
-          ) : null}
+          )}
+          {dispStatus === 'ongoing' && event.has_results && event.results_public && (
+            <Link href={`/live/${event.id}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
+              <Radio className="w-4 h-4 animate-pulse" />
+              Wyniki live
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* ── Two-column layout ──────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        {/* ── Left column ──────────────────────────────────────── */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* About */}
+          {event.description && (
+            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+              <h2 className="font-heading font-semibold text-lg text-foreground mb-4">O wydarzeniu</h2>
+              <p className="text-foreground/80 leading-relaxed whitespace-pre-line">{event.description}</p>
+            </div>
+          )}
+
+          {/* Schedule link */}
+          {hasSchedule && (
+            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-heading font-semibold text-lg text-foreground">Harmonogram</h2>
+                <Link
+                  href={`/events/${event.slug ?? event.id}/schedule`}
+                  className="text-sm text-accent font-medium hover:underline flex items-center gap-1"
+                >
+                  Zobacz pełny <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <CalendarDays className="w-4 h-4 shrink-0" />
+                <span>Grafik godzinowy dostępny dla tego wydarzenia</span>
+              </div>
+            </div>
+          )}
 
           {/* Gallery */}
           {Array.isArray(event.gallery_images) && event.gallery_images.length > 0 && (
-            <div className="card space-y-3">
-              <h2 className="text-sm font-semibold text-slate-700">🖼️ Galeria</h2>
+            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+              <h2 className="font-heading font-semibold text-lg text-foreground">Galeria</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {event.gallery_images.map((url: string, i: number) => (
                   <a key={url + i} href={url} target="_blank" rel="noopener noreferrer">
-                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 hover:opacity-90 transition-opacity">
+                    <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-border hover:opacity-90 transition-opacity">
                       <Image src={url} alt={`Zdjęcie ${i + 1}`} fill className="object-cover" unoptimized />
                     </div>
                   </a>
@@ -193,81 +213,166 @@ export default async function EventDetailPage({ params }: Props) {
           )}
         </div>
 
-        {/* Right: action sidebar */}
-        <div className="space-y-4">
+        {/* ── Right sidebar ─────────────────────────────────────── */}
+        <div className="space-y-4 lg:sticky lg:top-24">
 
-          {/* Registration card */}
-          <div className="card">
-            <h2 className="font-semibold text-slate-800 mb-3">Zapisy</h2>
+          {/* Status + Registration card */}
+          <div className="bg-card rounded-3xl border border-border p-5 shadow-sm space-y-4">
 
-            {/* If user is logged in, show their registration status first */}
+            {/* Status header */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase tracking-widest font-semibold text-muted-foreground">Status</span>
+              <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
+                dispStatus === 'ongoing' ? 'text-emerald-700' :
+                dispStatus === 'upcoming' ? 'text-blue-700' :
+                dispStatus === 'cancelled' ? 'text-red-600' :
+                'text-muted-foreground'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${statusDotColor[dispStatus] ?? 'bg-muted-foreground'} ${isOngoing ? 'animate-pulse' : ''}`} />
+                {statusLabel(dispStatus)}
+              </span>
+            </div>
+
+            {/* Participant progress */}
+            {maxParticipants != null && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <PawPrint className="w-3.5 h-3.5" />
+                    Zapisanych psów
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {registeredCount} <span className="text-muted-foreground font-normal">/ {maxParticipants}</span>
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-accent rounded-full transition-all duration-500"
+                    style={{ width: `${fillPct ?? 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Days remaining */}
+            {daysRemaining != null && daysRemaining > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Pozostało</span>
+                <span className="font-semibold text-foreground ml-auto">{daysRemaining} {daysRemaining === 1 ? 'dzień' : 'dni'}</span>
+              </div>
+            )}
+
+            {/* Entry fee */}
+            {event.entry_fee != null && (
+              <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
+                <Banknote className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Wpisowe</span>
+                <span className="font-semibold text-foreground ml-auto">{event.entry_fee} zł</span>
+              </div>
+            )}
+
+            {/* Registration deadline */}
+            {event.registration_deadline && dispStatus === 'upcoming' && regOpen && (
+              <div className="flex items-start gap-2 text-sm border-t border-border pt-3">
+                <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Zapisy otwarte do</p>
+                  <p className="font-medium text-foreground">{formatDate(event.registration_deadline)}</p>
+                </div>
+              </div>
+            )}
+
+            {/* User registration status */}
             <UserRegistrationStatus
               eventId={event.id}
               eventTitle={event.title}
               formFields={formFields}
             />
 
-            {event.status === 'upcoming' && regOpen && (
-              <div className="mt-3">
-                {event.registration_deadline && (
-                  <p className="text-sm text-slate-500 mb-3">
-                    ⏳ Zapisy otwarte do<br />
-                    <span className="font-medium text-slate-700">{formatDate(event.registration_deadline)}</span>
-                  </p>
-                )}
-                {event.max_participants != null && (
-                  <p className="text-xs text-slate-400 mb-3">
-                    Limit uczestników: {event.max_participants}
-                  </p>
-                )}
-                <RegisterModal
-                  eventId={event.id}
-                  eventTitle={event.title}
-                  formFields={formFields}
-                />
+            {/* CTA */}
+            {dispStatus === 'upcoming' && regOpen && (
+              <RegisterModal
+                eventId={event.id}
+                eventTitle={event.title}
+                formFields={formFields}
+                triggerClassName="btn btn-primary w-full py-2.5"
+                triggerLabel="Zapisz się"
+              />
+            )}
+            {dispStatus === 'upcoming' && !regOpen && (
+              <div className="flex items-center gap-2 text-sm text-orange-600 font-medium bg-orange-50 rounded-xl px-3 py-2.5">
+                <Lock className="w-4 h-4 shrink-0" />
+                Zapisy zostały zamknięte
               </div>
             )}
-
-            {event.status === 'upcoming' && !regOpen && (
-              <p className="text-sm text-orange-600 font-medium">
-                🔒 Zapisy zostały zamknięte
-                {event.registration_deadline && (
-                  <><br /><span className="text-slate-400 font-normal text-xs">{formatDate(event.registration_deadline)}</span></>
-                )}
+            {dispStatus === 'ongoing' && (
+              <p className="text-sm text-emerald-700 font-medium bg-emerald-50 rounded-xl px-3 py-2.5">
+                Wydarzenie w trakcie — zapisy niedostępne
               </p>
             )}
-
-            {event.status === 'ongoing' && (
-              <p className="text-sm text-green-700 font-medium">✅ Wydarzenie jest w trakcie</p>
+            {dispStatus === 'finished' && event.has_results && (
+              <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full py-2.5">
+                <Trophy className="w-4 h-4" />
+                Zobacz wyniki
+              </Link>
+            )}
+            {dispStatus === 'ongoing' && event.has_results && event.results_public && (
+              <Link href={`/live/${event.id}`} className="btn btn-primary w-full py-2.5">
+                <Radio className="w-4 h-4 animate-pulse" />
+                Wyniki live
+              </Link>
             )}
           </div>
 
-          {/* Live results button */}
-          {event.status === 'ongoing' && event.has_results && event.results_public && (
-            <Link href={`/live/${event.id}`} className="btn btn-primary w-full">
-              🔴 Wyniki live
-            </Link>
+          {/* Location card */}
+          {(event.location || event.lat || mapsQuery) && (
+            <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
+              {/* Map thumbnail */}
+              {event.lat && event.lng ? (
+                <div className="h-36 overflow-hidden">
+                  <EventMapClient lat={event.lat} lng={event.lng} label={event.location ?? undefined} />
+                </div>
+              ) : mapsQuery ? (
+                <div className="h-36 overflow-hidden">
+                  <iframe
+                    title="Mapa lokalizacji"
+                    src={`https://maps.google.com/maps?q=${mapsQuery}&output=embed&hl=pl&zoom=13`}
+                    className="w-full h-full border-0 pointer-events-none"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              ) : null}
+
+              {/* Location details */}
+              <div className="p-4 space-y-2">
+                <h3 className="font-heading font-semibold text-foreground text-sm">Lokalizacja i miejsce</h3>
+                {event.location && (
+                  <p className="text-sm text-muted-foreground flex items-start gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    {event.location}
+                  </p>
+                )}
+                {mapsQuery && (
+                  <a
+                    href={`https://maps.google.com/?q=${mapsQuery}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-accent font-medium hover:underline inline-flex items-center gap-1"
+                  >
+                    Otwórz w Google Maps <ChevronRight className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
           )}
 
-          {/* Results button for finished events */}
-          {event.status === 'finished' && event.has_results && (
-            <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full">
-              🏆 Zobacz wyniki
-            </Link>
-          )}
-
-          {/* Schedule button */}
-          {hasSchedule && (
-            <Link href={`/events/${event.slug ?? event.id}/schedule`} className="btn btn-secondary w-full">
-              📅 Grafik godzinowy
-            </Link>
-          )}
-
-          {/* Organizer info */}
+          {/* Organizer */}
           {event.organizer_name && (
-            <div className="card bg-slate-50">
-              <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-1">Organizator</p>
-              <p className="text-slate-700 font-medium">{event.organizer_name}</p>
+            <div className="bg-secondary rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Organizator</p>
+              <p className="text-foreground font-semibold">{event.organizer_name}</p>
             </div>
           )}
         </div>
@@ -275,3 +380,4 @@ export default async function EventDetailPage({ params }: Props) {
     </div>
   )
 }
+

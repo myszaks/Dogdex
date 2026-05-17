@@ -13,22 +13,25 @@ interface Props {
 export const metadata: Metadata = { title: 'Odprawa' }
 export const dynamic = 'force-dynamic'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function CheckInPage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   const supabase = await createAuthClient()
 
-  const [{ data: event }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('id, title, event_type_id').eq('id', eventId).single(),
-    supabase
-      .from('registrations')
-      .select('id, checked_in, form_data, participants(id, dog_name, owner_name)')
-      .eq('event_id', eventId)
-      .eq('status', 'confirmed')
-      .order('order_index', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: true }),
-  ])
-
+  const { data: event } = await supabase
+    .from('events').select('id, title, event_type_id')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
+  const eventId = event.id
+
+  const { data: registrations } = await supabase
+    .from('registrations')
+    .select('id, checked_in, form_data, participants(id, dog_name, owner_name)')
+    .eq('event_id', eventId)
+    .eq('status', 'confirmed')
+    .order('order_index', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
 
   const participants = (registrations ?? []).map((r: any) => {
     const pid = r.participants?.id ?? r.id

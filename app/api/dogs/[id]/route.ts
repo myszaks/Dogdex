@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
+import { toSlug } from '@/lib/utils'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+async function generateDogSlug(supabase: SupabaseClient, userId: string, name: string, excludeId: string): Promise<string> {
+  const base = toSlug(name)
+  let slug = base
+  let i = 1
+  while (true) {
+    const { data } = await supabase.from('dogs').select('id').eq('user_id', userId).eq('slug', slug).neq('id', excludeId).maybeSingle()
+    if (!data) return slug
+    slug = `${base}-${i++}`
+  }
+}
 
 // GET /api/dogs/[id]
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,6 +50,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (update.name !== undefined && !String(update.name).trim()) {
     return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
+  }
+  // Regenerate slug when name changes
+  if (update.name) {
+    update.slug = await generateDogSlug(supabase, user.id, String(update.name).trim(), id)
   }
 
   const { data, error } = await supabase

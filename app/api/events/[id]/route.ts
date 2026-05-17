@@ -54,7 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const allowedFields = [
     'title', 'description', 'location', 'start_at', 'end_at', 'status',
     'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
-    'has_results', 'results_public', 'auto_confirm', 'max_participants', 'organizer_name', 'slug',
+    'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
     'live_phase',
   ]

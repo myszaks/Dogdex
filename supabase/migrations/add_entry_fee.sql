@@ -1,0 +1,1 @@
+ALTER TABLE events ADD COLUMN IF NOT EXISTS entry_fee numeric(10,2) DEFAULT NULL;

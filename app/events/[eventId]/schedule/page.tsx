@@ -7,24 +7,29 @@ interface Props {
   params: Promise<{ eventId: string }>
 }
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventId } = await params
+  const { eventId: param } = await params
   const supabase = createServerClient()
-  const { data } = await supabase.from('events').select('title').or(`id.eq.${eventId},slug.eq.${eventId}`).maybeSingle()
+  const { data } = await supabase
+    .from('events')
+    .select('title')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
+    .maybeSingle()
   return { title: `Grafik – ${data?.title ?? 'Wydarzenie'}` }
 }
 
 export default async function PublicSchedulePage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   const supabase = createServerClient()
 
-  // Resolve by slug or id
   const { data: event } = await supabase
     .from('events')
     .select('id, title, start_at, location, slug')
-    .or(`id.eq.${eventId},slug.eq.${eventId}`)
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .maybeSingle()
 
   if (!event) notFound()

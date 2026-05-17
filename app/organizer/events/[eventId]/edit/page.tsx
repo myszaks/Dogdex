@@ -9,19 +9,22 @@ interface Props {
 
 export const metadata: Metadata = { title: 'Edytuj wydarzenie' }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function EditEventPage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   const supabase = await createAuthClient()
   const { data: event } = await supabase
     .from('events')
     .select('*')
-    .eq('id', eventId)
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .single()
 
   if (!event) notFound()
+  const eventId = event.id
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div>
       <h1 className="page-title">✏️ Edytuj wydarzenie</h1>
       <EditEventClient
         eventId={eventId}
@@ -37,8 +40,10 @@ export default async function EditEventPage({ params }: Props) {
           form_fields: Array.isArray(event.form_fields) ? event.form_fields : [],
           has_results: event.has_results ?? false,
           results_public: event.results_public ?? true,
+          has_schedule: event.has_schedule ?? false,
           auto_confirm: event.auto_confirm ?? false,
           max_participants: event.max_participants ?? null,
+          entry_fee: event.entry_fee ?? null,
           image_url: event.image_url ?? null,
           organizer_name: event.organizer_name ?? null,
           lat: event.lat ?? null,

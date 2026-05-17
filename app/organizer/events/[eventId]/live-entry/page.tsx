@@ -11,29 +11,32 @@ interface Props {
 
 export const metadata: Metadata = { title: 'Wprowadzanie wyników' }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function LiveEntryPage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   await requireRole(['organizer', 'admin'])
 
   const supabase = await createAuthClient()
 
-  const [{ data: event }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).single(),
+  const { data: event } = await supabase.from('events').select('*')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
+  if (!event) notFound()
+  if (!event.has_results) notFound()
+  const eventId = event.id
+
+  const [{ data: registrations }, { data: results }] = await Promise.all([
     supabase
       .from('registrations')
       .select('id, participant_id, order_index, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
+    supabase
+      .from('results')
+      .select('id, participant_id, time_ms, notes')
+      .eq('event_id', eventId),
   ])
-
-  if (!event) notFound()
-  if (!event.has_results) notFound()
-
-  const { data: results } = await supabase
-    .from('results')
-    .select('id, participant_id, time_ms, notes')
-    .eq('event_id', eventId)
 
   const currentIndex = event.current_start_index ?? 0
 

@@ -1,10 +1,12 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import Link from 'next/link'
 import EventCard from '@/components/EventCard'
-import EventFilter from '@/components/EventFilter'
-import { formatDate } from '@/lib/utils'
+import EventSearchBar from '@/components/EventSearchBar'
+import { formatDate, effectiveStatus } from '@/lib/utils'
+import { EVENT_TYPES } from '@/lib/eventTypes'
 import { Suspense } from 'react'
 import type { DogEvent } from '@/types'
+import { CalendarDays, Radio, CalendarX2, MapPin, PawPrint } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +18,6 @@ export default async function HomePage({ searchParams }: Props) {
   const sp = await searchParams
   const supabase = createServerClient()
   const now = new Date().toISOString()
-  // Show events not yet ended: end_at in future, OR no end_at (and started within 48h), OR no start_at
   const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
 
   let query = supabase
@@ -26,85 +27,163 @@ export default async function HomePage({ searchParams }: Props) {
     .or(`end_at.gt.${now},and(end_at.is.null,start_at.gt.${twoDaysAgo}),start_at.is.null`)
     .order('start_at', { ascending: true })
 
-  if (sp.typ) query = query.eq('event_type_id', sp.typ)
-  if (sp.lokalizacja)
-    query = query.ilike('location', `%${sp.lokalizacja}%`)
-  if (sp.szukaj)
-    query = query.ilike('title', `%${sp.szukaj}%`)
-  if (sp.organizator)
-    query = query.ilike('organizer_name', `%${sp.organizator}%`)
+  if (sp.lokalizacja) query = query.ilike('location', `%${sp.lokalizacja}%`)
+  if (sp.szukaj) {
+    const term = sp.szukaj
+    const matchingTypeIds = EVENT_TYPES
+      .filter(t => t.name.toLowerCase().includes(term.toLowerCase()))
+      .map(t => t.id)
+    if (matchingTypeIds.length > 0) {
+      query = query.or(`title.ilike.%${term}%,event_type_id.in.(${matchingTypeIds.join(',')})`)
+    } else {
+      query = query.ilike('title', `%${term}%`)
+    }
+  }
+  if (sp.organizator) query = query.ilike('organizer_name', `%${sp.organizator}%`)
 
   const { data: events, error } = await query
 
-  // Recently cancelled (last 30 days) — only when no filters active
-  const hasFilters = sp.typ || sp.lokalizacja || sp.szukaj || sp.organizator
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const hasFilters = sp.lokalizacja || sp.szukaj || sp.organizator
+
+  // Cancelled sidebar: only events whose planned start hasn't passed yet
   const { data: cancelledEvents } = hasFilters ? { data: null } : await supabase
     .from('events')
     .select('id, title, start_at, location')
     .eq('status', 'cancelled')
-    .gte('start_at', thirtyDaysAgo)
+    .gt('start_at', now)
     .order('start_at', { ascending: true })
-    .limit(3)
+    .limit(5)
+
+  const allEvents: DogEvent[] = events ?? []
+  const ongoingEvents = allEvents.filter(e => effectiveStatus(e) === 'ongoing')
+  const upcomingEvents = allEvents.filter(e => effectiveStatus(e) === 'upcoming')
+  const hasCancelled = (cancelledEvents?.length ?? 0) > 0
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">🐾 Nadchodzące wydarzenia</h1>
-        <p className="text-slate-500 text-sm mt-1">Zawody, eventy i spacery dla Ciebie i Twojego psa</p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Page heading */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shrink-0">
+          <PawPrint className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground leading-tight">
+            Wydarzenia
+          </h1>
+          <p className="text-sm text-muted-foreground">Zawody, eventy i spacery dla Ciebie i Twojego psa</p>
+        </div>
       </div>
 
       <Suspense>
-        <EventFilter />
+        <EventSearchBar />
       </Suspense>
 
       {error && process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
           <strong>Błąd bazy danych:</strong> {error.message}
         </div>
       )}
 
-      {!events || events.length === 0 ? (
-        <div className="card text-center py-16">
-          <p className="text-5xl mb-4">🐾</p>
-          <p className="text-slate-500 font-medium">Brak wydarzeń spełniających kryteria</p>
-          <p className="text-slate-400 text-sm mt-1">Sprawdź archiwum poprzednich edycji</p>
-          <Link href="/archive" className="btn btn-secondary btn-sm mt-4 inline-flex">
-            Archiwum
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((event: DogEvent) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
-      )}
+      {/* Main content + cancelled sidebar */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
 
-      {cancelledEvents && cancelledEvents.length > 0 && (
-        <div className="mt-8">
-          <p className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
-            🚫 Niedawno odwołane
-          </p>
-          <div className="space-y-2">
-            {cancelledEvents.map((e: any) => (
-              <div key={e.id} className="card opacity-60 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-slate-600 line-through">{e.title}</p>
+        {/* ── Left: event sections ── */}
+        <div className="flex-1 min-w-0 space-y-8">
+
+          {/* ONGOING */}
+          {ongoingEvents.length > 0 && (
+            <section>
+              <SectionLabel icon={<Radio className="w-3.5 h-3.5 animate-pulse text-emerald-600" />} label="Trwające" accent="emerald" />
+              <div className="grid gap-5 sm:grid-cols-2">
+                {ongoingEvents.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* UPCOMING */}
+          {upcomingEvents.length > 0 && (
+            <section>
+              <SectionLabel icon={<CalendarDays className="w-3.5 h-3.5 text-blue-500" />} label="Nadchodzące" />
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {upcomingEvents.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Empty state */}
+          {allEvents.length === 0 && (
+            <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm">
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+                <CalendarDays className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="font-heading font-semibold text-foreground text-lg">Brak wydarzeń</p>
+              <p className="text-muted-foreground text-sm mt-1 mb-6">
+                {hasFilters ? 'Brak wyników dla wybranych filtrów.' : 'Sprawdź archiwum poprzednich edycji.'}
+              </p>
+              <Link href="/archive" className="btn btn-secondary btn-sm inline-flex">
+                Przeglądaj archiwum
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right: cancelled sidebar ── */}
+        {hasCancelled && (
+          <aside className="w-full xl:w-52 shrink-0">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <CalendarX2 className="w-3.5 h-3.5 text-red-400" />
+              Odwołane
+            </p>
+            <div className="space-y-2">
+              {cancelledEvents!.map((e: any) => (
+                <div
+                  key={e.id}
+                  className="bg-card rounded-2xl border border-border px-3 py-2.5 opacity-60"
+                >
+                  <p className="text-xs font-medium text-foreground line-through leading-tight line-clamp-2">
+                    {e.title}
+                  </p>
                   {e.start_at && (
-                    <p className="text-xs text-slate-400">📅 {formatDate(e.start_at)}</p>
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                      <CalendarDays className="w-3 h-3 shrink-0" />
+                      {formatDate(e.start_at)}
+                    </p>
                   )}
                   {e.location && (
-                    <p className="text-xs text-slate-400">📍 {e.location}</p>
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{e.location}</span>
+                    </p>
                   )}
                 </div>
-                <span className="badge badge-red shrink-0">Odwołane</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </aside>
+        )}
+
+      </div>
     </div>
+  )
+}
+
+function SectionLabel({
+  icon,
+  label,
+  accent,
+}: {
+  icon: React.ReactNode
+  label: string
+  accent?: 'emerald'
+}) {
+  return (
+    <p className={`text-xs font-semibold uppercase tracking-widest mb-4 flex items-center gap-1.5 ${accent === 'emerald' ? 'text-emerald-700' : 'text-muted-foreground'}`}>
+      {icon}
+      {label}
+    </p>
   )
 }
 

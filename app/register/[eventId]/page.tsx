@@ -1,10 +1,26 @@
 import { createServerClient } from '@/lib/supabaseServer'
-import { notFound } from 'next/navigation'
-import { formatDate, isRegistrationOpen } from '@/lib/utils'
+import { notFound, redirect } from 'next/navigation'
+import { formatDate, isRegistrationOpen, effectiveStatus } from '@/lib/utils'
 import RegisterForm from '@/components/RegisterForm'
 import { getEventType } from '@/lib/eventTypes'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function resolveEvent(param: string) {
+  const supabase = createServerClient()
+  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).maybeSingle()
+  if (bySlug) return { event: bySlug, redirectTo: null }
+  if (UUID_RE.test(param)) {
+    const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
+    if (byId) {
+      const target = byId.slug ? `/register/${byId.slug}` : null
+      return { event: byId, redirectTo: target }
+    }
+  }
+  return { event: null, redirectTo: null }
+}
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -12,34 +28,30 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
-  const supabase = createServerClient()
-  const { data } = await supabase.from('events').select('title').eq('id', eventId).single()
-  return { title: `Zapis – ${data?.title ?? 'Wydarzenie'}` }
+  const { event } = await resolveEvent(eventId)
+  return { title: `Zapis – ${event?.title ?? 'Wydarzenie'}` }
 }
 
 export default async function RegisterPage({ params }: Props) {
   const { eventId } = await params
-  const supabase = createServerClient()
-  const { data: event } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', eventId)
-    .single()
+  const { event, redirectTo } = await resolveEvent(eventId)
 
   if (!event) notFound()
+  if (redirectTo) redirect(redirectTo)
 
   const regOpen = isRegistrationOpen(event)
+  const dispStatus = effectiveStatus(event)
 
-  if (event.status !== 'upcoming' || !regOpen) {
+  if (dispStatus !== 'upcoming' || !regOpen) {
     return (
       <div className="max-w-lg mx-auto">
         <div className="card text-center py-16">
-          <p className="text-5xl mb-4">{event.status !== 'upcoming' ? '\uD83D\uDEAB' : '\uD83D\uDD12'}</p>
+          <p className="text-5xl mb-4">{dispStatus !== 'upcoming' ? '🚫' : '🔒'}</p>
           <p className="text-lg font-semibold text-slate-700">
-            {event.status !== 'upcoming' ? 'Zapisy niedostępne' : 'Zapisy zamknięte'}
+            {dispStatus !== 'upcoming' ? 'Zapisy niedostępne' : 'Zapisy zamknięte'}
           </p>
           <p className="text-slate-500 text-sm mt-2">
-            {event.status !== 'upcoming'
+            {dispStatus !== 'upcoming'
               ? 'To wydarzenie nie przyjmuje już zapisów.'
               : 'Termin zapisów minął.'}
           </p>

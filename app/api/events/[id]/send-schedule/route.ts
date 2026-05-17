@@ -27,46 +27,59 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
-  // Optionally accept a list of registration ids to send to (or send to all)
-  let body: { registrationIds?: string[] } = {}
+  // Optionally accept a list of assignment ids to send to (or send to all)
+  let body: { assignmentIds?: string[] } = {}
   try { body = await req.json() } catch { /* send to all */ }
 
-  // Fetch registrations with time_slot_id set
-  let regQuery = supabase
+  // Fetch confirmed registrations for this event
+  const { data: regs } = await supabase
     .from('registrations')
-    .select('id, time_slot_id, schedule_sent_at, participants(owner_email, owner_name, dog_name)')
+    .select('id, participants(owner_email, owner_name, dog_name)')
     .eq('event_id', id)
     .eq('status', 'confirmed')
-    .not('time_slot_id', 'is', null)
 
-  if (body.registrationIds?.length) {
-    regQuery = regQuery.in('id', body.registrationIds)
+  const regIds = (regs ?? []).map((r: any) => r.id as string)
+  if (!regIds.length) {
+    return NextResponse.json({ error: 'Brak potwierdzonych uczestników' }, { status: 400 })
   }
 
-  const { data: registrations } = await regQuery
+  const regMap = new Map((regs ?? []).map((r: any) => [r.id as string, r]))
 
-  if (!registrations?.length) {
+  // Fetch schedule_assignments
+  let assignQuery = supabase
+    .from('schedule_assignments')
+    .select('*')
+    .in('registration_id', regIds)
+
+  if (body.assignmentIds?.length) {
+    assignQuery = assignQuery.in('id', body.assignmentIds)
+  }
+
+  const { data: assignments } = await assignQuery
+
+  if (!assignments?.length) {
     return NextResponse.json({ error: 'Brak uczestników z przypisanym slotem' }, { status: 400 })
   }
 
-  // Fetch all relevant time_slots
-  const slotIds = [...new Set(registrations.map(r => r.time_slot_id as string))]
+  // Fetch slots
+  const slotIds = [...new Set(assignments.map((a: any) => a.time_slot_id as string))]
   const { data: slots } = await supabase
     .from('time_slots')
     .select('*')
     .in('id', slotIds)
 
-  const slotMap = new Map((slots ?? []).map(s => [s.id, s]))
+  const slotMap = new Map((slots ?? []).map((s: any) => [s.id, s]))
 
   let sent = 0
   let failed = 0
   const sentIds: string[] = []
 
-  for (const reg of registrations) {
-    const slot = slotMap.get(reg.time_slot_id as string)
+  for (const assignment of assignments) {
+    const slot = slotMap.get(assignment.time_slot_id)
     if (!slot) continue
 
-    const p = (reg as Record<string, unknown>).participants as Record<string, string> | null
+    const reg = regMap.get(assignment.registration_id)
+    const p = reg?.participants as Record<string, string> | null
     if (!p?.owner_email) continue
 
     try {
@@ -81,18 +94,18 @@ export async function POST(req: Request, { params }: Params) {
         slotTime: slot.slot_time,
         slotLabel: slot.label ?? null,
       })
-      sentIds.push(reg.id)
+      sentIds.push(assignment.id)
       sent++
     } catch {
       failed++
     }
   }
 
-  // Mark schedule_sent_at for successfully sent registrations
+  // Mark sent_at on assignments
   if (sentIds.length > 0) {
     await supabase
-      .from('registrations')
-      .update({ schedule_sent_at: new Date().toISOString() })
+      .from('schedule_assignments')
+      .update({ sent_at: new Date().toISOString() })
       .in('id', sentIds)
   }
 

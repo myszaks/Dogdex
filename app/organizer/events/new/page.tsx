@@ -23,8 +23,11 @@ export default function NewEventPage() {
   const [formFields, setFormFields] = useState<FormField[]>([])
   const [hasResults, setHasResults] = useState(false)
   const [resultsPublic, setResultsPublic] = useState(true)
+  const [hasSchedule, setHasSchedule] = useState(false)
   const [autoConfirm, setAutoConfirm] = useState(false)
   const [maxParticipants, setMaxParticipants] = useState<string>('')
+  const [entryFeeEnabled, setEntryFeeEnabled] = useState(false)
+  const [entryFee, setEntryFee] = useState<string>('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [galleryImages, setGalleryImages] = useState<string[]>([])
   const [startAt, setStartAt] = useState<string | null>(null)
@@ -74,8 +77,10 @@ export default function NewEventPage() {
       form_fields: formFields,
       has_results: hasResults,
       results_public: resultsPublic,
+      has_schedule: hasSchedule,
       auto_confirm: autoConfirm,
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
+      entry_fee: entryFeeEnabled && entryFee ? parseFloat(entryFee) : null,
       image_url: imageUrl,
       organizer_name: (form.get('organizer_name') as string) || null,
       lat,
@@ -106,7 +111,7 @@ export default function NewEventPage() {
   const selectedType = EVENT_TYPES.find(t => t.id === eventTypeId)
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div>
       <h1 className="page-title">➕ Nowe wydarzenie</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card space-y-4">
@@ -199,6 +204,32 @@ export default function NewEventPage() {
               <input
                 type="checkbox"
                 className="mt-0.5 rounded"
+                checked={entryFeeEnabled}
+                onChange={e => { setEntryFeeEnabled(e.target.checked); if (!e.target.checked) setEntryFee('') }}
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-slate-700">Pobieraj wpisowe</span>
+                <p className="text-xs text-slate-400 mt-0.5">Podaj kwotę wpisowego dla uczestników.</p>
+                {entryFeeEnabled && (
+                  <div className="mt-2">
+                    <label className="form-label">Kwota wpisowego (zł) *</label>
+                    <input
+                      className="form-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="np. 25"
+                      value={entryFee}
+                      onChange={e => setEntryFee(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded"
                 checked={autoConfirm}
                 onChange={e => setAutoConfirm(e.target.checked)}
               />
@@ -282,6 +313,20 @@ export default function NewEventPage() {
               <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
             </div>
           )}
+
+          {/* Schedule */}
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded"
+              checked={hasSchedule}
+              onChange={e => setHasSchedule(e.target.checked)}
+            />
+            <div>
+              <span className="text-sm font-medium text-slate-700">Włącz grafik startów</span>
+              <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł przypisywać uczestnikom terminy startów.</p>
+            </div>
+          </label>
         </div>
 
         {error && (

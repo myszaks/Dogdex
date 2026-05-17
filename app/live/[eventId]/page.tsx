@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabaseServer'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
 import SpeedwayLiveView from '@/components/SpeedwayLiveView'
@@ -9,37 +9,57 @@ import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function resolveEvent(param: string) {
+  const supabase = createServerClient()
+  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).maybeSingle()
+  if (bySlug) return { event: bySlug, redirectTo: null }
+  if (UUID_RE.test(param)) {
+    const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
+    if (byId) {
+      const target = byId.slug ? `/live/${byId.slug}` : null
+      return { event: byId, redirectTo: target }
+    }
+  }
+  return { event: null, redirectTo: null }
+}
+
 interface Props {
   params: Promise<{ eventId: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
-  const supabase = createServerClient()
-  const { data } = await supabase.from('events').select('title').eq('id', eventId).single()
-  return { title: `Live – ${data?.title ?? 'Wydarzenie'}` }
+  const { event } = await resolveEvent(eventId)
+  return { title: `Live – ${event?.title ?? 'Wydarzenie'}` }
 }
 
 export default async function LivePage({ params }: Props) {
   const { eventId } = await params
-  const supabase = createServerClient()
+  const { event: resolvedEvent, redirectTo } = await resolveEvent(eventId)
 
-  const [{ data: event }, { data: results }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).single(),
+  if (!resolvedEvent) notFound()
+  if (redirectTo) redirect(redirectTo)
+
+  const supabase = createServerClient()
+  const resolvedId = resolvedEvent.id as string
+
+  const [{ data: results }, { data: registrations }] = await Promise.all([
     supabase
       .from('results')
       .select('*, participants(dog_name, owner_name, dog_breed)')
-      .eq('event_id', eventId)
+      .eq('event_id', resolvedId)
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
       .select('id, order_index, form_data, participants(id, dog_name, owner_name, dog_breed)')
-      .eq('event_id', eventId)
+      .eq('event_id', resolvedId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
   ])
 
-  if (!event) notFound()
+  const event = resolvedEvent
   if (!event.has_results) notFound()
 
   const isPublic = event.results_public ?? true
@@ -85,7 +105,7 @@ export default async function LivePage({ params }: Props) {
         <>
           {isSpeedway ? (
             <SpeedwayLiveView
-              eventId={eventId}
+              eventId={resolvedId}
               initialStartIndex={event.current_start_index ?? 0}
               initialLivePhase={event.live_phase ?? null}
               participants={speedwayParticipants}
@@ -94,11 +114,11 @@ export default async function LivePage({ params }: Props) {
           ) : (
             <>
               <LiveStartPanel
-                eventId={eventId}
+                eventId={resolvedId}
                 initialStartIndex={event.current_start_index ?? 0}
                 participants={startParticipants}
               />
-              <LiveResults eventId={eventId} initialResults={results ?? []} />
+              <LiveResults eventId={resolvedId} initialResults={results ?? []} />
             </>
           )}
         </>

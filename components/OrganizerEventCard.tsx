@@ -4,55 +4,58 @@ import EventCard from './EventCard'
 import CancelEventButton from './CancelEventButton'
 import RestoreEventButton from './RestoreEventButton'
 import type { DogEvent } from '@/types'
+import { Users, Calendar, Trophy, Radio, Pencil, Eye, ClipboardCheck } from 'lucide-react'
+import { effectiveStatus } from '@/lib/utils'
 
 export default function OrganizerEventCard({ event }: { event: DogEvent }) {
+  const dispStatus = effectiveStatus(event)
+  const eid = event.slug ?? event.id
   return (
     <EventCard
       event={event}
       hidePublicActions
       extraActions={
         <>
-          <Link
-            href={`/organizer/events/${event.id}/registrations`}
-            className="btn btn-secondary btn-sm"
-          >
-            👥 Zapisy
+          <Link href={`/organizer/events/${eid}/registrations`} className="btn btn-secondary btn-sm">
+            <Users className="w-3.5 h-3.5" />
+            Zapisy
           </Link>
-          <Link
-            href={`/organizer/events/${event.id}/schedule`}
-            className="btn btn-secondary btn-sm"
-          >
-            📅 Grafik
-          </Link>
+          {event.event_type_id === 'speedway' && (
+            <Link href={`/organizer/events/${eid}/checkin`} className="btn btn-secondary btn-sm">
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              Odprawa
+            </Link>
+          )}
+          {event.has_schedule && (
+            <Link href={`/organizer/events/${eid}/schedule`} className="btn btn-secondary btn-sm">
+              <Calendar className="w-3.5 h-3.5" />
+              Grafik
+            </Link>
+          )}
           {event.has_results && (
             <>
-              <Link
-                href={`/organizer/events/${event.id}/results`}
-                className="btn btn-primary btn-sm"
-              >
-                🏆 Wyniki
+              <Link href={`/organizer/events/${eid}/results`} className="btn btn-primary btn-sm">
+                <Trophy className="w-3.5 h-3.5" />
+                Wyniki
               </Link>
-              <Link
-                href={`/live/${event.id}`}
-                className="btn btn-secondary btn-sm"
-              >
-                🔴 Live
+              <Link href={`/live/${eid}`} className="btn btn-secondary btn-sm">
+                <Radio className="w-3.5 h-3.5" />
+                Live
               </Link>
             </>
           )}
-          <Link
-            href={`/organizer/events/${event.id}/edit`}
-            className="btn btn-secondary btn-sm"
-          >
-            ✏️ Edytuj
+          <Link href={`/organizer/events/${eid}/edit`} className="btn btn-secondary btn-sm">
+            <Pencil className="w-3.5 h-3.5" />
+            Edytuj
           </Link>
           <Link
-            href={event.status === 'finished' || event.status === 'cancelled' ? `/archive/${event.slug ?? event.id}` : `/events/${event.slug ?? event.id}`}
+            href={dispStatus === 'finished' || dispStatus === 'cancelled' ? `/archive/${event.slug ?? event.id}` : `/events/${event.slug ?? event.id}`}
             className="btn btn-secondary btn-sm"
           >
+            <Eye className="w-3.5 h-3.5" />
             Szczegóły
           </Link>
-          {event.status !== 'cancelled'
+          {dispStatus !== 'cancelled'
             ? <CancelEventButton eventId={event.id} />
             : <RestoreEventButton eventId={event.id} />
           }
@@ -61,3 +64,4 @@ export default function OrganizerEventCard({ event }: { event: DogEvent }) {
     />
   )
 }
+

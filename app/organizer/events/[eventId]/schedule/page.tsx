@@ -12,14 +12,20 @@ interface Props {
 export const metadata: Metadata = { title: 'Zarządzanie grafikiem' }
 export const dynamic = 'force-dynamic'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function SchedulePage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   await requireRole(['organizer', 'admin'])
 
   const supabase = await createAuthClient()
 
-  const [{ data: event }, { data: slots }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).single(),
+  const { data: event } = await supabase.from('events').select('*')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
+  if (!event) notFound()
+  const eventId = event.id
+
+  const [{ data: slots }, { data: registrations }] = await Promise.all([
     supabase
       .from('time_slots')
       .select('*')
@@ -28,13 +34,31 @@ export default async function SchedulePage({ params }: Props) {
       .order('slot_time', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, time_slot_id, schedule_sent_at, participant_id, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, form_data, participant_id, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('created_at', { ascending: true }),
   ])
 
-  if (!event) notFound()
+  const regIds = (registrations ?? []).map((r: any) => r.id as string)
+
+  const { data: assignments } = regIds.length
+    ? await supabase.from('schedule_assignments').select('*').in('registration_id', regIds)
+    : { data: [] }
+
+  // Collect multidate field IDs from event form_fields
+  const multiDateFieldIds: string[] = ((event as any).form_fields ?? []).filter(
+    (f: any) => f.type === 'multidate'
+  ).map((f: any) => f.id as string)
+
+  // Collect all unique dates from multidate fields' options
+  const availableDates: string[] = Array.from(new Set(
+    ((event as any).form_fields ?? [])
+      .filter((f: any) => f.type === 'multidate')
+      .flatMap((f: any) => Array.isArray(f.options) ? f.options as string[] : [])
+      .filter((d: string) => !!d)
+      .sort()
+  ))
 
   const participants = (registrations ?? []).map((r: any) => ({
     registrationId: r.id as string,
@@ -42,11 +66,11 @@ export default async function SchedulePage({ params }: Props) {
     dog_name: (r.participants?.dog_name ?? null) as string | null,
     owner_name: (r.participants?.owner_name ?? null) as string | null,
     dog_breed: (r.participants?.dog_breed ?? null) as string | null,
-    schedule_sent_at: r.schedule_sent_at as string | null,
-    time_slot_id: r.time_slot_id as string | null,
+    form_data: (r.form_data ?? {}) as Record<string, unknown>,
   }))
 
-  const assignedCount = participants.filter(p => p.time_slot_id !== null).length
+  const assignedRegIds = new Set((assignments ?? []).map((a: any) => a.registration_id as string))
+  const assignedCount = assignedRegIds.size
 
   return (
     <div>
@@ -92,6 +116,9 @@ export default async function SchedulePage({ params }: Props) {
         eventId={eventId}
         initialSlots={slots ?? []}
         initialParticipants={participants}
+        initialAssignments={(assignments ?? []) as any}
+        multiDateFieldIds={multiDateFieldIds}
+        availableDates={availableDates}
       />
     </div>
   )

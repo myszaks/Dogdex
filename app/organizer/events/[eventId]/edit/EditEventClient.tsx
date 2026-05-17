@@ -28,8 +28,10 @@ interface Props {
     form_fields: FormField[]
     has_results: boolean
     results_public: boolean
+    has_schedule: boolean
     auto_confirm: boolean
     max_participants: number | null
+    entry_fee: number | null
     image_url: string | null
     organizer_name: string | null
     lat: number | null
@@ -48,9 +50,14 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [hasResults, setHasResults] = useState(initialData.has_results ?? false)
   const [resultsPublic, setResultsPublic] = useState(initialData.results_public ?? true)
+  const [hasSchedule, setHasSchedule] = useState(initialData.has_schedule ?? false)
   const [autoConfirm, setAutoConfirm] = useState(initialData.auto_confirm ?? false)
   const [maxParticipants, setMaxParticipants] = useState<string>(
     initialData.max_participants != null ? String(initialData.max_participants) : ''
+  )
+  const [entryFeeEnabled, setEntryFeeEnabled] = useState(initialData.entry_fee != null)
+  const [entryFee, setEntryFee] = useState<string>(
+    initialData.entry_fee != null ? String(initialData.entry_fee) : ''
   )
   const [imageUrl, setImageUrl] = useState<string | null>(initialData.image_url ?? null)
   const [organizerName, setOrganizerName] = useState<string>(initialData.organizer_name ?? '')
@@ -105,8 +112,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       form_fields: formFields,
       has_results: hasResults,
       results_public: resultsPublic,
+      has_schedule: hasSchedule,
       auto_confirm: autoConfirm,
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
+      entry_fee: entryFeeEnabled && entryFee ? parseFloat(entryFee) : null,
       image_url: imageUrl,
       organizer_name: organizerName.trim() || null,
       lat,
@@ -222,6 +231,32 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               <input
                 type="checkbox"
                 className="mt-0.5 rounded"
+                checked={entryFeeEnabled}
+                onChange={e => { setEntryFeeEnabled(e.target.checked); if (!e.target.checked) setEntryFee('') }}
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium text-slate-700">Pobieraj wpisowe</span>
+                <p className="text-xs text-slate-400 mt-0.5">Podaj kwotę wpisowego dla uczestników.</p>
+                {entryFeeEnabled && (
+                  <div className="mt-2">
+                    <label className="form-label">Kwota wpisowego (zł) *</label>
+                    <input
+                      className="form-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="np. 25"
+                      value={entryFee}
+                      onChange={e => setEntryFee(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded"
                 checked={autoConfirm}
                 onChange={e => setAutoConfirm(e.target.checked)}
               />
@@ -312,6 +347,20 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
             </div>
           )}
+
+          {/* Schedule */}
+          <label className="flex items-start gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded"
+              checked={hasSchedule}
+              onChange={e => setHasSchedule(e.target.checked)}
+            />
+            <div>
+              <span className="text-sm font-medium text-slate-700">Włącz grafik startów</span>
+              <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł przypisywać uczestnikom terminy startów.</p>
+            </div>
+          </label>
         </div>
 
         {error && (

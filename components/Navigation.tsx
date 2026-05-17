@@ -5,8 +5,18 @@ import { useState, useEffect, Suspense } from 'react'
 import AuthModal from './AuthModal'
 import UserMenu from './UserMenu'
 import useUser from '@/hooks/useUser'
+import {
+  Home,
+  Archive,
+  ClipboardList,
+  Dog,
+  Settings2,
+  PawPrint,
+  LogIn,
+  Search,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-/** Isolated component so useSearchParams() stays inside a Suspense boundary */
 function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -30,13 +40,12 @@ export default function Navigation() {
   const { isOrganizer, user } = useUser()
 
   const navLinks = [
-    { href: '/', label: 'Główna', icon: '🏠' },
-    { href: '/archive', label: 'Archiwum', icon: '📁' },
+    { href: '/', label: 'Główna', Icon: Home },
+    { href: '/archive', label: 'Archiwum', Icon: Archive },
   ]
-
-  if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', icon: '📋' })
-  if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', icon: '🐕' })
-  if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', icon: '⚙️' })
+  if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
+  if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
+  if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', Icon: Settings2 })
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -45,47 +54,89 @@ export default function Navigation() {
 
   return (
     <>
-      {/* Desktop / top header */}
-      <header className="bg-sky-700 text-white sticky top-0 z-50 shadow-md">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="font-bold text-xl flex items-center gap-2 shrink-0">
-            🐾 Dogdex
+      {/* ── Desktop Sidebar ────────────────────────────────── */}
+      <aside className="hidden md:flex fixed top-0 left-0 h-full w-[260px] flex-col z-40 bg-[#1E3932] text-white shadow-xl">
+        {/* Brand */}
+        <div className="px-6 py-7 border-b border-white/10">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shrink-0">
+              <PawPrint className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-heading font-bold text-xl tracking-tight">Dogdex</span>
           </Link>
-          {/* Auth controls visible on all breakpoints */}
-          <div className="flex items-center gap-2">
-            <nav className="hidden md:flex items-center gap-2">
-              {navLinks.map(l => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(l.href) ? 'bg-white/20' : 'hover:bg-white/10'
-                  }`}
-                >
-                  {l.icon} {l.label}
-                </Link>
-              ))}
-            </nav>
-            <AuthControls openModal={() => setOpen(true)} />
-          </div>
+        </div>
+
+        {/* Nav links */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {navLinks.map(({ href, label, Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                isActive(href)
+                  ? 'bg-[#EFF4F2] text-[#1E3932] font-semibold shadow-sm'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              <Icon className={cn('w-4.5 h-4.5 shrink-0', isActive(href) ? 'text-[#1E3932]' : 'text-white/60')} />
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Bottom: user section */}
+        <div className="px-4 py-4 border-t border-white/10">
+          <AuthControlsSidebar openModal={() => setOpen(true)} />
+        </div>
+      </aside>
+
+      {/* ── Mobile Top Bar ─────────────────────────────────── */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#1E3932] text-white px-4 py-3 flex items-center justify-between shadow-md">
+        <Link href="/" className="flex items-center gap-2 font-heading font-bold text-lg">
+          <PawPrint className="w-5 h-5 text-accent" />
+          Dogdex
+        </Link>
+        <div className="flex items-center gap-2">
+          <AuthControlsMobile openModal={() => setOpen(true)} />
         </div>
       </header>
 
-      {/* Mobile bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Mobile top bar spacer */}
+      <div className="md:hidden h-[52px]" />
+
+      {/* ── Mobile Bottom Nav ──────────────────────────────── */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-40 md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="flex">
-          {navLinks.map(l => (
+          {navLinks.map(({ href, label, Icon }) => (
             <Link
-              key={l.href}
-              href={l.href}
-              className={`flex-1 flex flex-col items-center py-3 text-xs gap-0.5 transition-colors min-h-[56px] justify-center ${
-                isActive(l.href) ? 'text-sky-600 font-semibold' : 'text-slate-500'
-              }`}
+              key={href}
+              href={href}
+              className={cn(
+                'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
+                isActive(href) ? 'text-accent' : 'text-muted-foreground'
+              )}
             >
-              <span className="text-xl leading-none">{l.icon}</span>
-              <span className="leading-none mt-0.5">{l.label}</span>
+              <Icon className={cn('w-5 h-5', isActive(href) ? 'text-accent' : 'text-muted-foreground/70')} />
+              <span className="leading-none">{label}</span>
             </Link>
           ))}
+          {/* Profile shortcut on mobile */}
+          {user && (
+            <Link
+              href="/profile"
+              className={cn(
+                'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
+                pathname?.startsWith('/profile') ? 'text-accent' : 'text-muted-foreground'
+              )}
+            >
+              <Search className="w-5 h-5 text-muted-foreground/70" />
+              <span>Profil</span>
+            </Link>
+          )}
         </div>
       </nav>
 
@@ -97,14 +148,34 @@ export default function Navigation() {
   )
 }
 
-function AuthControls({ openModal }: { openModal: () => void }) {
+function AuthControlsSidebar({ openModal }: { openModal: () => void }) {
   const { user } = useUser()
   if (!user) {
     return (
-      <button onClick={openModal} className="px-3 py-1 rounded-lg text-sm bg-white/10 hover:bg-white/20">
+      <button
+        onClick={openModal}
+        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+      >
+        <LogIn className="w-4 h-4 shrink-0" />
+        Zaloguj się
+      </button>
+    )
+  }
+  return <UserMenu sidebar />
+}
+
+function AuthControlsMobile({ openModal }: { openModal: () => void }) {
+  const { user } = useUser()
+  if (!user) {
+    return (
+      <button
+        onClick={openModal}
+        className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white hover:bg-orange-600 transition-colors"
+      >
         Zaloguj
       </button>
     )
   }
   return <UserMenu />
 }
+

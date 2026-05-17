@@ -46,6 +46,8 @@ export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name?.trim()) { setError('Imię psa jest wymagane'); return }
+    if (!form.height_cm) { setError('Wzrost w kłębie jest wymagany'); return }
+    if (!form.rabies_vaccine_expiry) { setError('Ważność szczepienia na wściekliznę jest wymagana'); return }
     setLoading(true)
     setError(null)
     try {
@@ -102,12 +104,12 @@ export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
           <input className="form-input" type="number" step="0.1" min="0" value={form.weight_kg ?? ''} onChange={e => set('weight_kg', e.target.value ? Number(e.target.value) : null)} placeholder="12.5" />
         </div>
         <div>
-          <label className="form-label">Wzrost w kłębie (cm)</label>
-          <input className="form-input" type="number" step="0.5" min="0" value={form.height_cm ?? ''} onChange={e => set('height_cm', e.target.value ? Number(e.target.value) : null)} placeholder="45" />
+          <label className="form-label">Wzrost w kłębie (cm) *</label>
+          <input className="form-input" type="number" step="0.5" min="0" value={form.height_cm ?? ''} onChange={e => set('height_cm', e.target.value ? Number(e.target.value) : null)} placeholder="45" required />
         </div>
         <div className="sm:col-span-2">
-          <label className="form-label">Ważność szczepienia na wściekliznę</label>
-          <input className="form-input" type="date" value={form.rabies_vaccine_expiry ?? ''} onChange={e => set('rabies_vaccine_expiry', e.target.value || null)} />
+          <label className="form-label">Ważność szczepienia na wściekliznę *</label>
+          <input className="form-input" type="date" value={form.rabies_vaccine_expiry ?? ''} onChange={e => set('rabies_vaccine_expiry', e.target.value || null)} required />
         </div>
       </div>
 

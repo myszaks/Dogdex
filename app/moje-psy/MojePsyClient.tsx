@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import DogCard from '@/components/DogCard'
 import DogForm from '@/components/DogForm'
 import type { Dog } from '@/types'
+import { PlusCircle, Dog as DogIcon, X } from 'lucide-react'
 
 interface Props {
   initialDogs: Dog[]
@@ -37,33 +38,71 @@ export default function MojePsyClient({ initialDogs }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">⚠️ {error}</p>}
-
-      {dogs.length === 0 && !adding && (
-        <div className="card text-center py-16">
-          <p className="text-5xl mb-4">🐕</p>
-          <p className="text-slate-500 font-medium">Nie masz jeszcze żadnego psa w profilu</p>
-          <p className="text-slate-400 text-sm mt-1">Dodaj psa, żeby szybciej zapisywać się na wydarzenia</p>
+    <div className="space-y-6">
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
+          ⚠️ {error}
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {dogs.map(dog => (
-          <DogCard key={dog.id} dog={dog} onDelete={handleDelete} />
-        ))}
-      </div>
-
-      {adding ? (
-        <div className="card">
-          <h2 className="font-semibold text-slate-700 mb-4">➕ Nowy pies</h2>
-          <DogForm onSave={handleAdd} onCancel={() => setAdding(false)} />
+      {dogs.length === 0 && (
+        <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+            <DogIcon className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <p className="font-heading font-semibold text-foreground text-lg">Brak psów w profilu</p>
+          <p className="text-muted-foreground text-sm mt-1 mb-6">
+            Dodaj psa, żeby szybciej zapisywać się na wydarzenia.
+          </p>
+          <button onClick={() => setAdding(true)} className="btn btn-primary">
+            <PlusCircle className="w-4 h-4" />
+            Dodaj pierwszego psa
+          </button>
         </div>
-      ) : (
-        <button onClick={() => setAdding(true)} className="btn btn-primary w-full sm:w-auto">
-          ➕ Dodaj psa
-        </button>
+      )}
+
+      {dogs.length > 0 && (
+        <>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {dogs.map(dog => (
+              <DogCard key={dog.id} dog={dog} onDelete={handleDelete} />
+            ))}
+          </div>
+          <button onClick={() => setAdding(true)} className="btn btn-primary">
+            <PlusCircle className="w-4 h-4" />
+            Dodaj psa
+          </button>
+        </>
+      )}
+
+      {/* Add dog modal */}
+      {adding && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setAdding(false) }}
+        >
+          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl border border-border max-h-[90dvh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-0.5">Moje psy</p>
+                <h2 className="font-heading font-bold text-foreground text-lg">Dodaj nowego psa</h2>
+              </div>
+              <button
+                onClick={() => setAdding(false)}
+                className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border transition-colors"
+                aria-label="Zamknij"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <DogForm onSave={handleAdd} onCancel={() => setAdding(false)} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
+

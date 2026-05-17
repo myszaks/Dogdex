@@ -7,6 +7,7 @@ import NextStartButton from '@/components/NextStartButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { extractSizeClassFromFormData } from '@/lib/speedway'
+import { effectiveStatus } from '@/lib/utils'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -14,12 +15,18 @@ interface Props {
 
 export const metadata: Metadata = { title: 'Wyniki' }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function ResultsPage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
   const supabase = await createAuthClient()
 
-  const [{ data: event }, { data: registrations }, { data: results }] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).single(),
+  const { data: event } = await supabase.from('events').select('*')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
+  if (!event) notFound()
+  const eventId = event.id
+
+  const [{ data: registrations }, { data: results }] = await Promise.all([
     supabase
       .from('registrations')
       .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
@@ -31,8 +38,6 @@ export default async function ResultsPage({ params }: Props) {
       .select('*')
       .eq('event_id', eventId),
   ])
-
-  if (!event) notFound()
   if (!event.has_results) {
     return (
       <div>
@@ -90,7 +95,7 @@ export default async function ResultsPage({ params }: Props) {
       <h1 className="page-title">🏆 Wyniki</h1>
 
       {/* Live control panel – only for ongoing events with ordered participants */}
-      {event.status === 'ongoing' && (registrations?.length ?? 0) > 0 && (
+      {effectiveStatus(event) === 'ongoing' && (registrations?.length ?? 0) > 0 && (
         <div className="space-y-3 mb-5">
           <NextStartButton
             eventId={eventId}

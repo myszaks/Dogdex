@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
-import { sendRegistrationEmail } from '@/lib/email'
+import { sendRegistrationEmail, sendCancellationEmailToOrganizer } from '@/lib/email'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -84,6 +84,30 @@ export async function PATCH(req: Request, { params }: Params) {
         eventLocation: event?.location ?? null,
         status: 'confirmed',
       }).catch(() => {})
+    }
+  }
+
+  // Send email to organizer when participant cancels their own registration
+  if (update.status === 'cancelled' && isOwner && !isOrganizerOrAdmin) {
+    const participant = (reg as Record<string, unknown>).participants as Record<string, string> | null
+    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+    const createdBy = event?.created_by as string | null
+    if (createdBy) {
+      // Get organizer email via service role (auth.admin)
+      const adminClient = createServerClient()
+      const { data: orgUser } = await adminClient.auth.admin.getUserById(createdBy)
+      const organizerEmail = orgUser?.user?.email
+      if (organizerEmail) {
+        sendCancellationEmailToOrganizer({
+          to: organizerEmail,
+          ownerName: participant?.owner_name ?? '',
+          dogName: participant?.dog_name ?? '',
+          eventTitle: String(event?.title ?? ''),
+          eventDate: event?.start_at ? String(event.start_at) : null,
+          eventLocation: event?.location ? String(event.location) : null,
+          previousStatus: reg.status,
+        }).catch(() => {})
+      }
     }
   }
 

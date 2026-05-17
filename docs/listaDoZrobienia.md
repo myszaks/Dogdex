@@ -1,0 +1,1 @@
+- wzory maili wysyłane do ludzi

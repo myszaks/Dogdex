@@ -136,16 +136,22 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onClose}>
+    <Modal open={open} onClose={onClose} title={titles[view]}>
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">{titles[view]}</h3>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-green-600">{success}</p>}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            {success}
+          </div>
+        )}
 
         {/* === LOGIN === */}
         {view === 'login' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <input value={email} onChange={e => setEmail(e.target.value)}
               placeholder="Email" className="form-input" autoComplete="email" />
             <input value={password} onChange={e => setPassword(e.target.value)}
@@ -154,17 +160,19 @@ export default function AuthModal({ open, onClose }: Props) {
               {loading ? 'Logowanie…' : 'Zaloguj się'}
             </button>
             <div className="relative my-1">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-              <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400">lub</span></div>
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-card px-3 text-xs text-muted-foreground">lub</span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <GoogleButton disabled={loading} onClick={signInWithGoogle} />
-            </div>
+            <GoogleButton disabled={loading} onClick={signInWithGoogle} />
             <div className="flex justify-between text-sm pt-1">
-              <button onClick={() => switchView('forgot')} className="text-sky-600 hover:underline">
+              <button onClick={() => switchView('forgot')} className="text-accent hover:text-orange-600 font-medium transition-colors">
                 Zapomniałem hasła
               </button>
-              <button onClick={() => switchView('register')} className="text-sky-600 hover:underline">
+              <button onClick={() => switchView('register')} className="text-accent hover:text-orange-600 font-medium transition-colors">
                 Utwórz konto
               </button>
             </div>
@@ -173,14 +181,14 @@ export default function AuthModal({ open, onClose }: Props) {
 
         {/* === REGISTER === */}
         {view === 'register' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {success ? (
-              <div className="space-y-4 py-2">
-                <div className="flex flex-col items-center gap-2 text-center">
-                  <span className="text-3xl">✉️</span>
-                  <p className="text-sm text-green-700 font-medium">{success}</p>
-                  <p className="text-xs text-slate-500">Sprawdź też folder spam, jeśli mail nie dotarł.</p>
+              <div className="space-y-4 py-2 text-center">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                  <span className="text-2xl">✉️</span>
                 </div>
+                <p className="text-sm text-emerald-700 font-medium">{success}</p>
+                <p className="text-xs text-muted-foreground">Sprawdź też folder spam.</p>
                 <button onClick={() => switchView('login')} className="btn btn-secondary w-full">
                   Wróć do logowania
                 </button>
@@ -194,16 +202,13 @@ export default function AuthModal({ open, onClose }: Props) {
                 <input value={email} onChange={e => { setEmail(e.target.value); setEmailConflict(false) }}
                   placeholder="Email" className="form-input" autoComplete="email" />
                 {emailConflict && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 space-y-2">
-                    <p className="text-sm text-amber-800 font-medium">Ten adres e-mail jest już zarejestrowany.</p>
-                    <p className="text-xs text-amber-700">Być może logowałeś się wcześniej przez Google. Możesz:</p>
-                    <div className="space-y-1.5">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
+                    <p className="text-sm text-amber-800 font-semibold">Ten adres e-mail jest już zarejestrowany.</p>
+                    <p className="text-xs text-amber-700">Być może logowałeś się wcześniej przez Google.</p>
+                    <div className="space-y-2">
                       <GoogleButton disabled={loading} onClick={signInWithGoogle} />
-                      <button
-                        type="button"
-                        className="w-full text-sm text-sky-600 hover:underline"
-                        onClick={() => { switchView('forgot') }}
-                      >
+                      <button type="button" className="w-full text-sm text-accent hover:text-orange-600 font-medium transition-colors"
+                        onClick={() => switchView('forgot')}>
                         Wyślij link do resetowania hasła
                       </button>
                     </div>
@@ -213,15 +218,15 @@ export default function AuthModal({ open, onClose }: Props) {
                   <input value={password} onChange={e => setPassword(e.target.value)}
                     placeholder="Hasło" type="password" className="form-input" autoComplete="new-password" />
                   {password.length > 0 && (
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                       {([
                         [pwChecks.length,  'Min. 9 znaków'],
                         [pwChecks.upper,   'Duża litera'],
                         [pwChecks.digit,   'Cyfra'],
                         [pwChecks.special, 'Znak specjalny'],
                       ] as [boolean, string][]).map(([ok, label]) => (
-                        <span key={label} className={`flex items-center gap-1 text-xs ${ ok ? 'text-green-600' : 'text-slate-400' }`}>
-                          <span>{ok ? '✓' : '○'}</span>{label}
+                        <span key={label} className={`flex items-center gap-1 text-xs ${ok ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                          <span className="font-bold">{ok ? '✓' : '○'}</span>{label}
                         </span>
                       ))}
                     </div>
@@ -231,15 +236,17 @@ export default function AuthModal({ open, onClose }: Props) {
                   {loading ? 'Tworzenie konta…' : 'Zarejestruj się'}
                 </button>
                 <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-                  <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-400">lub</span></div>
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-card px-3 text-xs text-muted-foreground">lub</span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <GoogleButton disabled={loading} onClick={signInWithGoogle} />
-                </div>
+                <GoogleButton disabled={loading} onClick={signInWithGoogle} />
                 <p className="text-sm text-center pt-1">
                   Masz już konto?{' '}
-                  <button onClick={() => switchView('login')} className="text-sky-600 hover:underline">
+                  <button onClick={() => switchView('login')} className="text-accent hover:text-orange-600 font-medium transition-colors">
                     Zaloguj się
                   </button>
                 </p>
@@ -250,8 +257,8 @@ export default function AuthModal({ open, onClose }: Props) {
 
         {/* === FORGOT PASSWORD === */}
         {view === 'forgot' && (
-          <div className="space-y-2">
-            <p className="text-sm text-slate-500">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
               Podaj swój adres e-mail, a wyślemy Ci link do resetowania hasła.
             </p>
             <input value={email} onChange={e => setEmail(e.target.value)}
@@ -260,7 +267,7 @@ export default function AuthModal({ open, onClose }: Props) {
               {loading ? 'Wysyłanie…' : 'Wyślij link'}
             </button>
             <p className="text-sm text-center pt-1">
-              <button onClick={() => switchView('login')} className="text-sky-600 hover:underline">
+              <button onClick={() => switchView('login')} className="text-accent hover:text-orange-600 font-medium transition-colors">
                 Wróć do logowania
               </button>
             </p>
@@ -270,3 +277,4 @@ export default function AuthModal({ open, onClose }: Props) {
     </Modal>
   )
 }
+

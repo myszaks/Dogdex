@@ -14,32 +14,36 @@ interface Props {
 export const metadata: Metadata = { title: 'Zapisy' }
 export const dynamic = 'force-dynamic'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function RegistrationsPage({ params }: Props) {
-  const { eventId } = await params
+  const { eventId: param } = await params
 
   const supabase = await createAuthClient()
 
-  const [{ data: event }, { data: registrations, count }] = await Promise.all([
-    supabase.from('events').select('*').eq('id', eventId).single(),
+  const { data: event } = await supabase.from('events').select('*')
+    .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
+  if (!event) notFound()
+  const eventId = event.id
+
+  const [
+    { data: registrations, count },
+    { count: confirmedCount },
+    { count: pendingCount },
+    { count: cancelledCount },
+  ] = await Promise.all([
     supabase
       .from('registrations')
       .select('*, participants(*)', { count: 'exact' })
       .eq('event_id', eventId)
       .order('order_index', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true }),
+    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'confirmed'),
+    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'pending'),
+    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'cancelled'),
   ])
 
-  if (!event) notFound()
-
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
-
-  // Stats across all registrations (not just current page) — fetch counts separately
-  const [{ count: confirmedCount }, { count: pendingCount }, { count: cancelledCount }] =
-    await Promise.all([
-      supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'confirmed'),
-      supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'pending'),
-      supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'cancelled'),
-    ])
 
   const stats = {
     total: count ?? 0,
@@ -50,6 +54,11 @@ export default async function RegistrationsPage({ params }: Props) {
 
   return (
     <div>
+      <div className="mb-4">
+        <Link href="/organizer" className="btn btn-secondary btn-sm">
+          ← Wstecz
+        </Link>
+      </div>
       <h1 className="page-title">👥 Zapisy</h1>
       <div className="card mb-4 bg-sky-50 border-sky-200">
         <div className="flex items-start justify-between gap-3">
@@ -60,11 +69,6 @@ export default async function RegistrationsPage({ params }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {(event as any).event_type_id === 'speedway' && (
-              <Link href={`/organizer/events/${eventId}/checkin`} className="btn btn-secondary btn-sm">
-                🐾 Odprawa
-              </Link>
-            )}
             <CsvExportButton eventId={eventId} />
           </div>
         </div>

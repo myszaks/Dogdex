@@ -18,11 +18,13 @@ export default async function MojePsyPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div>
-      <h1 className="page-title">🐕 Moje psy</h1>
-      <p className="text-slate-500 text-sm mb-6">
-        Profile Twoich psów – dane uzupełniane automatycznie przy zapisach na wydarzenia.
-      </p>
+    <div className="max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="page-title">Moje psy</h1>
+        <p className="text-muted-foreground text-sm">
+          Profile Twoich psów – dane uzupełniane automatycznie przy zapisach na wydarzenia.
+        </p>
+      </div>
       <MojePsyClient initialDogs={dogs ?? []} />
     </div>
   )

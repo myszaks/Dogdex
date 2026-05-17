@@ -1,10 +1,16 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
 import Link from 'next/link'
 import type { Dog } from '@/types'
 import { AGILITY_LEVELS, GENDER_LABELS } from '@/components/DogForm'
 import DogForm from '@/components/DogForm'
 import { useRouter } from 'next/navigation'
+import {
+  ArrowLeft, Pencil, CalendarDays, Trophy,
+  Weight, Ruler, Syringe, PawPrint, Medal, Clock, X,
+} from 'lucide-react'
+import { formatTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface HistoryEntry {
   regId: string
@@ -23,35 +29,50 @@ interface Props {
   isEditMode: boolean
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  confirmed: 'Potwierdzony',
-  pending: 'Oczekujący',
-  cancelled: 'Anulowany',
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  confirmed: { label: 'Potwierdzony', className: 'bg-emerald-100 text-emerald-700' },
+  pending:   { label: 'Oczekujacy',   className: 'bg-amber-100 text-amber-700' },
+  cancelled: { label: 'Anulowany',    className: 'bg-red-100 text-red-700' },
 }
 
-const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
-
-function formatTime(ms: number | null) {
-  if (ms == null) return null
-  return (ms / 1000).toFixed(2) + ' s'
+const MEDAL_CONFIG: Record<number, { emoji: string; label: string; className: string }> = {
+  1: { emoji: '🥇', label: '1. miejsce', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  2: { emoji: '🥈', label: '2. miejsce', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+  3: { emoji: '🥉', label: '3. miejsce', className: 'bg-orange-100 text-orange-700 border-orange-200' },
 }
 
-function formatDate(d: string | null) {
+function formatEventDate(d: string | null) {
   if (!d) return null
-  return new Date(d).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(d).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+
+type Tab = 'history' | 'trophy'
 
 export default function DogProfileClient({ dog, history, isEditMode }: Props) {
   const router = useRouter()
-  const [tab, setTab] = useState<'info' | 'history' | 'trophy'>('info')
+  const [tab, setTab] = useState<Tab>('history')
   const [editing, setEditing] = useState(isEditMode)
-  const [error, setError] = useState<string | null>(null)
 
-  const podium = history.filter(h => h.rank !== null && h.rank <= 3 && h.rank >= 1)
+  const today = new Date()
+  const podium = history.filter(h => h.rank !== null && h.rank! >= 1 && h.rank! <= 3)
+  const firstPlaces = history.filter(h => h.rank === 1).length
   const gender = dog.gender ? GENDER_LABELS[dog.gender] : null
   const agility = AGILITY_LEVELS.find(l => l.value === dog.agility_level)?.label
   const vaccineExpiry = dog.rabies_vaccine_expiry ? new Date(dog.rabies_vaccine_expiry) : null
-  const vaccineExpired = vaccineExpiry && vaccineExpiry < new Date()
+  const vaccineExpired = vaccineExpiry !== null && vaccineExpiry < today
+  const daysLeft = vaccineExpiry
+    ? Math.ceil((vaccineExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  const vaccinePct = daysLeft !== null
+    ? Math.max(0, Math.min(100, Math.round((daysLeft / 365) * 100)))
+    : 0
+
+  const infoRows = [
+    { label: 'Plec',          value: gender },
+    { label: 'Umaszczenie',   value: dog.coat_color },
+    { label: 'Rodowod / chip', value: dog.pedigree_or_chip },
+    { label: 'Poziom agility', value: agility },
+  ].filter(r => r.value)
 
   async function handleSave(data: Partial<Dog>) {
     const res = await fetch(`/api/dogs/${dog.id}`, {
@@ -60,150 +81,349 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
       body: JSON.stringify(data),
     })
     const json = await res.json()
-    if (!res.ok) throw new Error(json.error ?? 'Błąd zapisu')
+    if (!res.ok) throw new Error(json.error ?? 'Blad zapisu')
     setEditing(false)
     router.refresh()
   }
 
-  if (editing) {
-    return (
-      <div>
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setEditing(false)} className="text-sky-600 hover:underline text-sm">← Anuluj</button>
-          <h1 className="page-title mb-0">✏️ Edytuj: {dog.name}</h1>
-        </div>
-        <div className="card">
-          <DogForm initial={dog} onSave={handleSave} onCancel={() => setEditing(false)} />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div>
-      {/* Header */}
-      <div className="card flex gap-5 mb-6">
-        {dog.photo_url ? (
-          <img src={dog.photo_url} alt={dog.name} className="w-24 h-24 rounded-xl object-cover shrink-0" />
-        ) : (
-          <div className="w-24 h-24 rounded-xl bg-slate-100 flex items-center justify-center text-5xl shrink-0">🐕</div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">{dog.name}</h1>
-              {dog.breed && <p className="text-slate-500">{dog.breed}</p>}
+      <Link
+        href="/moje-psy"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Moje psy
+      </Link>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        {/* LEFT SIDEBAR - Forest Green */}
+        <div className="lg:sticky lg:top-24">
+          <div className="bg-primary rounded-3xl overflow-hidden shadow-lg">
+
+            {/* Hero photo */}
+            <div className="relative">
+              {dog.photo_url ? (
+                <img
+                  src={dog.photo_url}
+                  alt={dog.name}
+                  className="w-full aspect-square object-cover"
+                />
+              ) : (
+                <div className="w-full aspect-square bg-[#162d27] flex items-center justify-center">
+                  <PawPrint className="w-20 h-20 text-white/20" />
+                </div>
+              )}
+              {/* Name + breed overlay */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#1E3932] via-[#1E3932]/80 to-transparent px-5 pt-10 pb-5">
+                <h1 className="font-heading font-bold text-2xl text-white leading-tight">{dog.name}</h1>
+                {dog.breed && (
+                  <p className="text-white/60 text-sm mt-0.5">{dog.breed}</p>
+                )}
+                {agility && (
+                  <p className="text-accent text-xs font-semibold uppercase tracking-wide mt-1">{agility}</p>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <button onClick={() => setEditing(true)} className="btn btn-secondary btn-sm">✏️ Edytuj</button>
-              <Link href="/moje-psy" className="btn btn-secondary btn-sm">← Moje psy</Link>
+
+            <div className="p-5 space-y-5">
+
+              {/* Orange CTA */}
+              <button
+                onClick={() => setEditing(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-orange-600 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+                Edytuj profil
+              </button>
+
+              {/* Physicality chips */}
+              {(dog.weight_kg || dog.height_cm) && (
+                <div className="flex gap-3">
+                  {dog.weight_kg && (
+                    <div className="flex-1 bg-white/10 rounded-xl p-3 text-center">
+                      <Weight className="w-4 h-4 text-white/50 mx-auto mb-1" />
+                      <p className="text-white font-bold text-lg leading-none">{dog.weight_kg}</p>
+                      <p className="text-white/50 text-xs mt-0.5">kg</p>
+                    </div>
+                  )}
+                  {dog.height_cm && (
+                    <div className="flex-1 bg-white/10 rounded-xl p-3 text-center">
+                      <Ruler className="w-4 h-4 text-white/50 mx-auto mb-1" />
+                      <p className="text-white font-bold text-lg leading-none">{dog.height_cm}</p>
+                      <p className="text-white/50 text-xs mt-0.5">cm</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Info rows */}
+              {infoRows.length > 0 && (
+                <div>
+                  <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">
+                    Informacje
+                  </p>
+                  <dl className="space-y-2.5">
+                    {infoRows.map(row => (
+                      <div
+                        key={row.label}
+                        className="flex justify-between gap-3 border-b border-white/10 pb-2.5 last:border-0 last:pb-0"
+                      >
+                        <dt className="text-white/50 text-xs">{row.label}</dt>
+                        <dd className="text-white text-xs font-medium text-right">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3 text-xs">
-            {gender && <span className="badge">{gender}</span>}
-            {agility && <span className="badge badge-yellow">🏅 {agility}</span>}
-            {dog.weight_kg && <span className="badge">{dog.weight_kg} kg</span>}
-            {dog.height_cm && <span className="badge">{dog.height_cm} cm</span>}
+        </div>
+
+        {/* RIGHT CONTENT */}
+        <div className="lg:col-span-2 space-y-5">
+
+          {/* Metric cards */}
+          <div className={cn('grid gap-4', vaccineExpiry ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')}>
+
+            {/* Vaccine countdown */}
             {vaccineExpiry && (
-              <span className={`badge ${vaccineExpired ? 'badge-red' : 'badge-green'}`}>
-                💉 {vaccineExpired ? '⚠️ ' : ''}Wścieklizna do: {vaccineExpiry.toLocaleDateString('pl-PL')}
-              </span>
+              <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
+                      Szczepienie
+                    </p>
+                    <p className="font-heading font-semibold text-foreground text-lg leading-tight">
+                      Wsciekl.
+                    </p>
+                  </div>
+                  <div className={cn(
+                    'w-10 h-10 rounded-2xl flex items-center justify-center shrink-0',
+                    vaccineExpired ? 'bg-red-100' : 'bg-emerald-100'
+                  )}>
+                    <Syringe className={cn('w-5 h-5', vaccineExpired ? 'text-red-600' : 'text-emerald-600')} />
+                  </div>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden mb-3">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all',
+                      vaccineExpired
+                        ? 'bg-red-500'
+                        : vaccinePct < 20 ? 'bg-amber-500' : 'bg-primary'
+                    )}
+                    style={{ width: `${vaccinePct}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{vaccineExpired ? 'Wygaslo' : `${daysLeft} dni`}</span>
+                  <span>{vaccineExpiry.toLocaleDateString('pl-PL')}</span>
+                </div>
+              </div>
             )}
-            {podium.length > 0 && (
-              <span className="badge badge-yellow">🏆 {podium.length} {podium.length === 1 ? 'medal' : 'medale'}</span>
-            )}
+
+            {/* Career achievements */}
+            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                Osiagniecia
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="font-heading font-bold text-3xl text-foreground leading-none">{firstPlaces}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Zloto</p>
+                </div>
+                <div>
+                  <p className="font-heading font-bold text-3xl text-foreground leading-none">{podium.length}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Podium</p>
+                </div>
+                <div>
+                  <p className="font-heading font-bold text-3xl text-foreground leading-none">{history.length}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Starty</p>
+                </div>
+              </div>
+            </div>
+
           </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        {[
-          { key: 'info', label: '📋 Info' },
-          { key: 'history', label: `📅 Historia (${history.length})` },
-          { key: 'trophy', label: `🏆 Gablota (${podium.length})` },
-        ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key as typeof tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.key ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab: Info */}
-      {tab === 'info' && (
-        <div className="card">
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-            {[
-              { label: 'Imię', value: dog.name },
-              { label: 'Rasa', value: dog.breed },
-              { label: 'Płeć', value: gender },
-              { label: 'Umaszczenie', value: dog.coat_color },
-              { label: 'Waga', value: dog.weight_kg ? `${dog.weight_kg} kg` : null },
-              { label: 'Wzrost w kłębie', value: dog.height_cm ? `${dog.height_cm} cm` : null },
-              { label: 'Rodowód / chip', value: dog.pedigree_or_chip },
-              { label: 'Poziom agility', value: agility },
-              { label: 'Szczepienie (wścieklizna)', value: vaccineExpiry ? vaccineExpiry.toLocaleDateString('pl-PL') : null },
-            ].filter(r => r.value).map(row => (
-              <div key={row.label} className="border-b border-slate-100 pb-2">
-                <dt className="text-slate-400 text-xs">{row.label}</dt>
-                <dd className="font-medium text-slate-700">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {error && <p className="text-red-600 text-sm mt-4">⚠️ {error}</p>}
-        </div>
-      )}
-
-      {/* Tab: Historia */}
-      {tab === 'history' && (
-        <div className="space-y-3">
-          {history.length === 0 ? (
-            <div className="card text-center py-10 text-slate-400">Brak historii zawodów</div>
-          ) : history.map(h => (
-            <div key={h.regId} className="card flex items-start gap-4">
-              <div className="text-3xl">{h.rank ? (MEDAL[h.rank] ?? '🏅') : '📋'}</div>
-              <div className="flex-1 min-w-0">
-                <Link href={`/events/${h.eventId}`} className="font-semibold text-sky-700 hover:underline">{h.eventTitle}</Link>
-                {h.eventDate && <p className="text-slate-400 text-xs mt-0.5">{formatDate(h.eventDate)}</p>}
-                <div className="flex flex-wrap gap-2 mt-1 text-xs">
-                  <span className="badge">{STATUS_LABEL[h.status] ?? h.status}</span>
-                  {h.rank && <span className="badge badge-yellow">Miejsce: {h.rank}</span>}
-                  {h.time_ms && <span className="badge">⏱ {formatTime(h.time_ms)}</span>}
-                </div>
-                {h.notes && <p className="text-slate-500 text-xs mt-1 italic">{h.notes}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tab: Gablota */}
-      {tab === 'trophy' && (
-        <div>
-          {podium.length === 0 ? (
-            <div className="card text-center py-10">
-              <p className="text-4xl mb-3">🏆</p>
-              <p className="text-slate-400">Jeszcze żadnych medali — czas to zmienić!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {podium.map(h => (
-                <div key={h.regId} className="card text-center py-8">
-                  <div className="text-6xl mb-3">{MEDAL[h.rank!] ?? '🏅'}</div>
-                  <p className="font-bold text-slate-800 text-sm">{h.eventTitle}</p>
-                  {h.eventDate && <p className="text-slate-400 text-xs mt-1">{formatDate(h.eventDate)}</p>}
-                  {h.time_ms && <p className="text-slate-500 text-xs mt-1">⏱ {formatTime(h.time_ms)}</p>}
-                  <span className="badge badge-yellow mt-2 inline-block">
-                    {h.rank === 1 ? '🥇 1. miejsce' : h.rank === 2 ? '🥈 2. miejsce' : '🥉 3. miejsce'}
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 bg-secondary rounded-2xl">
+            {([
+              { key: 'history' as Tab, label: 'Historia', icon: CalendarDays, count: history.length },
+              { key: 'trophy'  as Tab, label: 'Gablota',  icon: Trophy,       count: podium.length },
+            ]).map(t => {
+              const Icon = t.icon
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+                    tab === t.key
+                      ? 'bg-card text-foreground shadow-sm border border-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {t.label}
+                  <span className={cn(
+                    'ml-1 px-1.5 py-0.5 rounded-full text-xs font-semibold',
+                    tab === t.key ? 'bg-primary text-white' : 'bg-border text-muted-foreground'
+                  )}>
+                    {t.count}
                   </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div>
+          {/* Tab: Historia */}
+          {tab === 'history' && (
+            history.length === 0 ? (
+              <div className="bg-card rounded-3xl border border-border p-14 text-center shadow-sm">
+                <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
+                  <CalendarDays className="w-7 h-7 text-muted-foreground" />
                 </div>
-              ))}
-            </div>
+                <p className="font-heading font-semibold text-foreground">Brak historii zawodow</p>
+                <p className="text-muted-foreground text-sm mt-1">Pojawi sie tu po zapisie na pierwsze wydarzenie.</p>
+              </div>
+            ) : (
+              <div className="bg-card rounded-3xl border border-border shadow-sm overflow-y-auto max-h-[60vh]">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary sticky top-0 z-10">
+                      <th className="text-left text-xs font-semibold uppercase tracking-widest text-muted-foreground px-6 py-3.5">
+                        Wydarzenie
+                      </th>
+                      <th className="text-left text-xs font-semibold uppercase tracking-widest text-muted-foreground px-3 py-3.5 hidden sm:table-cell">
+                        Data
+                      </th>
+                      <th className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground px-3 py-3.5">
+                        Status
+                      </th>
+                      <th className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground px-3 py-3.5">
+                        Miejsce
+                      </th>
+                      <th className="text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground px-6 py-3.5 hidden md:table-cell">
+                        Czas
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {history.map(h => {
+                      const statusCfg = STATUS_CONFIG[h.status] ?? { label: h.status, className: 'bg-secondary text-foreground' }
+                      const medalCfg = h.rank ? MEDAL_CONFIG[h.rank] : null
+                      return (
+                        <tr key={h.regId} className="hover:bg-secondary/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <Link
+                              href={`/events/${h.eventId}`}
+                              className="font-semibold text-foreground hover:text-accent transition-colors line-clamp-1"
+                            >
+                              {h.eventTitle}
+                            </Link>
+                            {h.notes && (
+                              <p className="text-xs text-muted-foreground italic mt-0.5">{h.notes}</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-4 hidden sm:table-cell whitespace-nowrap text-muted-foreground">
+                            {formatEventDate(h.eventDate) ?? '—'}
+                          </td>
+                          <td className="px-3 py-4 text-center">
+                            <span className={cn('inline-flex px-2.5 py-1 rounded-full text-xs font-semibold', statusCfg.className)}>
+                              {statusCfg.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-4 text-center">
+                            {medalCfg ? (
+                              <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border', medalCfg.className)}>
+                                {medalCfg.emoji} {h.rank}
+                              </span>
+                            ) : h.rank ? (
+                              <span className="text-muted-foreground">{h.rank}.</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right hidden md:table-cell text-muted-foreground">
+                            {h.time_ms != null ? (
+                              <span className="inline-flex items-center justify-end gap-1">
+                                <Clock className="w-3 h-3" />{formatTime(h.time_ms)}
+                              </span>
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
+
+          {/* Tab: Gablota */}
+          {tab === 'trophy' && (
+            podium.length === 0 ? (
+              <div className="bg-card rounded-3xl border border-border p-14 text-center shadow-sm">
+                <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
+                  <Trophy className="w-7 h-7 text-amber-400" />
+                </div>
+                <p className="font-heading font-semibold text-foreground">Jeszcze zadnych medali</p>
+                <p className="text-muted-foreground text-sm mt-1">Czas to zmienic na zawodach!</p>
+              </div>
+            ) : (
+              <div className="overflow-y-auto max-h-[60vh]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {podium.map(h => {
+                  const mc = MEDAL_CONFIG[h.rank!]
+                  return (
+                    <div key={h.regId} className="bg-card rounded-3xl border border-border p-6 text-center shadow-sm hover:shadow-md transition-shadow">
+                      <div className="text-5xl mb-3">{mc.emoji}</div>
+                      <p className="font-heading font-bold text-foreground text-sm line-clamp-2">{h.eventTitle}</p>
+                      {h.eventDate && (
+                        <p className="text-xs text-muted-foreground mt-1">{formatEventDate(h.eventDate)}</p>
+                      )}
+                      {h.time_ms != null && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                          <Clock className="w-3 h-3" />{formatTime(h.time_ms)}
+                        </p>
+                      )}
+                      <span className={cn('inline-flex items-center gap-1 mt-3 px-3 py-1 rounded-full text-xs font-semibold border', mc.className)}>
+                        <Medal className="w-3 h-3" />{mc.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              </div>
+            )
+          )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {editing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl border border-border max-h-[90dvh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
+              <h2 className="font-heading font-bold text-foreground text-lg">Edytuj: {dog.name}</h2>
+              <button
+                onClick={() => setEditing(false)}
+                className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border transition-colors"
+                aria-label="Zamknij"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <DogForm initial={dog} onSave={handleSave} onCancel={() => setEditing(false)} />
+            </div>
+          </div>
         </div>
       )}
     </div>

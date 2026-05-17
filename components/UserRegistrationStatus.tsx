@@ -34,7 +34,7 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
   if (cancelled) {
     return (
       <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 text-center">
-        <p className="text-sm text-slate-500 font-medium">❌ Zapis anulowany</p>
+        <p className="text-sm text-slate-500 font-medium">Zapis anulowany</p>
       </div>
     )
   }
@@ -45,9 +45,9 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
     cancelled: 'bg-slate-50 border-slate-200',
   }
   const statusText: Record<string, string> = {
-    confirmed: '✅ Jesteś zapisany/-a',
-    pending: '⏳ Zapis oczekuje na potwierdzenie',
-    cancelled: '❌ Zapis anulowany',
+    confirmed: 'Jesteś zapisany/-a',
+    pending: 'Zapis oczekuje na potwierdzenie',
+    cancelled: 'Zapis anulowany',
   }
 
   const status = reg.status as string
@@ -71,7 +71,7 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
       <p className="font-semibold text-sm text-slate-800">{statusText[status] ?? status}</p>
       {p && (
         <p className="text-xs text-slate-600">
-          🐕 {p.dog_name}
+          {p.dog_name}
           {p.dog_breed ? ` (${p.dog_breed})` : ''}
           <span className="text-slate-400 ml-2">· {p.owner_name}</span>
         </p>

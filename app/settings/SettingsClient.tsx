@@ -96,49 +96,36 @@ export default function SettingsClient({ email, provider }: Props) {
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Link href="/profile" className="text-slate-400 hover:text-slate-600 text-sm">← Profil</Link>
-        <h1 className="page-title mb-0">⚙️ Ustawienia konta</h1>
+      <div className="flex items-center gap-3 mb-2">
+        <Link href="/profile" className="text-muted-foreground hover:text-foreground text-sm transition-colors">← Profil</Link>
+        <h1 className="page-title mb-0">Ustawienia konta</h1>
       </div>
 
       {/* Change password */}
       {isEmailProvider ? (
-        <form onSubmit={handleChangePassword} className="card space-y-4">
-          <h2 className="font-semibold text-slate-800">Zmiana hasła</h2>
+        <form onSubmit={handleChangePassword} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+          <h2 className="font-heading font-semibold text-foreground">Zmiana hasła</h2>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Obecne hasło</label>
-            <input
-              type="password"
-              value={currentPw}
-              onChange={e => setCurrentPw(e.target.value)}
-              className="input w-full"
-              autoComplete="current-password"
-              required
-            />
+            <label className="block text-sm font-medium text-foreground mb-1.5">Obecne hasło</label>
+            <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+              className="form-input" autoComplete="current-password" required />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nowe hasło</label>
-            <input
-              type="password"
-              value={newPw}
-              onChange={e => setNewPw(e.target.value)}
-              className="input w-full"
-              autoComplete="new-password"
-              placeholder="Min. 9 znaków"
-              required
-            />
+            <label className="block text-sm font-medium text-foreground mb-1.5">Nowe hasło</label>
+            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+              className="form-input" autoComplete="new-password" placeholder="Min. 9 znaków" required />
             {newPw.length > 0 && (
-              <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                 {([
                   [pwChecks.length, 'Min. 9 znaków'],
                   [pwChecks.upper, 'Duża litera'],
                   [pwChecks.digit, 'Cyfra'],
                   [pwChecks.special, 'Znak specjalny'],
                 ] as [boolean, string][]).map(([ok, label]) => (
-                  <span key={label} className={`text-xs flex items-center gap-1 ${ok ? 'text-green-600' : 'text-slate-400'}`}>
-                    {ok ? '✓' : '○'} {label}
+                  <span key={label} className={`text-xs flex items-center gap-1 ${ok ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                    <span className="font-bold">{ok ? '✓' : '○'}</span>{label}
                   </span>
                 ))}
               </div>
@@ -146,57 +133,47 @@ export default function SettingsClient({ email, provider }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Powtórz nowe hasło</label>
-            <input
-              type="password"
-              value={confirmPw}
-              onChange={e => setConfirmPw(e.target.value)}
-              className="input w-full"
-              autoComplete="new-password"
-              required
-            />
+            <label className="block text-sm font-medium text-foreground mb-1.5">Powtórz nowe hasło</label>
+            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+              className="form-input" autoComplete="new-password" required />
             {confirmPw.length > 0 && newPw !== confirmPw && (
               <p className="text-xs text-red-500 mt-1">Hasła nie są zgodne</p>
             )}
           </div>
 
-          {pwError && <p className="text-red-600 text-sm">{pwError}</p>}
-          {pwSuccess && <p className="text-green-600 text-sm">✓ Hasło zostało zmienione!</p>}
+          {pwError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{pwError}</div>}
+          {pwSuccess && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">✓ Hasło zostało zmienione!</div>}
 
           <button type="submit" disabled={pwLoading} className="btn btn-primary w-full">
             {pwLoading ? 'Zmienianie…' : 'Zmień hasło'}
           </button>
         </form>
       ) : (
-        <div className="card text-center py-6 space-y-2">
-          <p className="text-2xl">🔑</p>
-          <p className="text-slate-600 text-sm">
-            Twoje konto jest połączone z <strong>{provider}</strong>.<br/>
+        <div className="bg-card rounded-3xl border border-border p-8 shadow-sm text-center space-y-2">
+          <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
+            <span className="text-xl">🔑</span>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Twoje konto jest połączone z <strong className="text-foreground">{provider}</strong>.<br/>
             Zmiana hasła odbywa się przez dostawcę logowania.
           </p>
         </div>
       )}
 
       {/* Change email */}
-      <form onSubmit={handleChangeEmail} className="card space-y-4">
-        <h2 className="font-semibold text-slate-800">Zmiana adresu e-mail</h2>
-        <p className="text-sm text-slate-500">Obecny adres: <strong>{email}</strong></p>
+      <form onSubmit={handleChangeEmail} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+        <h2 className="font-heading font-semibold text-foreground">Zmiana adresu e-mail</h2>
+        <p className="text-sm text-muted-foreground">Obecny adres: <strong className="text-foreground">{email}</strong></p>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Nowy adres e-mail</label>
-          <input
-            type="email"
-            value={newEmail}
-            onChange={e => setNewEmail(e.target.value)}
-            className="input w-full"
-            placeholder="nowy@email.com"
-            autoComplete="email"
-          />
+          <label className="block text-sm font-medium text-foreground mb-1.5">Nowy adres e-mail</label>
+          <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+            className="form-input" placeholder="nowy@email.com" autoComplete="email" />
         </div>
-        {emailError && <p className="text-red-600 text-sm">{emailError}</p>}
+        {emailError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{emailError}</div>}
         {emailSuccess && (
-          <p className="text-green-600 text-sm">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
             ✓ Link potwierdzający wysłany na <strong>{newEmail || 'nowy adres'}</strong>. Sprawdź skrzynkę.
-          </p>
+          </div>
         )}
         <button type="submit" disabled={emailLoading} className="btn btn-primary w-full">
           {emailLoading ? 'Wysyłanie…' : 'Zmień e-mail'}
@@ -204,18 +181,16 @@ export default function SettingsClient({ email, provider }: Props) {
       </form>
 
       {/* Sign out all devices */}
-      <div className="card space-y-3">
-        <h2 className="font-semibold text-slate-800">Bezpieczeństwo</h2>
-        <p className="text-sm text-slate-500">
+      <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-3">
+        <h2 className="font-heading font-semibold text-foreground">Bezpieczeństwo</h2>
+        <p className="text-sm text-muted-foreground">
           Wyloguj się ze wszystkich urządzeń i sesji jednocześnie.
         </p>
-        <button
-          onClick={handleSignOutAll}
-          className="btn w-full border border-red-200 text-red-600 hover:bg-red-50 bg-white"
-        >
+        <button onClick={handleSignOutAll} className="btn btn-danger w-full">
           Wyloguj ze wszystkich urządzeń
         </button>
       </div>
     </div>
   )
 }
+

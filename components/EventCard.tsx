@@ -5,100 +5,121 @@ import { formatDate, statusColor, statusLabel, isRegistrationOpen, effectiveStat
 import RegisterModal from './RegisterModal'
 import type { DogEvent, FormField } from '@/types'
 import type { ReactNode } from 'react'
+import { MapPin, Clock, User, Radio, Lock } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface EventCardProps {
   event: DogEvent
-  /** Render extra action buttons after the default ones */
   extraActions?: ReactNode
-  /** Hide the public register/details/live buttons (e.g. organizer view) */
   hidePublicActions?: boolean
 }
 
+function statusBadgeClasses(status: string) {
+  const map: Record<string, string> = {
+    upcoming: 'bg-blue-100 text-blue-700',
+    upcoming_closed: 'bg-amber-100 text-amber-700',
+    ongoing: 'bg-emerald-100 text-emerald-700',
+    finished: 'bg-secondary text-muted-foreground',
+    cancelled: 'bg-red-100 text-red-700',
+  }
+  return map[status] ?? 'bg-secondary text-muted-foreground'
+}
+
 export default function EventCard({ event, extraActions, hidePublicActions }: EventCardProps) {
-  const isOngoing = event.status === 'ongoing'
+  const dispStatus = effectiveStatus(event)
+  const isOngoing = dispStatus === 'ongoing'
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
-  const dispStatus = effectiveStatus(event)
+  const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
+    ? `/archive/${event.slug ?? event.id}`
+    : `/events/${event.slug ?? event.id}`
 
   return (
-    <div className="card hover:shadow-md transition-shadow overflow-hidden p-0 flex flex-col">
-      {event.image_url ? (
-        <div className="relative w-full aspect-video shrink-0">
-          <Image src={event.image_url} alt={event.title} fill className="object-cover" unoptimized />
-          {isOngoing && (
-            <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-green-600/90 text-white text-xs font-semibold px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-              TRWA TERAZ
+    <div className="bg-card rounded-3xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
+      {/* Image / Placeholder */}
+      <div className="relative w-full aspect-video shrink-0 overflow-hidden">
+        {event.image_url ? (
+          <Image
+            src={event.image_url}
+            alt={event.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            unoptimized
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-[#1E3932]/10 to-[#1E3932]/5 flex items-center justify-center">
+            <span className="text-5xl opacity-30">🐾</span>
+          </div>
+        )}
+        {/* Change warning */}
+        {event.last_significant_change &&
+          Array.isArray(event.changed_fields) &&
+          event.changed_fields.some((f: string) => ['start_at', 'end_at', 'location'].includes(f)) &&
+          Date.now() - new Date(event.last_significant_change).getTime() < 7 * 24 * 60 * 60 * 1000 && (
+            <div className="absolute top-3 right-3">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 backdrop-blur-sm">
+                ⚠️ Zmiana
+              </span>
             </div>
           )}
-        </div>
-      ) : (
-        <div className="relative w-full aspect-video shrink-0 bg-gradient-to-br from-sky-100 to-blue-200 flex items-center justify-center text-4xl">
-          🐾
-          {isOngoing && (
-            <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-green-600/90 text-white text-xs font-semibold px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-              TRWA TERAZ
-            </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-5 flex flex-col flex-1">
+        <div className="flex-1">
+          <h2 className="font-heading font-bold text-base text-foreground leading-tight mb-1">
+            {event.title}
+          </h2>
+          {event.organizer_name && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
+              <User className="w-3 h-3" />
+              {event.organizer_name}
+            </p>
           )}
-        </div>
-      )}
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="font-semibold text-lg text-slate-800 leading-tight">{event.title}</h2>
-          <div className="flex flex-col items-end gap-1 shrink-0">
-            <span className={`badge ${statusColor(dispStatus)}`}>
-              {statusLabel(dispStatus)}
-            </span>
-            {event.last_significant_change &&
-              Array.isArray(event.changed_fields) &&
-              event.changed_fields.some((f: string) => ['start_at', 'end_at', 'location'].includes(f)) &&
-              Date.now() - new Date(event.last_significant_change).getTime() < 7 * 24 * 60 * 60 * 1000 && (
-                <span className="text-xs bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">
-                  ⚠️ Zmiana terminu/miejsca
-                </span>
-              )}
+          {event.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{event.description}</p>
+          )}
+          <div className="flex flex-col gap-1">
+            {event.start_at && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 shrink-0 text-accent" />
+                {formatDate(event.start_at)}
+              </p>
+            )}
+            {event.location && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 shrink-0 text-accent" />
+                {event.location}
+              </p>
+            )}
+            {event.registration_deadline && dispStatus === 'upcoming' && (
+              <p className={cn('text-xs flex items-center gap-1.5', regOpen ? 'text-muted-foreground' : 'text-orange-600 font-medium')}>
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                {regOpen ? `Zapisy do ${formatDate(event.registration_deadline)}` : 'Zapisy zamknięte'}
+              </p>
+            )}
           </div>
         </div>
-        {event.organizer_name && (
-          <p className="text-xs text-slate-400 mt-0.5">👤 {event.organizer_name}</p>
-        )}
-        {event.description && (
-          <p className="text-slate-600 text-sm mt-1 line-clamp-2">{event.description}</p>
-        )}
-        <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-500">
-          {event.start_at && <span>📅 {formatDate(event.start_at)}</span>}
-          {event.location && <span>📍 {event.location}</span>}
-          {event.registration_deadline && event.status === 'upcoming' && (
-            <span className={regOpen ? 'text-slate-400' : 'text-orange-500 font-medium'}>
-              {regOpen ? `⏳ Zapisy do ${formatDate(event.registration_deadline)}` : '🔒 Zapisy zamknięte'}
-            </span>
-          )}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2 mt-auto">
+
+        {/* Actions */}
+        <div className="mt-4 flex flex-wrap gap-2">
           {!hidePublicActions && (
             <>
-              {event.status === 'upcoming' && regOpen && (
-                <RegisterModal
-                  eventId={event.id}
-                  eventTitle={event.title}
-                  formFields={formFields}
-                />
+              {dispStatus === 'upcoming' && regOpen && (
+                <RegisterModal eventId={event.id} eventTitle={event.title} formFields={formFields} />
               )}
-              {event.status === 'upcoming' && !regOpen && (
-                <span className="btn btn-sm bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200">
+              {dispStatus === 'upcoming' && !regOpen && (
+                <span className="btn btn-sm bg-secondary text-muted-foreground border border-border cursor-not-allowed">
                   Zapisy zamknięte
                 </span>
               )}
-              {event.status === 'ongoing' && event.has_results && event.results_public && (
+              {dispStatus === 'ongoing' && event.has_results && event.results_public && (
                 <Link href={`/live/${event.id}`} className="btn btn-primary btn-sm">
-                  🔴 Wyniki live
+                  <Radio className="w-3.5 h-3.5" />
+                  Wyniki live
                 </Link>
               )}
-              <Link
-                href={event.status === 'finished' || event.status === 'cancelled' ? `/archive/${event.slug ?? event.id}` : `/events/${event.slug ?? event.id}`}
-                className="btn btn-secondary btn-sm"
-              >
+              <Link href={detailHref} className="btn btn-secondary btn-sm">
                 Szczegóły
               </Link>
             </>

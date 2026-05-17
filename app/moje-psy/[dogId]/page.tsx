@@ -1,9 +1,12 @@
 import { redirect, notFound } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
+import type { Dog } from '@/types'
 import DogProfileClient from './DogProfileClient'
 
 export const dynamic = 'force-dynamic'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface Props {
   params: Promise<{ dogId: string }>
@@ -13,7 +16,12 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { dogId } = await params
   const supabase = await createAuthClient()
-  const { data } = await supabase.from('dogs').select('name').eq('id', dogId).single()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { title: 'Profil psa' }
+  const query = UUID_RE.test(dogId)
+    ? supabase.from('dogs').select('name').eq('id', dogId).eq('user_id', user.id)
+    : supabase.from('dogs').select('name').eq('slug', dogId).eq('user_id', user.id)
+  const { data } = await query.maybeSingle()
   return { title: data?.name ? `${data.name} – profil psa` : 'Profil psa' }
 }
 
@@ -25,15 +33,23 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  // Pobierz psa (tylko własny)
-  const { data: dog } = await supabase
-    .from('dogs')
-    .select('*')
-    .eq('id', dogId)
-    .eq('user_id', user.id)
-    .single()
+  // Resolve dog: by slug (scoped to user) or by UUID with redirect to slug
+  let dog: Dog | null = null
+  let redirectTo: string | null = null
+
+  if (UUID_RE.test(dogId)) {
+    const { data } = await supabase.from('dogs').select('*').eq('id', dogId).eq('user_id', user.id).maybeSingle()
+    if (data) {
+      dog = data
+      if (data.slug) redirectTo = `/moje-psy/${data.slug}${edit === '1' ? '?edit=1' : ''}`
+    }
+  } else {
+    const { data } = await supabase.from('dogs').select('*').eq('slug', dogId).eq('user_id', user.id).maybeSingle()
+    dog = data
+  }
 
   if (!dog) notFound()
+  if (redirectTo) redirect(redirectTo)
 
   // Historia: rejestracje powiązane przez dog_id lub email+imię psa
   // Łączymy registrations → participants (dog_id = dog.id) → events
@@ -47,7 +63,7 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
       .from('registrations')
       .select('id, status, events(id, title, start_at), participants(dog_name, owner_email, dog_id)')
       .ilike('participants.owner_email', user.email ?? '')
-      .ilike('participants.dog_name', dog.name),
+      .ilike('participants.dog_name', dog.name as string),
   ])
 
   // Zbierz unikalne rejestracje

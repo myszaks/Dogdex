@@ -19,8 +19,10 @@ export interface DogEvent {
   form_fields: FormField[]
   has_results: boolean
   results_public: boolean
+  has_schedule: boolean
   auto_confirm: boolean
   max_participants: number | null
+  entry_fee: number | null
   organizer_name: string | null
   grouping_field: string | null
   last_significant_change: string | null
@@ -122,6 +124,7 @@ export type DogGender = 'male' | 'female'
 export interface Dog {
   id: string
   user_id: string
+  slug: string | null
   name: string
   breed: string | null
   gender: DogGender | null

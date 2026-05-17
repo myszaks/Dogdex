@@ -1,52 +1,139 @@
-'use client'
-import { useState, useCallback } from 'react'
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
+﻿'use client'
+import { useState } from 'react'
+import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import type { TimeSlot } from '@/types'
 import ConfirmModal from '@/components/ConfirmModal'
+import { AlertTriangle, Plus, X } from 'lucide-react'
+import Modal from '@/components/Modal'
 
 interface Participant {
   registrationId: string
-  participantId: string
   dog_name: string | null
   owner_name: string | null
   dog_breed: string | null
-  schedule_sent_at: string | null
-  time_slot_id: string | null
+  form_data: Record<string, unknown>
+}
+
+interface ScheduleAssignment {
+  id: string
+  registration_id: string
+  time_slot_id: string
+  item_date: string
+  sent_at: string | null
+}
+
+interface ScheduleItem {
+  id: string
+  registrationId: string
+  itemDate: string
+  dog_name: string | null
+  owner_name: string | null
+  slotId: string | null
+  assignmentId: string | null
+  sentAt: string | null
 }
 
 interface Props {
   eventId: string
   initialSlots: TimeSlot[]
   initialParticipants: Participant[]
+  initialAssignments: ScheduleAssignment[]
+  multiDateFieldIds: string[]
+  availableDates: string[]
 }
 
-function slotLabel(slot: TimeSlot) {
-  const time = slot.slot_time.slice(0, 5)
-  const date = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short' }).format(
-    new Date(slot.slot_date)
-  )
-  return slot.label ? `${time} – ${slot.label} (${date})` : `${time} (${date})`
+function fmtShort(d: string) {
+  if (!d) return ''
+  return new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short' }).format(new Date(d))
 }
 
-export default function ScheduleClient({ eventId, initialSlots, initialParticipants }: Props) {
+function fmtLong(d: string) {
+  if (!d) return ''
+  return new Intl.DateTimeFormat('pl-PL', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(new Date(d))
+}
+
+function buildItems(
+  participants: Participant[],
+  assignments: ScheduleAssignment[],
+  multiDateFieldIds: string[],
+): ScheduleItem[] {
+  const items: ScheduleItem[] = []
+  for (const p of participants) {
+    const selectedDates: string[] = multiDateFieldIds.flatMap(fid => {
+      const val = p.form_data[fid]
+      return Array.isArray(val) ? (val as string[]) : []
+    })
+    const dates = selectedDates.length > 0 ? selectedDates : ['']
+    for (const date of dates) {
+      const virtualId = `${p.registrationId}::${date}`
+      const assignment = assignments.find(
+        a => a.registration_id === p.registrationId && a.item_date === date
+      )
+      items.push({
+        id: virtualId,
+        registrationId: p.registrationId,
+        itemDate: date,
+        dog_name: p.dog_name,
+        owner_name: p.owner_name,
+        slotId: assignment?.time_slot_id ?? null,
+        assignmentId: assignment?.id ?? null,
+        sentAt: assignment?.sent_at ?? null,
+      })
+    }
+  }
+  return items
+}
+
+export default function ScheduleClient({
+  eventId,
+  initialSlots,
+  initialParticipants,
+  initialAssignments,
+  multiDateFieldIds,
+  availableDates,
+}: Props) {
   const [slots, setSlots] = useState<TimeSlot[]>(initialSlots)
-  const [participants, setParticipants] = useState<Participant[]>(initialParticipants)
+  const [items, setItems] = useState<ScheduleItem[]>(
+    () => buildItems(initialParticipants, initialAssignments, multiDateFieldIds)
+  )
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
   const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null)
-
-  // New slot form state
+  const [addSlotOpen, setAddSlotOpen] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [newMax, setNewMax] = useState('')
   const [addingSlot, setAddingSlot] = useState(false)
 
-  const participantsInSlot = useCallback(
-    (slotId: string | null) =>
-      participants.filter(p => p.time_slot_id === slotId),
-    [participants]
-  )
+  const timeOptions: string[] = []
+  for (let h = 6; h <= 22; h++) {
+    timeOptions.push(`${String(h).padStart(2, '0')}:00`)
+    if (h < 22) timeOptions.push(`${String(h).padStart(2, '0')}:30`)
+  }
+
+  const slotMap = new Map(slots.map(s => [s.id, s]))
+
+  const itemsInSlot = (slotId: string) => items.filter(i => i.slotId === slotId)
+  const unassigned = items.filter(i => i.slotId === null)
+  const assignedCount = items.filter(i => i.slotId !== null).length
+
+  const isWrongDate = (item: ScheduleItem): boolean => {
+    if (!item.slotId || !item.itemDate) return false
+    const slot = slotMap.get(item.slotId)
+    return !!slot && slot.slot_date !== item.itemDate
+  }
+
+  const wrongDateItems = items.filter(isWrongDate)
+
+  const slotsByDate: Record<string, TimeSlot[]> = {}
+  for (const s of slots) {
+    if (!slotsByDate[s.slot_date]) slotsByDate[s.slot_date] = []
+    slotsByDate[s.slot_date].push(s)
+  }
+  const slotDates = Object.keys(slotsByDate).sort()
 
   async function handleAddSlot() {
     if (!newDate || !newTime) return
@@ -63,12 +150,15 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
     })
     if (res.ok) {
       const slot = await res.json()
-      setSlots(prev => [...prev, slot].sort((a, b) =>
-        a.slot_date === b.slot_date
-          ? a.slot_time.localeCompare(b.slot_time)
-          : a.slot_date.localeCompare(b.slot_date)
-      ))
+      setSlots(prev =>
+        [...prev, slot].sort((a, b) =>
+          a.slot_date === b.slot_date
+            ? a.slot_time.localeCompare(b.slot_time)
+            : a.slot_date.localeCompare(b.slot_date)
+        )
+      )
       setNewDate(''); setNewTime(''); setNewLabel(''); setNewMax('')
+      setAddSlotOpen(false)
     }
     setAddingSlot(false)
   }
@@ -77,48 +167,69 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
     const res = await fetch(`/api/events/${eventId}/time-slots/${slotId}`, { method: 'DELETE' })
     if (res.ok) {
       setSlots(prev => prev.filter(s => s.id !== slotId))
-      setParticipants(prev =>
-        prev.map(p => p.time_slot_id === slotId ? { ...p, time_slot_id: null } : p)
-      )
-    }
-  }
-
-  async function assignParticipant(registrationId: string, slotId: string | null) {
-    const res = await fetch(`/api/registrations/${registrationId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ time_slot_id: slotId }),
-    })
-    if (res.ok) {
-      setParticipants(prev =>
-        prev.map(p => p.registrationId === registrationId ? { ...p, time_slot_id: slotId } : p)
+      setItems(prev =>
+        prev.map(i => i.slotId === slotId
+          ? { ...i, slotId: null, assignmentId: null, sentAt: null }
+          : i)
       )
     }
   }
 
   async function onDragEnd(result: DropResult) {
     if (!result.destination) return
-    const { draggableId } = result
-    const destSlotId = result.destination.droppableId === 'unassigned' ? null : result.destination.droppableId
+    const virtualId = result.draggableId
+    const destSlotId = result.destination.droppableId === 'unassigned'
+      ? null
+      : result.destination.droppableId
 
-    // Check max_participants limit
+    const item = items.find(i => i.id === virtualId)
+    if (!item || item.slotId === destSlotId) return
+
     if (destSlotId !== null) {
       const slot = slots.find(s => s.id === destSlotId)
-      if (slot?.max_participants !== null && slot?.max_participants !== undefined) {
-        const currentCount = participantsInSlot(destSlotId).length
+      if (slot?.max_participants != null) {
+        const currentCount = itemsInSlot(destSlotId).length
         if (currentCount >= slot.max_participants) {
-          alert(`Slot jest pełny (max ${slot.max_participants} uczestników).`)
+          alert(`Slot jest pełny (max ${slot.max_participants}).`)
           return
         }
       }
     }
 
-    // Optimistic update
-    setParticipants(prev =>
-      prev.map(p => p.registrationId === draggableId ? { ...p, time_slot_id: destSlotId } : p)
+    setItems(prev =>
+      prev.map(i => i.id === virtualId ? { ...i, slotId: destSlotId } : i)
     )
 
-    await assignParticipant(draggableId, destSlotId)
+    if (destSlotId === null) {
+      if (item.assignmentId) {
+        await fetch(`/api/events/${eventId}/schedule-assignments`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assignment_id: item.assignmentId }),
+        })
+        setItems(prev =>
+          prev.map(i => i.id === virtualId
+            ? { ...i, slotId: null, assignmentId: null, sentAt: null }
+            : i)
+        )
+      }
+    } else {
+      const res = await fetch(`/api/events/${eventId}/schedule-assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_id: item.registrationId,
+          time_slot_id: destSlotId,
+          item_date: item.itemDate,
+        }),
+      })
+      if (res.ok) {
+        const assignment = await res.json()
+        setItems(prev =>
+          prev.map(i => i.id === virtualId ? { ...i, assignmentId: assignment.id } : i)
+        )
+      }
+    }
   }
 
   async function handleSendAll() {
@@ -128,9 +239,8 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
     const data = await res.json()
     if (res.ok) {
       setSendResult(`✅ Wysłano do ${data.sent} uczestników${data.failed ? `, ${data.failed} błędów` : ''}.`)
-      // Mark sent_at locally
-      setParticipants(prev =>
-        prev.map(p => p.time_slot_id !== null ? { ...p, schedule_sent_at: new Date().toISOString() } : p)
+      setItems(prev =>
+        prev.map(i => i.slotId !== null ? { ...i, sentAt: new Date().toISOString() } : i)
       )
     } else {
       setSendResult(`❌ ${data.error}`)
@@ -138,174 +248,281 @@ export default function ScheduleClient({ eventId, initialSlots, initialParticipa
     setSending(false)
   }
 
-  const unassigned = participantsInSlot(null)
-  const assignedCount = participants.filter(p => p.time_slot_id !== null).length
-
   return (
-    <div className="space-y-6">
-      {/* Add slot form */}
-      <div className="card space-y-3">
-        <h2 className="font-semibold text-slate-700">➕ Dodaj slot godzinowy</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div>
-            <label className="form-label">Data *</label>
-            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input" />
-          </div>
-          <div>
-            <label className="form-label">Godzina *</label>
-            <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} className="form-input" />
-          </div>
-          <div>
-            <label className="form-label">Etykieta</label>
-            <input type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)} className="form-input" placeholder="np. Trasa A" />
-          </div>
-          <div>
-            <label className="form-label">Limit miejsc</label>
-            <input type="number" min="1" value={newMax} onChange={e => setNewMax(e.target.value)} className="form-input" placeholder="bez limitu" />
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleAddSlot}
-          disabled={addingSlot || !newDate || !newTime}
-          className="btn btn-primary btn-sm"
-        >
-          {addingSlot ? '...' : '+ Dodaj slot'}
-        </button>
-      </div>
+    <DragDropContext onDragEnd={onDragEnd}>
+      <div className="flex gap-4 items-start">
 
-      {/* Send schedule button */}
-      {assignedCount > 0 && (
-        <div className="card bg-blue-50 border-blue-200 flex items-center gap-3 flex-wrap">
-          <div className="flex-1">
-            <p className="font-semibold text-blue-800">📧 Wyślij grafik</p>
-            <p className="text-xs text-blue-600 mt-0.5">
-              Przypisano {assignedCount} / {participants.length} uczestników
-            </p>
-          </div>
+        {/* LEFT PANEL */}
+        <div className="w-64 shrink-0 space-y-3">
+
+          {assignedCount > 0 && (() => {
+            const allAssigned = assignedCount === items.length
+            const noWrongDates = wrongDateItems.length === 0
+            const canSend = allAssigned && noWrongDates && !sending
+            return (
+              <div className="card bg-blue-50 border-blue-200 space-y-2">
+                <p className="text-xs text-blue-600">
+                  Przypisano {assignedCount} / {items.length} pozycji
+                </p>
+                {!allAssigned && (
+                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    {items.length - assignedCount} {items.length - assignedCount === 1 ? 'pies nie jest' : 'psy nie są'} przypisane
+                  </p>
+                )}
+                {wrongDateItems.length > 0 && (
+                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    {wrongDateItems.length} {wrongDateItems.length === 1 ? 'pies przypisany' : 'psy przypisane'} do złej daty
+                  </p>
+                )}
+                <button
+                  onClick={handleSendAll}
+                  disabled={!canSend}
+                  title={!canSend ? 'Najpierw przypisz wszystkie psy do właściwych dat' : undefined}
+                  className="btn btn-primary btn-sm w-full disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {sending ? '⏳ Wysyłanie...' : '📧 Wyślij grafik wszystkim'}
+                </button>
+                {sendResult && (
+                  <p className="text-xs font-medium text-center text-slate-700">{sendResult}</p>
+                )}
+              </div>
+            )
+          })()}
+
           <button
             type="button"
-            onClick={handleSendAll}
-            disabled={sending}
-            className="btn btn-primary btn-sm shrink-0"
+            onClick={() => setAddSlotOpen(true)}
+            className="btn btn-primary btn-sm w-full flex items-center justify-center gap-1.5"
           >
-            {sending ? '⏳ Wysyłanie...' : '📧 Wyślij wszystkim'}
+            <Plus className="w-4 h-4" />
+            Dodaj slot
           </button>
-        </div>
-      )}
-      {sendResult && (
-        <p className="text-sm font-medium text-center text-slate-700 bg-slate-100 rounded-lg py-2 px-4">
-          {sendResult}
-        </p>
-      )}
 
-      {/* DnD board */}
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Unassigned column */}
+          {wrongDateItems.length > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+              <span>
+                <strong>{wrongDateItems.length}</strong>
+                {wrongDateItems.length === 1 ? ' pies przypisany' : ' psy przypisane'} do slotu z
+                {' '}niezgodną datą. Sprawdź karty oznaczone <span className="font-bold">⚠️</span>.
+              </span>
+            </div>
+          )}
+
           <Droppable droppableId="unassigned">
             {(provided, snapshot) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={`card min-h-[120px] transition-colors ${snapshot.isDraggingOver ? 'bg-yellow-50 border-yellow-300' : 'bg-slate-50'}`}
+                className={`card min-h-[100px] transition-colors ${
+                  snapshot.isDraggingOver ? 'bg-amber-50 border-amber-300' : 'bg-slate-50'
+                }`}
               >
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
                   Nieprzypisani ({unassigned.length})
                 </p>
-                {unassigned.map((p, i) => (
-                  <ParticipantCard key={p.registrationId} participant={p} index={i} />
+                {unassigned.map((item, i) => (
+                  <ItemCard key={item.id} item={item} index={i} wrongDate={false} />
                 ))}
                 {provided.placeholder}
               </div>
             )}
           </Droppable>
+        </div>
 
-          {/* Slot columns */}
-          {slots.map(slot => {
-            const inSlot = participantsInSlot(slot.id)
-            const isFull = slot.max_participants !== null && inSlot.length >= slot.max_participants
-            return (
-              <Droppable key={slot.id} droppableId={slot.id}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`card min-h-[120px] transition-colors ${snapshot.isDraggingOver && !isFull ? 'bg-green-50 border-green-300' : snapshot.isDraggingOver && isFull ? 'bg-red-50 border-red-300' : 'bg-white'}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">
-                          {slot.slot_time.slice(0, 5)}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'short' }).format(new Date(slot.slot_date))}
-                          {slot.label ? ` – ${slot.label}` : ''}
-                        </p>
-                        {slot.max_participants !== null && (
-                          <p className={`text-xs font-medium mt-0.5 ${isFull ? 'text-red-600' : 'text-slate-400'}`}>
-                            {inSlot.length} / {slot.max_participants} {isFull ? '(pełny)' : ''}
-                          </p>
+        {/* RIGHT PANEL */}
+        <div className="flex-1 overflow-x-auto min-w-0">
+          {slots.length === 0 ? (
+            <div className="card text-center py-16 text-slate-400">
+              <p className="text-4xl mb-3">🕐</p>
+              <p>Otwórz "Dodaj slot" i utwórz pierwszy termin</p>
+            </div>
+          ) : (
+            <div className="flex gap-4 items-start">
+              {slotDates.map(date => (
+                <div key={date} className="shrink-0 w-52 space-y-3">
+                  {/* Date column header */}
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide capitalize px-1">
+                    {fmtLong(date)}
+                  </p>
+                  {slotsByDate[date].map(slot => {
+                    const inSlot = itemsInSlot(slot.id)
+                    const isFull =
+                      slot.max_participants != null && inSlot.length >= slot.max_participants
+                    return (
+                      <Droppable key={slot.id} droppableId={slot.id}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`card min-h-[80px] transition-colors ${
+                              snapshot.isDraggingOver && !isFull
+                                ? 'bg-green-50 border-green-300'
+                                : snapshot.isDraggingOver && isFull
+                                ? 'bg-red-50 border-red-300'
+                                : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <p className="text-lg font-bold text-slate-800 leading-none">
+                                  {slot.slot_time.slice(0, 5)}
+                                </p>
+                                {slot.label && (
+                                  <p className="text-xs text-slate-400 mt-0.5">{slot.label}</p>
+                                )}
+                                {slot.max_participants != null && (
+                                  <p className={`text-xs font-medium mt-0.5 ${isFull ? 'text-red-500' : 'text-slate-400'}`}>
+                                    {inSlot.length}/{slot.max_participants}
+                                    {isFull ? ' (pełny)' : ''}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDeletingSlotId(slot.id)}
+                                className="text-slate-300 hover:text-red-400"
+                                title="Usuń slot"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {inSlot.map((item, i) => (
+                              <ItemCard key={item.id} item={item} index={i} wrongDate={isWrongDate(item)} />
+                            ))}
+                            {provided.placeholder}
+                          </div>
                         )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingSlotId(slot.id)}
-                        className="text-red-400 hover:text-red-600 text-xs shrink-0"
-                        title="Usuń slot"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    {inSlot.map((p, i) => (
-                      <ParticipantCard key={p.registrationId} participant={p} index={i} />
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            )
-          })}
+                      </Droppable>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </DragDropContext>
+      </div>
 
-      {slots.length === 0 && (
-        <div className="card text-center py-8 text-slate-400">
-          <p className="text-3xl mb-2">🕐</p>
-          <p>Dodaj pierwszy slot godzinowy powyżej</p>
+      <Modal open={addSlotOpen} onClose={() => setAddSlotOpen(false)} title="Dodaj slot godzinowy">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Data *</label>
+            {availableDates.length > 0 ? (
+              <select value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input">
+                <option value="">— wybierz datę —</option>
+                {availableDates.map(d => (
+                  <option key={d} value={d}>{fmtShort(d)} ({d})</option>
+                ))}
+              </select>
+            ) : (
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input" />
+            )}
+          </div>
+          <div>
+            <label className="form-label">Godzina *</label>
+            <select value={newTime} onChange={e => setNewTime(e.target.value)} className="form-input">
+              <option value="">— wybierz —</option>
+              {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Etykieta <span className="text-slate-400 font-normal">(opcjonalna)</span></label>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              className="form-input"
+              placeholder="np. Trasa A, Grupa 1"
+            />
+          </div>
+          <div>
+            <label className="form-label">Limit miejsc <span className="text-slate-400 font-normal">(opcjonalny)</span></label>
+            <input
+              type="number"
+              min="1"
+              value={newMax}
+              onChange={e => setNewMax(e.target.value)}
+              className="form-input"
+              placeholder="bez limitu"
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setAddSlotOpen(false)}
+              className="btn btn-secondary flex-1"
+            >
+              Anuluj
+            </button>
+            <button
+              type="button"
+              onClick={handleAddSlot}
+              disabled={addingSlot || !newDate || !newTime}
+              className="btn btn-primary flex-1"
+            >
+              {addingSlot ? '⏳ Dodawanie...' : '+ Dodaj slot'}
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
+
       <ConfirmModal
         open={deletingSlotId !== null}
         title="Usunąć slot?"
         message="Uczestnicy przypisani do tego slotu zostaną odpisani."
         confirmLabel="Usuń"
         danger
-        onConfirm={() => { const id = deletingSlotId!; setDeletingSlotId(null); handleDeleteSlot(id) }}
+        onConfirm={() => {
+          const id = deletingSlotId!
+          setDeletingSlotId(null)
+          handleDeleteSlot(id)
+        }}
         onCancel={() => setDeletingSlotId(null)}
       />
-    </div>
+    </DragDropContext>
   )
 }
 
-function ParticipantCard({ participant, index }: { participant: Participant; index: number }) {
+function ItemCard({ item, index, wrongDate }: { item: ScheduleItem; index: number; wrongDate: boolean }) {
   return (
-    <Draggable draggableId={participant.registrationId} index={index}>
+    <Draggable draggableId={item.id} index={index}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`flex items-center gap-2 p-2 mb-2 rounded-lg border text-sm select-none transition-shadow ${snapshot.isDragging ? 'shadow-md bg-white border-sky-300 rotate-1' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+          className={`flex items-start gap-2 p-2 mb-1.5 rounded-lg border text-sm select-none transition-shadow ${
+            snapshot.isDragging
+              ? 'shadow-lg bg-white border-sky-300 rotate-1'
+              : wrongDate
+              ? 'bg-amber-50 border-amber-300 hover:border-amber-400'
+              : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
         >
-          <span className="text-base shrink-0">🐕</span>
-          <div className="min-w-0">
-            <p className="font-medium text-slate-800 truncate">{participant.dog_name ?? '—'}</p>
-            <p className="text-xs text-slate-400 truncate">{participant.owner_name ?? '—'}</p>
+          <span className="text-base shrink-0 mt-0.5">🐕</span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-slate-800 truncate leading-tight">
+              {item.dog_name ?? '—'}
+            </p>
+            <p className="text-xs text-slate-400 truncate">{item.owner_name ?? '—'}</p>
+            {item.itemDate && (
+              <span className="inline-block text-[10px] font-medium bg-sky-100 text-sky-700 rounded px-1.5 py-0.5 mt-1 leading-tight">
+                {fmtShort(item.itemDate)}
+              </span>
+            )}
           </div>
-          {participant.schedule_sent_at && (
-            <span className="ml-auto text-green-500 shrink-0 text-xs" title="Grafik wysłany">✉️</span>
-          )}
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            {wrongDate && (
+              <span title={`Zły dzień! Pies zgłoszony na ${fmtShort(item.itemDate)}, slot jest w innym dniu.`}>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              </span>
+            )}
+            {item.sentAt && (
+              <span className="text-xs" title="Grafik wysłany">✉️</span>
+            )}
+          </div>
         </div>
       )}
     </Draggable>

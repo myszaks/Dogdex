@@ -35,26 +35,28 @@ export default async function ArchivePage({ searchParams }: Props) {
   const { data: events, error } = await query
 
   return (
-    <div>
-      <h1 className="page-title">🗁️ Archiwum wydarzeń</h1>
+    <div className="max-w-7xl mx-auto">
+      <h1 className="page-title mb-6">Archiwum wydarzeń</h1>
 
       <Suspense>
         <EventFilter />
       </Suspense>
 
       {error && process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
           <strong>Błąd bazy danych:</strong> {error.message}
         </div>
       )}
 
       {!events || events.length === 0 ? (
-        <div className="card text-center py-16">
-          <p className="text-5xl mb-4">📂</p>
-          <p className="text-slate-500">Brak zarchiwizowanych wydarzeń</p>
+        <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm mt-6">
+          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">📂</span>
+          </div>
+          <p className="text-muted-foreground">Brak zarchiwizowanych wydarzeń</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 mt-6">
           {events.map((event: DogEvent) => (
             <EventCard key={event.id} event={event} />
           ))}

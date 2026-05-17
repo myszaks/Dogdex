@@ -259,3 +259,65 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Cancellation notification to organizer
+// ---------------------------------------------------------------------------
+
+interface CancellationEmailPayload {
+  to: string           // organizer email
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  eventDate?: string | null
+  eventLocation?: string | null
+  previousStatus: string
+}
+
+export async function sendCancellationEmailToOrganizer(payload: CancellationEmailPayload): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Email] SMTP not configured — skipping cancellation email to', payload.to)
+    }
+    return
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+      <h2 style="color:#dc2626">🐾 Dogdex – Rezygnacja z eventu</h2>
+      <p>Uczestnik zrezygnował z udziału w Twoim wydarzeniu.</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${payload.eventTitle}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${payload.eventDate}</td></tr>` : ''}
+        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${payload.eventLocation}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${payload.ownerName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${payload.dogName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Poprzedni status:</td><td style="padding:8px">${payload.previousStatus === 'confirmed' ? 'Potwierdzony' : 'Oczekujący'}</td></tr>
+      </table>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+      to: payload.to,
+      subject: `❌ Rezygnacja: ${payload.dogName} (${payload.ownerName}) – ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki rezygnacji:', err)
+    }
+  }
+}
+

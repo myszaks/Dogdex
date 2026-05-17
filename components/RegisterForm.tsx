@@ -25,6 +25,92 @@ const BASE_INITIAL: BaseValues = {
   dogBreed: '',
 }
 
+// ─── Autofill helpers ─────────────────────────────────────────────────────────
+
+function findSelectMatch(options: string[], value: string): string | null {
+  const norm = value.toLowerCase().trim()
+  return options.find(o => o.toLowerCase().trim() === norm) ?? null
+}
+
+function findAliasMatch(options: string[], aliases: string[]): string | null {
+  for (const option of options) {
+    if (aliases.includes(option.toLowerCase().trim())) return option
+  }
+  return null
+}
+
+const GENDER_ALIASES: Record<string, string[]> = {
+  male:   ['male', 'samiec', 'pies', 'm'],
+  female: ['female', 'samica', 'suka', 'f'],
+}
+
+const AGILITY_ALIASES: Record<string, string[]> = {
+  none:         ['none', 'brak', '-', 'no'],
+  beginner:     ['beginner', 'poczatkujacy', 'początkujący'],
+  intermediate: ['intermediate', 'srednio', 'średnio', 'sredniozaawansowany', 'średniozaawansowany'],
+  advanced:     ['advanced', 'zaawansowany'],
+  competition:  ['competition', 'zawodnik', 'zawodowy'],
+}
+
+const SPEEDWAY_CLASS_OPTIONS = new Set(['xs', 's', 'm', 'l'])
+
+function speedwayClassFromHeight(height: number): string {
+  if (height < 30) return 'XS'
+  if (height < 40) return 'S'
+  if (height < 50) return 'M'
+  return 'L'
+}
+
+function isSpeedwayClassField(opts: string[]): boolean {
+  return opts.some(o => SPEEDWAY_CLASS_OPTIONS.has(o.toLowerCase().trim()))
+}
+
+function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Record<string, string> {
+  const filled: Record<string, string> = {}
+
+  for (const field of fields) {
+    const lbl = field.label.toLowerCase()
+    const opts = field.options ?? []
+    const isText = ['text', 'textarea'].includes(field.type)
+    const isNum  = field.type === 'number'
+    const isSel  = field.type === 'select'
+
+    const tryFill = (raw: string | null) => {
+      if (!raw) return
+      if (isText || isNum) { filled[field.id] = raw; return }
+      if (isSel)  { const m = findSelectMatch(opts, raw); if (m) filled[field.id] = m }
+    }
+
+    if (/ras[ay]|breed/i.test(lbl))                        tryFill(dog.breed)
+    else if (/chip|pedigree|rodow[oó]d|mikrochip/i.test(lbl)) tryFill(dog.pedigree_or_chip)
+    else if (/kolor|umaszczen|sier[śs]/i.test(lbl))        tryFill(dog.coat_color)
+    else if (/wag[ai]|mas[ay]|weight/i.test(lbl))          tryFill(dog.weight_kg != null ? String(dog.weight_kg) : null)
+    else if (/wzrost|wysoko[śs]|height/i.test(lbl))        tryFill(dog.height_cm != null ? String(dog.height_cm) : null)
+    else if (/szczepien|wściekl|rabies|vaccin/i.test(lbl)) tryFill(dog.rabies_vaccine_expiry)
+    else if (/p[łl]e[ćc]|gender|sex/i.test(lbl)) {
+      if (!dog.gender) continue
+      if (isSel) {
+        const m = findAliasMatch(opts, GENDER_ALIASES[dog.gender] ?? [])
+        if (m) filled[field.id] = m
+      } else if (isText) filled[field.id] = dog.gender
+    }
+    else if (/agility|poziom|klasa/i.test(lbl)) {
+      if (isSel && isSpeedwayClassField(opts) && dog.height_cm != null) {
+        const cls = speedwayClassFromHeight(dog.height_cm)
+        const match = findSelectMatch(opts, cls)
+        if (match) filled[field.id] = match
+      } else if (isSel && dog.agility_level) {
+        const m = findAliasMatch(opts, AGILITY_ALIASES[dog.agility_level] ?? [])
+        if (m) filled[field.id] = m
+      } else if (isText && dog.agility_level) {
+        filled[field.id] = dog.agility_level
+      }
+    }
+  }
+
+  return filled
+}
+
 
 export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
   const { user } = useUser()
@@ -73,6 +159,8 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         dogName: dog.name,
         dogBreed: dog.breed ?? '',
       }))
+      const filled = autofillFromDog(dog, formFields)
+      setDynamic(prev => ({ ...prev, ...filled }))
     } else {
       // "Inny pies" — clear dog fields for manual entry
       setBase(prev => ({ ...prev, dogName: '', dogBreed: '' }))

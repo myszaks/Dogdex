@@ -196,6 +196,12 @@ export async function sendEventChangeEmail(payload: EventChangeEmailPayload): Pr
 // Schedule notifications (time slot assignment)
 // ---------------------------------------------------------------------------
 
+interface ScheduleSlot {
+  slotDate: string
+  slotTime: string
+  slotLabel?: string | null
+}
+
 interface ScheduleEmailPayload {
   to: string
   ownerName: string
@@ -203,9 +209,15 @@ interface ScheduleEmailPayload {
   eventTitle: string
   eventDate?: string | null
   eventLocation?: string | null
-  slotDate: string
-  slotTime: string
-  slotLabel?: string | null
+  slots: ScheduleSlot[]
+}
+
+function formatSlotDate(date: string): string {
+  try {
+    return new Intl.DateTimeFormat('pl-PL', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }).format(new Date(date))
+  } catch { return date }
 }
 
 export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<void> {
@@ -225,30 +237,49 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
     auth: { user, pass },
   })
 
-  // Format date e.g. "14 czerwca 2025"
-  let formattedDate = payload.slotDate
-  try {
-    formattedDate = new Intl.DateTimeFormat('pl-PL', {
-      day: 'numeric', month: 'long', year: 'numeric',
-    }).format(new Date(payload.slotDate))
-  } catch { /* keep original */ }
+  const sortedSlots = [...payload.slots].sort(
+    (a, b) => a.slotDate.localeCompare(b.slotDate) || a.slotTime.localeCompare(b.slotTime)
+  )
 
-  // Format time e.g. "09:30"
-  const formattedTime = payload.slotTime.slice(0, 5)
+  const slotsHtml = sortedSlots.map(s => {
+    const time = s.slotTime.slice(0, 5)
+    const date = formatSlotDate(s.slotDate)
+    return `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0">
+          <span style="font-size:18px;font-weight:700;color:#0369a1">${escHtml(time)}</span>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#334155">
+          ${escHtml(date)}
+          ${s.slotLabel ? `<br><span style="color:#64748b;font-size:13px">${escHtml(s.slotLabel)}</span>` : ''}
+        </td>
+      </tr>`
+  }).join('')
+
+  const isMultiple = sortedSlots.length > 1
+  const subjectSlot = isMultiple
+    ? `${sortedSlots.length} terminów`
+    : `${sortedSlots[0].slotTime.slice(0, 5)} ${formatSlotDate(sortedSlots[0].slotDate)}`
 
   const html = `
-    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
-      <h2 style="color:#0369a1">🐾 Dogdex – Twój termin startu</h2>
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex – ${isMultiple ? 'Twoje terminy startów' : 'Twój termin startu'}</h2>
       <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
-      <p>Organizator przypisał Ci termin startu na wydarzeniu <strong>${escHtml(payload.eventTitle)}</strong>.</p>
-      <div style="background:#f0f9ff;border-left:4px solid #0369a1;padding:16px;border-radius:4px;margin:16px 0">
-        <p style="margin:0;font-size:24px;font-weight:700;color:#0369a1">${escHtml(formattedTime)}</p>
-        <p style="margin:4px 0 0;color:#334155">${escHtml(formattedDate)}</p>
-        ${payload.slotLabel ? `<p style="margin:4px 0 0;color:#64748b;font-size:14px">${escHtml(payload.slotLabel)}</p>` : ''}
-      </div>
+      <p>Organizator przypisał Ci ${isMultiple ? 'terminy startów' : 'termin startu'} na wydarzeniu
+         <strong>${escHtml(payload.eventTitle)}</strong>.</p>
+
+      <table style="border-collapse:collapse;width:100%;margin:16px 0;background:#f0f9ff;border-radius:8px;overflow:hidden">
+        <thead>
+          <tr style="background:#0369a1">
+            <th style="padding:10px 12px;text-align:left;color:#fff;font-size:13px">Godzina</th>
+            <th style="padding:10px 12px;text-align:left;color:#fff;font-size:13px">Data</th>
+          </tr>
+        </thead>
+        <tbody>${slotsHtml}</tbody>
+      </table>
+
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Termin eventu:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Miejsce:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
@@ -260,7 +291,7 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
     await transporter.sendMail({
       from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
       to: payload.to,
-      subject: `📅 Twój termin startu – ${payload.eventTitle} – ${formattedTime} ${formattedDate}`,
+      subject: `📅 ${isMultiple ? 'Twoje terminy startów' : 'Twój termin startu'} – ${escHtml(payload.eventTitle)} – ${subjectSlot}`,
       html,
     })
   } catch (err) {

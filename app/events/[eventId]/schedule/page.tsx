@@ -34,22 +34,50 @@ export default async function PublicSchedulePage({ params }: Props) {
 
   if (!event) notFound()
 
-  const [{ data: slots }, { data: registrations }] = await Promise.all([
-    supabase
-      .from('time_slots')
-      .select('*')
-      .eq('event_id', event.id)
-      .order('slot_date', { ascending: true })
-      .order('slot_time', { ascending: true }),
-    supabase
-      .from('registrations')
-      .select('id, time_slot_id, participants(dog_name, owner_name)')
-      .eq('event_id', event.id)
-      .eq('status', 'confirmed')
-      .not('time_slot_id', 'is', null),
-  ])
+  const { data: slots } = await supabase
+    .from('time_slots')
+    .select('*')
+    .eq('event_id', event.id)
+    .order('slot_date', { ascending: true })
+    .order('slot_time', { ascending: true })
 
-  if (!slots || slots.length === 0) {
+  // Fetch all confirmed registrations for this event
+  const { data: registrations } = await supabase
+    .from('registrations')
+    .select('id, participants(dog_name, owner_name)')
+    .eq('event_id', event.id)
+    .eq('status', 'confirmed')
+
+  const regIds = (registrations ?? []).map(r => r.id as string)
+
+  // Fetch schedule_assignments to know which slot each registration is in
+  const { data: assignments } = regIds.length
+    ? await supabase
+        .from('schedule_assignments')
+        .select('registration_id, time_slot_id, item_date')
+        .in('registration_id', regIds)
+    : { data: [] }
+
+  // Build a map: slot_id → list of participants
+  type ParticipantEntry = { dog_name: string | null; owner_name: string | null }
+  const regById = new Map(
+    (registrations ?? []).map(r => {
+      const p = (r as Record<string, unknown>).participants as Record<string, string> | null
+      return [r.id as string, { dog_name: p?.dog_name ?? null, owner_name: p?.owner_name ?? null }]
+    })
+  )
+  const participantsBySlot = new Map<string, ParticipantEntry[]>()
+  for (const a of assignments ?? []) {
+    if (!a.time_slot_id) continue
+    if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])
+    const entry = regById.get(a.registration_id)
+    if (entry) participantsBySlot.get(a.time_slot_id)!.push(entry)
+  }
+
+  // Only show slots that have at least one participant assigned
+  const filledSlots = (slots ?? []).filter(s => (participantsBySlot.get(s.id)?.length ?? 0) > 0)
+
+  if (filledSlots.length === 0) {
     return (
       <div>
         <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
@@ -65,21 +93,9 @@ export default async function PublicSchedulePage({ params }: Props) {
     )
   }
 
-  // Group registrations by slot
-  const regsBySlot = new Map<string, Array<{ dog_name: string | null; owner_name: string | null }>>()
-  for (const reg of registrations ?? []) {
-    const p = (reg as Record<string, unknown>).participants as Record<string, string> | null
-    if (!reg.time_slot_id) continue
-    if (!regsBySlot.has(reg.time_slot_id)) regsBySlot.set(reg.time_slot_id, [])
-    regsBySlot.get(reg.time_slot_id)!.push({
-      dog_name: p?.dog_name ?? null,
-      owner_name: p?.owner_name ?? null,
-    })
-  }
-
-  // Group slots by date
-  const slotsByDate = new Map<string, typeof slots>()
-  for (const slot of slots) {
+  // Group filled slots by date
+  const slotsByDate = new Map<string, typeof filledSlots>()
+  for (const slot of filledSlots) {
     if (!slotsByDate.has(slot.slot_date)) slotsByDate.set(slot.slot_date, [])
     slotsByDate.get(slot.slot_date)!.push(slot)
   }
@@ -109,7 +125,7 @@ export default async function PublicSchedulePage({ params }: Props) {
               </h2>
               <div className="space-y-2">
                 {dateSlots.map(slot => {
-                  const inSlot = regsBySlot.get(slot.id) ?? []
+                  const inSlot = participantsBySlot.get(slot.id) ?? []
                   return (
                     <div key={slot.id} className="card">
                       <div className="flex items-start gap-4">
@@ -122,21 +138,17 @@ export default async function PublicSchedulePage({ params }: Props) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          {inSlot.length === 0 ? (
-                            <p className="text-sm text-slate-400 italic">Brak przypisanych uczestników</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {inSlot.map((p, i) => (
-                                <span
-                                  key={i}
-                                  className="inline-flex items-center gap-1 bg-slate-100 rounded-full px-3 py-1 text-sm text-slate-700"
-                                >
-                                  🐕 <span className="font-medium">{p.dog_name ?? '—'}</span>
-                                  <span className="text-slate-400">({p.owner_name ?? '—'})</span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {inSlot.map((p, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 bg-slate-100 rounded-full px-3 py-1 text-sm text-slate-700"
+                              >
+                                🐕 <span className="font-medium">{p.dog_name ?? '—'}</span>
+                                <span className="text-slate-400">({p.owner_name ?? '—'})</span>
+                              </span>
+                            ))}
+                          </div>
                           {slot.max_participants !== null && (
                             <p className="text-xs text-slate-400 mt-1">
                               {inSlot.length} / {slot.max_participants} miejsc

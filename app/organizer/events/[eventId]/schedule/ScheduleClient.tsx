@@ -98,6 +98,7 @@ export default function ScheduleClient({
   const [items, setItems] = useState<ScheduleItem[]>(
     () => buildItems(initialParticipants, initialAssignments, multiDateFieldIds)
   )
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
   const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null)
@@ -200,9 +201,10 @@ export default function ScheduleClient({
       prev.map(i => i.id === virtualId ? { ...i, slotId: destSlotId } : i)
     )
 
+    setSaveStatus('saving')
     if (destSlotId === null) {
       if (item.assignmentId) {
-        await fetch(`/api/events/${eventId}/schedule-assignments`, {
+        const delRes = await fetch(`/api/events/${eventId}/schedule-assignments`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assignment_id: item.assignmentId }),
@@ -212,6 +214,9 @@ export default function ScheduleClient({
             ? { ...i, slotId: null, assignmentId: null, sentAt: null }
             : i)
         )
+        setSaveStatus(delRes.ok ? 'saved' : 'error')
+      } else {
+        setSaveStatus('saved')
       }
     } else {
       const res = await fetch(`/api/events/${eventId}/schedule-assignments`, {
@@ -228,6 +233,13 @@ export default function ScheduleClient({
         setItems(prev =>
           prev.map(i => i.id === virtualId ? { ...i, assignmentId: assignment.id } : i)
         )
+        setSaveStatus('saved')
+      } else {
+        // Revert optimistic update on failure
+        setItems(prev =>
+          prev.map(i => i.id === virtualId ? { ...i, slotId: item.slotId } : i)
+        )
+        setSaveStatus('error')
       }
     }
   }
@@ -299,6 +311,18 @@ export default function ScheduleClient({
             <Plus className="w-4 h-4" />
             Dodaj slot
           </button>
+
+          {saveStatus !== 'idle' && (
+            <p className={`text-xs text-center font-medium rounded-lg py-1.5 px-2 ${
+              saveStatus === 'saving' ? 'bg-slate-100 text-slate-500' :
+              saveStatus === 'saved'  ? 'bg-green-50 text-green-700' :
+                                        'bg-red-50 text-red-600'
+            }`}>
+              {saveStatus === 'saving' ? '⏳ Zapisywanie...' :
+               saveStatus === 'saved'  ? '✅ Grafik zapisany' :
+                                         '❌ Błąd zapisu — spróbuj ponownie'}
+            </p>
+          )}
 
           {wrongDateItems.length > 0 && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">

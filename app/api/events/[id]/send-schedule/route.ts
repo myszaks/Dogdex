@@ -74,6 +74,16 @@ export async function POST(req: Request, { params }: Params) {
   let failed = 0
   const sentIds: string[] = []
 
+  // Group assignments by owner_email so each person gets a single email
+  interface EmailGroup {
+    email: string
+    ownerName: string
+    dogName: string
+    slots: Array<{ slotDate: string; slotTime: string; slotLabel?: string | null }>
+    assignmentIds: string[]
+  }
+  const emailGroups = new Map<string, EmailGroup>()
+
   for (const assignment of assignments) {
     const slot = slotMap.get(assignment.time_slot_id)
     if (!slot) continue
@@ -82,19 +92,36 @@ export async function POST(req: Request, { params }: Params) {
     const p = reg?.participants as { owner_email?: string; owner_name?: string; dog_name?: string } | null
     if (!p?.owner_email) continue
 
-    try {
-      await sendScheduleEmail({
-        to: p.owner_email,
+    const key = p.owner_email
+    if (!emailGroups.has(key)) {
+      emailGroups.set(key, {
+        email: p.owner_email,
         ownerName: p.owner_name ?? '',
         dogName: p.dog_name ?? '',
-        eventTitle: event.title,
-        eventDate: event.start_at ?? null,
-        eventLocation: event.location ?? null,
-        slotDate: slot.slot_date,
-        slotTime: slot.slot_time,
-        slotLabel: slot.label ?? null,
+        slots: [],
+        assignmentIds: [],
       })
-      sentIds.push(assignment.id)
+    }
+    const group = emailGroups.get(key)!
+    group.slots.push({
+      slotDate: slot.slot_date,
+      slotTime: slot.slot_time,
+      slotLabel: slot.label ?? null,
+    })
+    group.assignmentIds.push(assignment.id)
+  }
+
+  for (const group of emailGroups.values()) {
+    try {
+      await sendScheduleEmail({
+        to: group.email,
+        ownerName: group.ownerName,
+        dogName: group.dogName,
+        eventTitle: event.title,
+        eventLocation: event.location ?? null,
+        slots: group.slots,
+      })
+      sentIds.push(...group.assignmentIds)
       sent++
     } catch {
       failed++

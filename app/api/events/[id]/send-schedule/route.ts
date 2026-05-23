@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendScheduleEmail } from '@/lib/email'
 
@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   // Verify ownership
   const { data: event } = await supabase

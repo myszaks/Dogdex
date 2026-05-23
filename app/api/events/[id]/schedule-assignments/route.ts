@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 interface Params {
@@ -11,7 +11,7 @@ interface Params {
  */
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   // Get registration IDs for this event
   const { data: regs } = await supabase
@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   const { data: event } = await supabase.from('events').select('created_by').eq('id', id).single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
@@ -78,7 +78,7 @@ export async function DELETE(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   const { data: event } = await supabase.from('events').select('created_by').eq('id', id).single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })

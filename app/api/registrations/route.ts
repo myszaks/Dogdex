@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 
@@ -24,7 +24,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createAuthClient()
+  // Public endpoint — uses service role to bypass RLS so unauthenticated users can register
+  const supabase = createServerClient()
 
   let body: Record<string, unknown>
   try {

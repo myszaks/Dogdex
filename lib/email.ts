@@ -363,3 +363,102 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
   }
 }
 
+// ---------------------------------------------------------------------------
+// Contact form
+// ---------------------------------------------------------------------------
+
+interface ContactEmailPayload {
+  name: string
+  email: string
+  subject: string
+  message: string
+}
+
+/** Sends the contact form message to the app support inbox. Throws on SMTP error. */
+export async function sendContactEmail(payload: ContactEmailPayload): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+      <h2 style="color:#0369a1;margin-bottom:4px">📨 Nowa wiadomość kontaktowa</h2>
+      <p style="color:#64748b;margin-top:0">Dogdex – formularz kontaktowy</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <tr style="background:#f8fafc">
+          <td style="padding:10px 14px;color:#64748b;width:100px;font-size:13px">Od:</td>
+          <td style="padding:10px 14px;font-weight:600">${escHtml(payload.name)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">Email:</td>
+          <td style="padding:10px 14px;border-top:1px solid #e2e8f0">
+            <a href="mailto:${escHtml(payload.email)}" style="color:#0369a1">${escHtml(payload.email)}</a>
+          </td>
+        </tr>
+        <tr style="background:#f8fafc">
+          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">Temat:</td>
+          <td style="padding:10px 14px;font-weight:600;border-top:1px solid #e2e8f0">${escHtml(payload.subject)}</td>
+        </tr>
+      </table>
+      <div style="background:#f0f9ff;border-left:4px solid #0369a1;padding:16px;border-radius:4px;white-space:pre-wrap;line-height:1.6;color:#0f172a">
+        ${escHtml(payload.message)}
+      </div>
+      <p style="color:#94a3b8;font-size:11px;margin-top:24px">
+        Możesz odpowiedzieć bezpośrednio na tę wiadomość — odpowiedź trafi do ${escHtml(payload.email)}
+      </p>
+    </div>
+  `
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+    to: process.env.CONTACT_EMAIL ?? 'dogdexpro@gmail.com',
+    replyTo: `${payload.name} <${payload.email}>`,
+    subject: `[Dogdex] ${escHtml(payload.subject)} – ${escHtml(payload.name)}`,
+    html,
+  })
+}
+
+/** Sends an auto-reply confirmation to the user who submitted the contact form. */
+export async function sendContactConfirmation(payload: Pick<ContactEmailPayload, 'name' | 'email' | 'subject'>): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex – Potwierdzenie wiadomości</h2>
+      <p>Cześć, <strong>${escHtml(payload.name)}</strong>!</p>
+      <p>Dziękujemy za kontakt. Otrzymaliśmy Twoją wiadomość i odpowiemy najszybciej jak to możliwe.</p>
+      <div style="background:#f0f9ff;border-left:4px solid #0369a1;padding:12px 16px;border-radius:4px;margin:16px 0">
+        <p style="margin:0;color:#64748b;font-size:13px">Temat:</p>
+        <p style="margin:4px 0 0;font-weight:600;color:#0f172a">${escHtml(payload.subject)}</p>
+      </div>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex. Prosimy na nią nie odpowiadać.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+      to: payload.email,
+      subject: `✅ Otrzymaliśmy Twoją wiadomość – Dogdex`,
+      html,
+    })
+  } catch {
+    // Confirmation is non-critical; don't propagate
+  }
+}

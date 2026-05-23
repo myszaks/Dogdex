@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { useState, useEffect, Suspense } from 'react'
 import AuthModal from './AuthModal'
+import ContactModal from './ContactModal'
 import UserMenu from './UserMenu'
 import useUser from '@/hooks/useUser'
 import {
@@ -14,6 +15,7 @@ import {
   PawPrint,
   LogIn,
   Search,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +39,7 @@ function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
 export default function Navigation() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [contactOpen, setContactOpen] = useState(false)
   const { isOrganizer, user } = useUser()
 
   const navLinks = [
@@ -86,7 +89,14 @@ export default function Navigation() {
         </nav>
 
         {/* Bottom: user section */}
-        <div className="px-4 py-4 border-t border-white/10">
+        <div className="px-4 py-4 border-t border-white/10 space-y-1">
+          <button
+            onClick={() => setContactOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <HelpCircle className="w-4 h-4 shrink-0" />
+            Pomoc
+          </button>
           <AuthControlsSidebar openModal={() => setOpen(true)} />
         </div>
       </aside>
@@ -98,6 +108,14 @@ export default function Navigation() {
           Dogdex
         </Link>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setContactOpen(true)}
+            className="p-2 rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-colors"
+            title="Pomoc"
+            aria-label="Pomoc i kontakt"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
           <AuthControlsMobile openModal={() => setOpen(true)} />
         </div>
       </header>
@@ -144,6 +162,7 @@ export default function Navigation() {
         <AuthParamHandler onOpen={() => setOpen(true)} />
       </Suspense>
       <AuthModal open={open} onClose={() => setOpen(false)} />
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </>
   )
 }

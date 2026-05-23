@@ -69,9 +69,6 @@ export default async function SchedulePage({ params }: Props) {
     form_data: (r.form_data ?? {}) as Record<string, unknown>,
   }))
 
-  const assignedRegIds = new Set((assignments ?? []).map((a: any) => a.registration_id as string))
-  const assignedCount = assignedRegIds.size
-
   return (
     <div>
       <Link
@@ -93,23 +90,6 @@ export default async function SchedulePage({ params }: Props) {
         >
           👁️ Podgląd publiczny
         </Link>
-      </div>
-
-      <div className="card mb-5 bg-sky-50 border-sky-200">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xl font-bold text-slate-800">{participants.length}</p>
-            <p className="text-xs text-slate-500">Potwierdzonych</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-blue-600">{slots?.length ?? 0}</p>
-            <p className="text-xs text-slate-500">Slotów</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-green-600">{assignedCount}</p>
-            <p className="text-xs text-slate-500">Przypisanych</p>
-          </div>
-        </div>
       </div>
 
       <ScheduleClient

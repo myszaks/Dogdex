@@ -5,6 +5,7 @@ import type { TimeSlot } from '@/types'
 import ConfirmModal from '@/components/ConfirmModal'
 import { AlertTriangle, Plus, X } from 'lucide-react'
 import Modal from '@/components/Modal'
+import { plForm } from '@/lib/utils'
 
 interface Participant {
   registrationId: string
@@ -250,7 +251,7 @@ export default function ScheduleClient({
     const res = await fetch(`/api/events/${eventId}/send-schedule`, { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
-      setSendResult(`✅ Wysłano do ${data.sent} uczestników${data.failed ? `, ${data.failed} błędów` : ''}.`)
+      setSendResult(`✅ Wysłano do ${plForm(data.sent, 'uczestnika', 'uczestników', 'uczestników')}${data.failed ? `, ${plForm(data.failed, 'błąd', 'błędy', 'błędów')}` : ''}.`)
       setItems(prev =>
         prev.map(i => i.slotId !== null ? { ...i, sentAt: new Date().toISOString() } : i)
       )
@@ -262,6 +263,26 @@ export default function ScheduleClient({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
+      {/* Stats bar */}
+      <div className="card mb-5 bg-sky-50 border-sky-200">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-xl font-bold text-slate-800">
+              {new Set(items.map(i => i.registrationId)).size}
+            </p>
+            <p className="text-xs text-slate-500">Potwierdzonych</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-blue-600">{slots.length}</p>
+            <p className="text-xs text-slate-500">Slotów</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-green-600">{assignedCount}</p>
+            <p className="text-xs text-slate-500">Przypisanych</p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex gap-4 items-start">
 
         {/* LEFT PANEL */}
@@ -279,13 +300,13 @@ export default function ScheduleClient({
                 {!allAssigned && (
                   <p className="text-[11px] text-amber-600 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {items.length - assignedCount} {items.length - assignedCount === 1 ? 'pies nie jest' : 'psy nie są'} przypisane
+                    {plForm(items.length - assignedCount, 'pies nie jest', 'psy nie są', 'psów nie ma')} przypisanych
                   </p>
                 )}
                 {wrongDateItems.length > 0 && (
                   <p className="text-[11px] text-amber-600 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {wrongDateItems.length} {wrongDateItems.length === 1 ? 'pies przypisany' : 'psy przypisane'} do złej daty
+                    {plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do złej daty
                   </p>
                 )}
                 <button
@@ -329,7 +350,7 @@ export default function ScheduleClient({
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
               <span>
                 <strong>{wrongDateItems.length}</strong>
-                {wrongDateItems.length === 1 ? ' pies przypisany' : ' psy przypisane'} do slotu z
+                {' '}{plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do slotu z
                 {' '}niezgodną datą. Sprawdź karty oznaczone <span className="font-bold">⚠️</span>.
               </span>
             </div>

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import type { FormField } from '@/types'
+import { plForm } from '@/lib/utils'
 
 /**
  * Email notifications via Nodemailer + Gmail SMTP.
@@ -258,7 +259,7 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
 
   const isMultiple = sortedSlots.length > 1
   const subjectSlot = isMultiple
-    ? `${sortedSlots.length} terminów`
+    ? plForm(sortedSlots.length, 'termin', 'terminy', 'terminów')
     : `${sortedSlots[0].slotTime.slice(0, 5)} ${formatSlotDate(sortedSlots[0].slotDate)}`
 
   const html = `

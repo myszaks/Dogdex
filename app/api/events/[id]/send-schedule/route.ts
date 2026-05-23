@@ -78,8 +78,8 @@ export async function POST(req: Request, { params }: Params) {
   interface EmailGroup {
     email: string
     ownerName: string
-    dogName: string
-    slots: Array<{ slotDate: string; slotTime: string; slotLabel?: string | null }>
+    dogNames: Set<string>
+    slots: Array<{ slotDate: string; slotTime: string; slotLabel?: string | null; dogName: string }>
     assignmentIds: string[]
   }
   const emailGroups = new Map<string, EmailGroup>()
@@ -97,16 +97,19 @@ export async function POST(req: Request, { params }: Params) {
       emailGroups.set(key, {
         email: p.owner_email,
         ownerName: p.owner_name ?? '',
-        dogName: p.dog_name ?? '',
+        dogNames: new Set(),
         slots: [],
         assignmentIds: [],
       })
     }
     const group = emailGroups.get(key)!
+    const dogName = p.dog_name ?? ''
+    group.dogNames.add(dogName)
     group.slots.push({
       slotDate: slot.slot_date,
       slotTime: slot.slot_time,
       slotLabel: slot.label ?? null,
+      dogName,
     })
     group.assignmentIds.push(assignment.id)
   }
@@ -116,7 +119,7 @@ export async function POST(req: Request, { params }: Params) {
       await sendScheduleEmail({
         to: group.email,
         ownerName: group.ownerName,
-        dogName: group.dogName,
+        dogNames: [...group.dogNames],
         eventTitle: event.title,
         eventLocation: event.location ?? null,
         slots: group.slots,

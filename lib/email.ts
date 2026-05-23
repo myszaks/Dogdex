@@ -201,12 +201,13 @@ interface ScheduleSlot {
   slotDate: string
   slotTime: string
   slotLabel?: string | null
+  dogName?: string | null
 }
 
 interface ScheduleEmailPayload {
   to: string
   ownerName: string
-  dogName: string
+  dogNames: string[]
   eventTitle: string
   eventDate?: string | null
   eventLocation?: string | null
@@ -242,6 +243,8 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
     (a, b) => a.slotDate.localeCompare(b.slotDate) || a.slotTime.localeCompare(b.slotTime)
   )
 
+  const multiDog = payload.dogNames.length > 1
+
   const slotsHtml = sortedSlots.map(s => {
     const time = s.slotTime.slice(0, 5)
     const date = formatSlotDate(s.slotDate)
@@ -254,6 +257,7 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
           ${escHtml(date)}
           ${s.slotLabel ? `<br><span style="color:#64748b;font-size:13px">${escHtml(s.slotLabel)}</span>` : ''}
         </td>
+        ${multiDog ? `<td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#0369a1;font-weight:600">${escHtml(s.dogName ?? '')}</td>` : ''}
       </tr>`
   }).join('')
 
@@ -261,6 +265,10 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
   const subjectSlot = isMultiple
     ? plForm(sortedSlots.length, 'termin', 'terminy', 'terminów')
     : `${sortedSlots[0].slotTime.slice(0, 5)} ${formatSlotDate(sortedSlots[0].slotDate)}`
+
+  const dogLabel = multiDog
+    ? `Psy: ${payload.dogNames.map(d => escHtml(d)).join(', ')}`
+    : `Pies: ${escHtml(payload.dogNames[0] ?? '')}`
 
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
@@ -274,6 +282,7 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
           <tr style="background:#0369a1">
             <th style="padding:10px 12px;text-align:left;color:#fff;font-size:13px">Godzina</th>
             <th style="padding:10px 12px;text-align:left;color:#fff;font-size:13px">Data</th>
+            ${multiDog ? '<th style="padding:10px 12px;text-align:left;color:#fff;font-size:13px">Pies</th>' : ''}
           </tr>
         </thead>
         <tbody>${slotsHtml}</tbody>
@@ -282,7 +291,7 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Miejsce:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">${multiDog ? 'Psy' : 'Pies'}:</td><td style="padding:8px">${payload.dogNames.map(d => escHtml(d)).join(', ')}</td></tr>
       </table>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
     </div>

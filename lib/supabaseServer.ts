@@ -17,8 +17,7 @@ export function createServerClient() {
   })
 }
 
-/** @deprecated kept for backwards compat */
-export { createServerClient as createServerClient_ServiceRole }
+
 
 /**
  * Auth-aware server client — reads the user's session from cookies.
@@ -46,7 +45,4 @@ export async function createAuthClient() {
   )
 }
 
-/** @deprecated Use createAuthClient() instead */
-export async function createServerClientForToken(_token?: string) {
-  return createAuthClient()
-}
+

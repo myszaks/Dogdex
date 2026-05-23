@@ -38,12 +38,12 @@ export async function POST(req: Request, { params }: Params) {
     .eq('event_id', id)
     .eq('status', 'confirmed')
 
-  const regIds = (regs ?? []).map((r: any) => r.id as string)
+  const regIds = (regs ?? []).map(r => r.id as string)
   if (!regIds.length) {
     return NextResponse.json({ error: 'Brak potwierdzonych uczestników' }, { status: 400 })
   }
 
-  const regMap = new Map((regs ?? []).map((r: any) => [r.id as string, r]))
+  const regMap = new Map((regs ?? []).map(r => [r.id as string, r]))
 
   // Fetch schedule_assignments
   let assignQuery = supabase
@@ -62,13 +62,13 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   // Fetch slots
-  const slotIds = [...new Set(assignments.map((a: any) => a.time_slot_id as string))]
+  const slotIds = [...new Set(assignments.map(a => a.time_slot_id as string))]
   const { data: slots } = await supabase
     .from('time_slots')
     .select('*')
     .in('id', slotIds)
 
-  const slotMap = new Map((slots ?? []).map((s: any) => [s.id, s]))
+  const slotMap = new Map((slots ?? []).map(s => [s.id, s]))
 
   let sent = 0
   let failed = 0
@@ -79,7 +79,7 @@ export async function POST(req: Request, { params }: Params) {
     if (!slot) continue
 
     const reg = regMap.get(assignment.registration_id)
-    const p = reg?.participants as Record<string, string> | null
+    const p = reg?.participants as { owner_email?: string; owner_name?: string; dog_name?: string } | null
     if (!p?.owner_email) continue
 
     try {

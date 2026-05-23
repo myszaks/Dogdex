@@ -13,6 +13,16 @@ import type { FormField } from '@/types'
  *   SMTP_FROM=Dogdex <twoj@gmail.com>
  */
 
+function escHtml(str: string | null | undefined): string {
+  if (!str) return ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
 interface RegistrationEmailPayload {
   to: string
   ownerName: string
@@ -29,20 +39,20 @@ function formatFieldValue(field: FormField, val: unknown): string {
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => {
-        try { return new Intl.DateTimeFormat('pl-PL').format(new Date(d as string)) } catch { return String(d) }
+        try { return escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d as string))) } catch { return escHtml(String(d)) }
       }).join(', ')
     }
-    return val.join(', ')
+    return val.map(v => escHtml(String(v))).join(', ')
   }
   if (field.type === 'checkbox') return val ? 'Tak' : 'Nie'
-  return String(val)
+  return escHtml(String(val))
 }
 
 function buildFormDataRows(fields?: FormField[], data?: Record<string, unknown>): string {
   if (!fields?.length || !data || !Object.keys(data).length) return ''
   const rows = fields
     .filter(f => data[f.id] !== undefined && data[f.id] !== null && data[f.id] !== '')
-    .map(f => `<tr><td style="padding:8px;color:#64748b">${f.label}:</td><td style="padding:8px">${formatFieldValue(f, data[f.id])}</td></tr>`)
+    .map(f => `<tr><td style="padding:8px;color:#64748b">${escHtml(f.label)}:</td><td style="padding:8px">${formatFieldValue(f, data[f.id])}</td></tr>`)
     .join('')
   if (!rows) return ''
   return `<p style="margin:16px 0 4px;font-weight:600;color:#0f172a">Dodatkowe informacje:</p>
@@ -74,13 +84,13 @@ export async function sendRegistrationEmail(payload: RegistrationEmailPayload): 
   const html = `
     <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
       <h2 style="color:#0369a1">🐾 Dogdex</h2>
-      <p>Cześć, <strong>${payload.ownerName}</strong>!</p>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
       <p>${statusText}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${payload.eventTitle}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${payload.eventDate}</td></tr>` : ''}
-        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${payload.eventLocation}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${payload.dogName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
       ${buildFormDataRows(payload.formFields, payload.formData)}
       ${payload.status === 'pending' ? '<p style="color:#92400e;background:#fef3c7;padding:12px;border-radius:8px">Poczekaj na potwierdzenie od organizatora.</p>' : ''}
@@ -141,7 +151,7 @@ export async function sendEventChangeEmail(payload: EventChangeEmailPayload): Pr
   })
 
   const changedList = payload.changedFields
-    .map(f => `<li>${changeFieldLabel(f)}</li>`)
+    .map(f => `<li>${escHtml(changeFieldLabel(f))}</li>`)
     .join('')
 
   const isSignificant =
@@ -150,13 +160,13 @@ export async function sendEventChangeEmail(payload: EventChangeEmailPayload): Pr
   const html = `
     <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
       <h2 style="color:#0369a1">🐾 Dogdex – Zmiana w wydarzeniu</h2>
-      <p>Cześć, <strong>${payload.ownerName}</strong>!</p>
-      <p>Organizator wprowadził zmiany w wydarzeniu, na które jesteś zapisany/-a z psem <strong>${payload.dogName}</strong>.</p>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+      <p>Organizator wprowadził zmiany w wydarzeniu, na które jesteś zapisany/-a z psem <strong>${escHtml(payload.dogName)}</strong>.</p>
 
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${payload.eventTitle}</td></tr>
-        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${payload.newStartAt}</td></tr>` : ''}
-        ${payload.newLocation ? `<tr><td style="padding:8px;color:#64748b">Nowa lokalizacja:</td><td style="padding:8px">${payload.newLocation}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${escHtml(payload.newStartAt)}</td></tr>` : ''}
+        ${payload.newLocation ? `<tr><td style="padding:8px;color:#64748b">Nowa lokalizacja:</td><td style="padding:8px">${escHtml(payload.newLocation)}</td></tr>` : ''}
       </table>
 
       <p style="font-weight:600;margin-bottom:4px">Zmienione informacje:</p>
@@ -229,18 +239,18 @@ export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<
   const html = `
     <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
       <h2 style="color:#0369a1">🐾 Dogdex – Twój termin startu</h2>
-      <p>Cześć, <strong>${payload.ownerName}</strong>!</p>
-      <p>Organizator przypisał Ci termin startu na wydarzeniu <strong>${payload.eventTitle}</strong>.</p>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+      <p>Organizator przypisał Ci termin startu na wydarzeniu <strong>${escHtml(payload.eventTitle)}</strong>.</p>
       <div style="background:#f0f9ff;border-left:4px solid #0369a1;padding:16px;border-radius:4px;margin:16px 0">
-        <p style="margin:0;font-size:24px;font-weight:700;color:#0369a1">${formattedTime}</p>
-        <p style="margin:4px 0 0;color:#334155">${formattedDate}</p>
-        ${payload.slotLabel ? `<p style="margin:4px 0 0;color:#64748b;font-size:14px">${payload.slotLabel}</p>` : ''}
+        <p style="margin:0;font-size:24px;font-weight:700;color:#0369a1">${escHtml(formattedTime)}</p>
+        <p style="margin:4px 0 0;color:#334155">${escHtml(formattedDate)}</p>
+        ${payload.slotLabel ? `<p style="margin:4px 0 0;color:#64748b;font-size:14px">${escHtml(payload.slotLabel)}</p>` : ''}
       </div>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${payload.eventTitle}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Termin eventu:</td><td style="padding:8px">${payload.eventDate}</td></tr>` : ''}
-        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Miejsce:</td><td style="padding:8px">${payload.eventLocation}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${payload.dogName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Termin eventu:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Miejsce:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
     </div>
@@ -296,11 +306,11 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
       <h2 style="color:#dc2626">🐾 Dogdex – Rezygnacja z eventu</h2>
       <p>Uczestnik zrezygnował z udziału w Twoim wydarzeniu.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${payload.eventTitle}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${payload.eventDate}</td></tr>` : ''}
-        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${payload.eventLocation}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${payload.ownerName}</td></tr>
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${payload.dogName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Poprzedni status:</td><td style="padding:8px">${payload.previousStatus === 'confirmed' ? 'Potwierdzony' : 'Oczekujący'}</td></tr>
       </table>
       <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>

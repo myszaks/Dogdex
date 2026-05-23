@@ -36,13 +36,13 @@ export default async function MyRegistrationsPage() {
   const eventDates: { date: string; id: string; slug: string | null; title: string }[] = []
   const seen = new Set<string>()
 
-  for (const reg of registrations as any[]) {
-    const ev = reg.events
+  for (const reg of registrations as Array<Record<string, unknown>>) {
+    const ev = reg.events as Record<string, unknown> | null
     if (!ev) continue
 
-    const formFields: any[] = Array.isArray(ev.form_fields) ? ev.form_fields : []
-    const multidateFieldIds = formFields.filter((f: any) => f.type === 'multidate').map((f: any) => f.id as string)
-    const formData: Record<string, unknown> = reg.form_data ?? {}
+    const formFields = Array.isArray(ev.form_fields) ? ev.form_fields as Array<{ id: string; type: string }> : []
+    const multidateFieldIds = formFields.filter(f => f.type === 'multidate').map(f => f.id)
+    const formData: Record<string, unknown> = (reg.form_data as Record<string, unknown>) ?? {}
 
     const selectedDates: string[] = multidateFieldIds.flatMap(fieldId => {
       const val = formData[fieldId]
@@ -54,13 +54,13 @@ export default async function MyRegistrationsPage() {
     // If user chose specific dates — use them; otherwise fall back to event start_at
     const datesToMark = selectedDates.length > 0
       ? selectedDates
-      : ev.start_at ? [ev.start_at.slice(0, 10)] : []
+      : ev.start_at ? [(ev.start_at as string).slice(0, 10)] : []
 
     for (const date of datesToMark) {
-      const key = `${ev.id}::${date}`
+      const key = `${ev.id as string}::${date}`
       if (seen.has(key)) continue
       seen.add(key)
-      eventDates.push({ date: date.slice(0, 10), id: ev.id, slug: ev.slug ?? null, title: ev.title })
+      eventDates.push({ date: date.slice(0, 10), id: ev.id as string, slug: (ev.slug as string | null) ?? null, title: ev.title as string })
     }
   }
 
@@ -87,12 +87,12 @@ export default async function MyRegistrationsPage() {
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {registrations.map((reg: any) => (
+          {registrations.map((reg: Record<string, unknown>) => (
             <RegistrationEventCard
-              key={reg.id}
-              event={reg.events}
-              registration={{ id: reg.id, status: reg.status, created_at: reg.created_at, form_data: reg.form_data }}
-              participant={reg.participants}
+              key={reg.id as string}
+              event={reg.events as import('@/types').DogEvent}
+              registration={{ id: reg.id as string, status: reg.status as string, created_at: reg.created_at as string, form_data: reg.form_data as Record<string, unknown> }}
+              participant={reg.participants as import('@/types').Participant}
             />
           ))}
         </div>

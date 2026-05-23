@@ -17,7 +17,7 @@ export default async function OrganizerPage() {
     .from('events')
     .select('*')
     .order('start_at', { ascending: false })
-    .limit(50)
+    .limit(200)
 
   const total = events?.length ?? 0
   const upcoming = events?.filter(e => effectiveStatus(e) === 'upcoming').length ?? 0

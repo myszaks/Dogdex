@@ -49,9 +49,9 @@ export async function GET(req: Request) {
     return str
   }
 
-  const rows = (registrations ?? []).map((reg: any, idx: number) => {
-    const p = reg.participants ?? {}
-    const fd: Record<string, unknown> = typeof reg.form_data === 'object' && reg.form_data ? reg.form_data : {}
+  const rows = (registrations ?? []).map((reg: Record<string, unknown>, idx: number) => {
+    const p = (reg.participants as Record<string, unknown>) ?? {}
+    const fd: Record<string, unknown> = typeof reg.form_data === 'object' && reg.form_data ? reg.form_data as Record<string, unknown> : {}
     const extras = formFields.map(f => escapeCsv(fd[f.id]))
     return [
       String(idx + 1),
@@ -60,15 +60,17 @@ export async function GET(req: Request) {
       escapeCsv(p.dog_name),
       escapeCsv(p.dog_breed),
       escapeCsv(reg.status),
-      escapeCsv(reg.created_at ? new Date(reg.created_at).toLocaleString('pl-PL') : ''),
+      escapeCsv(reg.created_at ? new Date(reg.created_at as string).toLocaleString('pl-PL') : ''),
       ...extras,
     ].join(',')
   })
 
   const csv = [headers.join(','), ...rows].join('\r\n')
+  // Prepend UTF-8 BOM so Excel opens Polish characters correctly
+  const bom = '\uFEFF'
   const filename = `zapisy-${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`
 
-  return new NextResponse(csv, {
+  return new NextResponse(bom + csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`,

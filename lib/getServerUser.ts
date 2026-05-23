@@ -14,7 +14,7 @@ export async function getServerUser() {
       .eq('id', user.id)
       .single()
 
-    const role: string = (profile as any)?.role ?? 'user'
+    const role: string = (profile as { role: string } | null)?.role ?? 'user'
     return { user, role }
   } catch {
     return { user: null, role: null }
@@ -40,7 +40,4 @@ export async function checkRoleForApi(
   return { user: user!, role: role! }
 }
 
-/** @deprecated cookies are now read automatically via @supabase/ssr */
-export async function extractTokenFromCookies(): Promise<string | null> {
-  return null
-}
+

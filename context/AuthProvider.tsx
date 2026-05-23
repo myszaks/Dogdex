@@ -1,10 +1,11 @@
 "use client"
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import type { User, Session } from '@supabase/supabase-js'
 
 type AuthContextValue = {
-  user: any | null
-  session: any | null
+  user: User | null
+  session: Session | null
   role: string | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
@@ -14,8 +15,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null)
-  const [session, setSession] = useState<any | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -26,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select('role')
       .eq('id', userId)
       .single()
-    setRole((data as any)?.role ?? 'user')
+    setRole((data as { role: string } | null)?.role ?? 'user')
   }
 
   function subscribeToProfileChanges(userId: string) {
@@ -47,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           filter: `id=eq.${userId}`,
         },
         (payload) => {
-          const newRole = (payload.new as any)?.role
+          const newRole = (payload.new as { role?: string })?.role
           if (newRole) setRole(newRole)
         }
       )

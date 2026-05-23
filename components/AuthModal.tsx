@@ -100,7 +100,7 @@ export default function AuthModal({ open, onClose }: Props) {
       } else {
         setError(error.message)
       }
-    } else if (data.user && Array.isArray((data.user as any).identities) && (data.user as any).identities.length === 0) {
+    } else if (data.user && Array.isArray((data.user as { identities?: unknown[] }).identities) && (data.user as { identities?: unknown[] }).identities?.length === 0) {
       // Email enumeration protection: Supabase returns fake success with empty identities
       // when the email is already registered
       setEmailConflict(true)

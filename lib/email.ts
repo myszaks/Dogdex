@@ -373,6 +373,154 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
 }
 
 // ---------------------------------------------------------------------------
+// Cancellation request notification to organizer (new approval flow)
+// ---------------------------------------------------------------------------
+
+interface CancellationRequestEmailPayload {
+  to: string           // organizer email
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  eventDate?: string | null
+  eventLocation?: string | null
+  cancelledDates: string[] | null  // null = full cancellation
+}
+
+export async function sendCancellationRequestEmailToOrganizer(
+  payload: CancellationRequestEmailPayload
+): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const datesHtml = payload.cancelledDates
+    ? payload.cancelledDates.map(d => {
+        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
+        catch { return `<li>${escHtml(d)}</li>` }
+      }).join('')
+    : null
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+      <h2 style="color:#ea580c">🐾 Dogdex – Wniosek o rezygnację</h2>
+      <p>Uczestnik złożył wniosek o rezygnację z Twojego wydarzenia i oczekuje na Twoją akceptację.</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+      </table>
+      ${datesHtml
+        ? `<p style="font-weight:600;margin-bottom:4px">Terminy do anulowania:</p><ul style="margin:0;padding-left:20px;color:#334155">${datesHtml}</ul>`
+        : `<p style="color:#dc2626;background:#fef2f2;padding:12px;border-radius:8px">Uczestnik chce anulować <strong>całe zgłoszenie</strong>.</p>`
+      }
+      <p style="margin-top:16px">Zaloguj się do panelu organizatora, aby zaakceptować lub odrzucić wniosek.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+      to: payload.to,
+      subject: `⚠️ Wniosek o rezygnację: ${payload.dogName} (${payload.ownerName}) – ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki wniosku o rezygnację:', err)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cancellation result email to participant (accepted / rejected)
+// ---------------------------------------------------------------------------
+
+interface CancellationResultEmailPayload {
+  to: string           // participant email
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  eventDate?: string | null
+  cancelledDates: string[] | null
+  accepted: boolean
+}
+
+export async function sendCancellationResultEmail(
+  payload: CancellationResultEmailPayload
+): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const datesHtml = payload.cancelledDates
+    ? payload.cancelledDates.map(d => {
+        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
+        catch { return `<li>${escHtml(d)}</li>` }
+      }).join('')
+    : null
+
+  const heading = payload.accepted
+    ? '✅ Wniosek o rezygnację zaakceptowany'
+    : '❌ Wniosek o rezygnację odrzucony'
+
+  const bodyText = payload.accepted
+    ? payload.cancelledDates
+      ? 'Organizator zaakceptował Twój wniosek o rezygnację z wybranych terminów.'
+      : 'Organizator zaakceptował Twój wniosek. Twoje zgłoszenie zostało anulowane.'
+    : 'Organizator odrzucił Twój wniosek o rezygnację. Twoje zgłoszenie pozostaje aktywne.'
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+      <h2 style="color:${payload.accepted ? '#16a34a' : '#dc2626'}">🐾 Dogdex – ${escHtml(heading)}</h2>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+      <p>${escHtml(bodyText)}</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+      </table>
+      ${datesHtml
+        ? `<p style="font-weight:600;margin-bottom:4px">Terminy, których dotyczył wniosek:</p><ul style="margin:0;padding-left:20px;color:#334155">${datesHtml}</ul>`
+        : ''
+      }
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+      to: payload.to,
+      subject: payload.accepted
+        ? `✅ Rezygnacja zaakceptowana – ${payload.eventTitle}`
+        : `❌ Wniosek o rezygnację odrzucony – ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki wyniku rezygnacji:', err)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Contact form
 // ---------------------------------------------------------------------------
 

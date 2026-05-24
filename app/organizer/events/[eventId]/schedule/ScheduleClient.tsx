@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import type { TimeSlot } from '@/types'
 import ConfirmModal from '@/components/ConfirmModal'
-import { AlertTriangle, Plus, X } from 'lucide-react'
+import { AlertTriangle, Plus, X, Pencil, GripVertical, PawPrint, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { plForm } from '@/lib/utils'
 
@@ -109,6 +109,7 @@ export default function ScheduleClient({
   const [newLabel, setNewLabel] = useState('')
   const [newMax, setNewMax] = useState('')
   const [addingSlot, setAddingSlot] = useState(false)
+  const [unassignedOpen, setUnassignedOpen] = useState(true)
 
   const timeOptions: string[] = []
   for (let h = 6; h <= 22; h++) {
@@ -263,193 +264,261 @@ export default function ScheduleClient({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      {/* Stats bar */}
-      <div className="card mb-5 bg-sky-50 border-sky-200">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xl font-bold text-slate-800">
-              {new Set(items.map(i => i.registrationId)).size}
-            </p>
-            <p className="text-xs text-slate-500">Potwierdzonych</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-blue-600">{slots.length}</p>
-            <p className="text-xs text-slate-500">Slotów</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-green-600">{assignedCount}</p>
-            <p className="text-xs text-slate-500">Przypisanych</p>
-          </div>
+
+      {/* ── Stats bar ── */}
+      <div className="grid grid-cols-3 bg-white rounded-3xl border border-[#E2E8F0] shadow-sm mb-5 overflow-hidden">
+        <div className="text-center px-4 py-4">
+          <p className="text-2xl font-bold text-slate-800">
+            {new Set(items.map(i => i.registrationId)).size}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">Potwierdzonych</p>
+        </div>
+        <div className="text-center px-4 py-4 border-x border-[#E2E8F0]">
+          <p className="text-2xl font-bold text-[#FF8024]">{slots.length}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Slotów</p>
+        </div>
+        <div className="text-center px-4 py-4">
+          <p className="text-2xl font-bold text-[#10B981]">{assignedCount}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Przypisanych</p>
         </div>
       </div>
 
-      <div className="flex gap-4 items-start">
-
-        {/* LEFT PANEL */}
-        <div className="w-64 shrink-0 space-y-3">
-
-          {assignedCount > 0 && (() => {
-            const allAssigned = assignedCount === items.length
-            const noWrongDates = wrongDateItems.length === 0
-            const canSend = allAssigned && noWrongDates && !sending
-            return (
-              <div className="card bg-blue-50 border-blue-200 space-y-2">
-                <p className="text-xs text-blue-600">
-                  Przypisano {assignedCount} / {items.length} pozycji
-                </p>
-                {!allAssigned && (
-                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {plForm(items.length - assignedCount, 'pies nie jest', 'psy nie są', 'psów nie ma')} przypisanych
-                  </p>
-                )}
-                {wrongDateItems.length > 0 && (
-                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do złej daty
-                  </p>
-                )}
-                <button
-                  onClick={handleSendAll}
-                  disabled={!canSend}
-                  title={!canSend ? 'Najpierw przypisz wszystkie psy do właściwych dat' : undefined}
-                  className="btn btn-primary btn-sm w-full disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {sending ? '⏳ Wysyłanie...' : '📧 Wyślij grafik wszystkim'}
-                </button>
-                {sendResult && (
-                  <p className="text-xs font-medium text-center text-slate-700">{sendResult}</p>
-                )}
-              </div>
-            )
-          })()}
-
-          <button
-            type="button"
-            onClick={() => setAddSlotOpen(true)}
-            className="btn btn-primary btn-sm w-full flex items-center justify-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            Dodaj slot
-          </button>
-
-          {saveStatus !== 'idle' && (
-            <p className={`text-xs text-center font-medium rounded-lg py-1.5 px-2 ${
-              saveStatus === 'saving' ? 'bg-slate-100 text-slate-500' :
-              saveStatus === 'saved'  ? 'bg-green-50 text-green-700' :
-                                        'bg-red-50 text-red-600'
-            }`}>
-              {saveStatus === 'saving' ? '⏳ Zapisywanie...' :
-               saveStatus === 'saved'  ? '✅ Grafik zapisany' :
-                                         '❌ Błąd zapisu — spróbuj ponownie'}
+      {/* ── Send schedule panel ── */}
+      {assignedCount > 0 && (() => {
+        const allAssigned = assignedCount === items.length
+        const noWrongDates = wrongDateItems.length === 0
+        const canSend = allAssigned && noWrongDates && !sending
+        return (
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm p-4 mb-4 space-y-2">
+            <p className="text-sm text-slate-600">
+              Przypisano <span className="font-bold">{assignedCount}</span> / <span className="font-bold">{items.length}</span> pozycji
             </p>
-          )}
-
-          {wrongDateItems.length > 0 && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
-              <span>
-                <strong>{wrongDateItems.length}</strong>
-                {' '}{plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do slotu z
-                {' '}niezgodną datą. Sprawdź karty oznaczone <span className="font-bold">⚠️</span>.
-              </span>
-            </div>
-          )}
-
-          <Droppable droppableId="unassigned">
-            {(provided, snapshot) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className={`card min-h-[100px] transition-colors ${
-                  snapshot.isDraggingOver ? 'bg-amber-50 border-amber-300' : 'bg-slate-50'
-                }`}
-              >
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                  Nieprzypisani ({unassigned.length})
-                </p>
-                {unassigned.map((item, i) => (
-                  <ItemCard key={item.id} item={item} index={i} wrongDate={false} />
-                ))}
-                {provided.placeholder}
-              </div>
+            {!allAssigned && (
+              <p className="text-xs text-amber-600 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {plForm(items.length - assignedCount, 'pies nie jest', 'psy nie są', 'psów nie ma')} przypisanych
+              </p>
             )}
-          </Droppable>
-        </div>
+            {wrongDateItems.length > 0 && (
+              <p className="text-xs text-amber-600 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do złej daty
+              </p>
+            )}
+            <button
+              onClick={handleSendAll}
+              disabled={!canSend}
+              title={!canSend ? 'Najpierw przypisz wszystkie psy do właściwych dat' : undefined}
+              className="w-full bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full py-2.5 font-medium text-sm transition-colors"
+            >
+              {sending ? '⏳ Wysyłanie...' : '📧 Wyślij grafik wszystkim'}
+            </button>
+            {sendResult && (
+              <p className="text-xs font-medium text-center text-slate-700">{sendResult}</p>
+            )}
+          </div>
+        )
+      })()}
 
-        {/* RIGHT PANEL */}
-        <div className="flex-1 overflow-x-auto min-w-0">
-          {slots.length === 0 ? (
-            <div className="card text-center py-16 text-slate-400">
-              <p className="text-4xl mb-3">🕐</p>
-              <p>Otwórz "Dodaj slot" i utwórz pierwszy termin</p>
-            </div>
-          ) : (
-            <div className="flex gap-4 items-start">
-              {slotDates.map(date => (
-                <div key={date} className="shrink-0 w-52 space-y-3">
-                  {/* Date column header */}
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide capitalize px-1">
-                    {fmtLong(date)}
-                  </p>
-                  {slotsByDate[date].map(slot => {
-                    const inSlot = itemsInSlot(slot.id)
-                    const isFull =
-                      slot.max_participants != null && inSlot.length >= slot.max_participants
-                    return (
-                      <Droppable key={slot.id} droppableId={slot.id}>
+      {/* ── Save status ── */}
+      {saveStatus !== 'idle' && (
+        <div className={`rounded-full py-2 px-4 text-xs font-medium text-center mb-4 ${
+          saveStatus === 'saving' ? 'bg-slate-100 text-slate-500' :
+          saveStatus === 'saved'  ? 'bg-[#10B981]/10 text-[#10B981]' :
+                                    'bg-red-50 text-red-600'
+        }`}>
+          {saveStatus === 'saving' ? '⏳ Zapisywanie...' :
+           saveStatus === 'saved'  ? '✅ Grafik zapisany' :
+                                     '❌ Błąd zapisu — spróbuj ponownie'}
+        </div>
+      )}
+
+      {/* ── Wrong-date warning ── */}
+      {wrongDateItems.length > 0 && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 mb-4">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+          <span>
+            <strong>{wrongDateItems.length}</strong>
+            {' '}{plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do slotu z
+            {' '}niezgodną datą. Sprawdź karty oznaczone <span className="font-bold">⚠️</span>.
+          </span>
+        </div>
+      )}
+
+      {/* ── Main CTA ── */}
+      <button
+        type="button"
+        onClick={() => setAddSlotOpen(true)}
+        className="w-full bg-[#FF8024] hover:bg-[#E06A10] text-white rounded-full py-3.5 flex items-center justify-center gap-2 font-semibold text-sm mb-6 transition-colors shadow-sm"
+      >
+        <Plus className="w-5 h-5" />
+        Dodaj slot
+      </button>
+
+      {/* ── Vertical Timeline ── */}
+      {slots.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm text-center py-16 text-slate-400">
+          <p className="text-4xl mb-3">🕐</p>
+          <p>Otwórz &quot;Dodaj slot&quot; i utwórz pierwszy termin</p>
+        </div>
+      ) : (
+        <div className="relative">
+          {/* Dashed vertical connector running through circle centers */}
+          <div className="absolute left-5 top-5 bottom-5 border-l-2 border-dashed border-[#E2E8F0]" />
+
+          {slotDates.map(date => (
+            <div key={date} className="mb-8">
+              {/* Date header node */}
+              <div className="flex items-center gap-4 mb-4 relative">
+                <div className="w-10 h-10 rounded-full bg-[#F8FAFC] border-2 border-[#E2E8F0] flex flex-col items-center justify-center z-10 shrink-0 shadow-sm">
+                  <span className="text-[9px] font-bold text-slate-700 leading-tight">
+                    {new Intl.DateTimeFormat('pl-PL', { day: 'numeric' }).format(new Date(date))}
+                  </span>
+                  <span className="text-[8px] font-semibold text-slate-400 uppercase leading-tight">
+                    {new Intl.DateTimeFormat('pl-PL', { month: 'short' }).format(new Date(date))}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 capitalize">{fmtLong(date)}</p>
+              </div>
+
+              {/* Slot nodes for this date */}
+              <div className="space-y-4">
+                {slotsByDate[date].map(slot => {
+                  const inSlot = itemsInSlot(slot.id)
+                  const isFull = slot.max_participants != null && inSlot.length >= slot.max_participants
+                  return (
+                    <div key={slot.id} className="flex items-start gap-4">
+                      {/* Time badge */}
+                      <div className="w-10 shrink-0 flex flex-col items-center pt-3">
+                        <div className="w-10 h-10 rounded-full bg-white border border-[#E2E8F0] flex items-center justify-center z-10 shadow-sm">
+                          <span className="text-[10px] font-bold text-slate-700 leading-tight">
+                            {slot.slot_time.slice(0, 5)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Slot card */}
+                      <Droppable droppableId={slot.id}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.droppableProps}
-                            className={`card min-h-[80px] transition-colors ${
+                            className={`flex-1 bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[80px] transition-colors ${
                               snapshot.isDraggingOver && !isFull
-                                ? 'bg-green-50 border-green-300'
+                                ? 'border-[#10B981] bg-[#10B981]/5'
                                 : snapshot.isDraggingOver && isFull
-                                ? 'bg-red-50 border-red-300'
-                                : 'bg-white'
+                                ? 'border-red-400 bg-red-50'
+                                : 'border-[#E2E8F0]'
                             }`}
                           >
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="text-lg font-bold text-slate-800 leading-none">
-                                  {slot.slot_time.slice(0, 5)}
-                                </p>
+                            {/* Slot header */}
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-800 text-sm">{slot.slot_time.slice(0, 5)}</span>
                                 {slot.label && (
-                                  <p className="text-xs text-slate-400 mt-0.5">{slot.label}</p>
+                                  <span className="text-xs text-slate-400">{slot.label}</span>
                                 )}
                                 {slot.max_participants != null && (
-                                  <p className={`text-xs font-medium mt-0.5 ${isFull ? 'text-red-500' : 'text-slate-400'}`}>
-                                    {inSlot.length}/{slot.max_participants}
-                                    {isFull ? ' (pełny)' : ''}
-                                  </p>
+                                  <span className={`text-xs font-medium rounded-full px-2 py-0.5 ${
+                                    isFull ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {inSlot.length}/{slot.max_participants}{isFull ? ' pełny' : ''}
+                                  </span>
                                 )}
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setDeletingSlotId(slot.id)}
-                                className="text-slate-300 hover:text-red-400"
+                                className="text-slate-300 hover:text-red-400 transition-colors ml-2 shrink-0"
                                 title="Usuń slot"
                               >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
-                            {inSlot.map((item, i) => (
-                              <ItemCard key={item.id} item={item} index={i} wrongDate={isWrongDate(item)} />
-                            ))}
-                            {provided.placeholder}
+
+                            {/* Items */}
+                            <div className="p-3 space-y-2">
+                              {inSlot.length === 0 && (
+                                <div className="border-2 border-dashed border-[#E2E8F0] rounded-2xl p-4 flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-[#E2E8F0] flex items-center justify-center shrink-0">
+                                    <Plus className="w-4 h-4 text-slate-300" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-slate-400">Slot Available</p>
+                                    <p className="text-xs text-slate-300">Assign a participant</p>
+                                  </div>
+                                </div>
+                              )}
+                              {inSlot.map((item, i) => (
+                                <TimelineItemCard key={item.id} item={item} index={i} wrongDate={isWrongDate(item)} />
+                              ))}
+                              {provided.placeholder}
+                            </div>
                           </div>
                         )}
                       </Droppable>
-                    )
-                  })}
-                </div>
-              ))}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          )}
+          ))}
         </div>
+      )}
+
+      {/* ── Unassigned accordion ── */}
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={() => setUnassignedOpen(prev => !prev)}
+          className="w-full flex items-center justify-between bg-white border border-[#E2E8F0] rounded-3xl px-5 py-4 shadow-sm hover:border-amber-300 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="font-semibold text-slate-700">Nieprzypisani ({unassigned.length})</span>
+          </div>
+          {unassignedOpen
+            ? <ChevronUp className="w-4 h-4 text-slate-400" />
+            : <ChevronDown className="w-4 h-4 text-slate-400" />
+          }
+        </button>
+
+        {unassignedOpen && (
+          <div className="mt-2">
+            <Droppable droppableId="unassigned">
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={`bg-white rounded-3xl border p-4 min-h-[60px] transition-colors shadow-sm ${
+                    snapshot.isDraggingOver ? 'border-amber-300 bg-amber-50' : 'border-[#E2E8F0]'
+                  }`}
+                >
+                  {unassigned.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">
+                      Wszyscy uczestnicy zostali przypisani 🎉
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {unassigned.map((item, i) => (
+                        <UnassignedItemCard key={item.id} item={item} index={i} />
+                      ))}
+                    </div>
+                  )}
+                  {provided.placeholder}
+                  {/* Add New Participant placeholder */}
+                  <div className="border-2 border-dashed border-[#E2E8F0] rounded-2xl p-3 flex items-center gap-2 text-slate-300 mt-3">
+                    <Plus className="w-4 h-4 shrink-0" />
+                    <span className="text-xs">Add New Participant</span>
+                  </div>
+                </div>
+              )}
+            </Droppable>
+          </div>
+        )}
       </div>
 
+      {/* ── Add Slot modal ── */}
       <Modal open={addSlotOpen} onClose={() => setAddSlotOpen(false)} title="Dodaj slot godzinowy">
         <div className="space-y-4">
           <div>
@@ -530,7 +599,16 @@ export default function ScheduleClient({
   )
 }
 
-function ItemCard({ item, index, wrongDate }: { item: ScheduleItem; index: number; wrongDate: boolean }) {
+function TimelineItemCard({
+  item,
+  index,
+  wrongDate,
+}: {
+  item: ScheduleItem
+  index: number
+  wrongDate: boolean
+}) {
+  const isConfirmed = item.sentAt !== null
   return (
     <Draggable draggableId={item.id} index={index}>
       {(provided, snapshot) => (
@@ -538,36 +616,88 @@ function ItemCard({ item, index, wrongDate }: { item: ScheduleItem; index: numbe
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`flex items-start gap-2 p-2 mb-1.5 rounded-lg border text-sm select-none transition-shadow ${
+          className={`flex items-start gap-3 p-3 rounded-2xl border bg-white select-none transition-shadow ${
             snapshot.isDragging
-              ? 'shadow-lg bg-white border-sky-300 rotate-1'
+              ? 'shadow-lg border-sky-300'
               : wrongDate
-              ? 'bg-amber-50 border-amber-300 hover:border-amber-400'
-              : 'bg-white border-slate-200 hover:border-slate-300'
+              ? 'border-amber-300 bg-amber-50'
+              : 'border-[#E2E8F0]'
           }`}
         >
-          <span className="text-base shrink-0 mt-0.5">🐕</span>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-slate-800 truncate leading-tight">
-              {item.dog_name ?? '—'}
-            </p>
+          {/* Coloured left stripe */}
+          <div
+            className={`w-1 self-stretch rounded-full shrink-0 ${
+              wrongDate ? 'bg-amber-400' : isConfirmed ? 'bg-[#10B981]' : 'bg-slate-300'
+            }`}
+          />
+
+          {/* Dog avatar */}
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-lg">
+            🐕
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-slate-800 truncate text-sm">{item.dog_name ?? '—'}</p>
+              {isConfirmed ? (
+                <span className="text-[10px] font-medium bg-[#10B981]/10 text-[#10B981] rounded-full px-2 py-0.5 shrink-0">
+                  Confirmed
+                </span>
+              ) : (
+                <span className="text-[10px] font-medium bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 shrink-0">
+                  Draft
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 truncate">{item.owner_name ?? '—'}</p>
             {item.itemDate && (
-              <span className="inline-block text-[10px] font-medium bg-sky-100 text-sky-700 rounded px-1.5 py-0.5 mt-1 leading-tight">
+              <span className="inline-block text-[10px] font-medium bg-sky-100 text-sky-700 rounded-full px-2 py-0.5 mt-1 leading-tight">
                 {fmtShort(item.itemDate)}
               </span>
             )}
           </div>
-          <div className="shrink-0 flex flex-col items-end gap-1">
+
+          {/* Actions / indicators */}
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
             {wrongDate && (
               <span title={`Zły dzień! Pies zgłoszony na ${fmtShort(item.itemDate)}, slot jest w innym dniu.`}>
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
               </span>
             )}
-            {item.sentAt && (
-              <span className="text-xs" title="Grafik wysłany">✉️</span>
-            )}
+            <Pencil className="w-3.5 h-3.5 text-slate-300" />
           </div>
+        </div>
+      )}
+    </Draggable>
+  )
+}
+
+function UnassignedItemCard({ item, index }: { item: ScheduleItem; index: number }) {
+  return (
+    <Draggable draggableId={item.id} index={index}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          className={`flex items-center gap-3 p-3 rounded-2xl border bg-white select-none transition-shadow ${
+            snapshot.isDragging ? 'shadow-lg border-sky-300' : 'border-[#E2E8F0]'
+          }`}
+        >
+          <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
+          <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+            <PawPrint className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-slate-700 truncate text-sm">{item.dog_name ?? '—'}</p>
+            <p className="text-xs text-slate-400 truncate">{item.owner_name ?? '—'}</p>
+          </div>
+          {item.itemDate && (
+            <span className="text-[10px] font-medium bg-sky-100 text-sky-700 rounded-full px-2 py-0.5 shrink-0">
+              {fmtShort(item.itemDate)}
+            </span>
+          )}
         </div>
       )}
     </Draggable>

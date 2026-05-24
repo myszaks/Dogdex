@@ -4,14 +4,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import EventCard from './EventCard'
 import { formatDate, formatDateShort, effectiveStatus } from '@/lib/utils'
-import type { DogEvent, FormField } from '@/types'
-import { Dog, CalendarDays, CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react'
+import type { DogEvent, FormField, CancellationRequest } from '@/types'
+import { Dog, CalendarDays, CheckCircle2, Clock, XCircle, AlertTriangle, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const regStatusConfig: Record<string, { label: string; className: string; Icon: React.ElementType }> = {
-  pending:   { label: 'Oczekuje',     className: 'bg-amber-100 text-amber-700',   Icon: Clock },
-  confirmed: { label: 'Potwierdzone', className: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle2 },
-  cancelled: { label: 'Anulowane',    className: 'bg-red-100 text-red-700',       Icon: XCircle },
+  pending:              { label: 'Oczekuje',              className: 'bg-amber-100 text-amber-700',   Icon: Clock },
+  confirmed:            { label: 'Potwierdzone',          className: 'bg-emerald-100 text-emerald-700', Icon: CheckCircle2 },
+  cancelled:            { label: 'Anulowane',             className: 'bg-red-100 text-red-700',       Icon: XCircle },
+  cancellation_pending: { label: 'Oczekuje na anulację',  className: 'bg-orange-100 text-orange-700',  Icon: Hourglass },
 }
 
 function formatFieldValue(field: FormField, val: unknown): string {
@@ -38,42 +39,78 @@ interface Props {
     dog_breed?: string | null
     owner_name?: string | null
   } | null
+  pendingCancellationRequest?: CancellationRequest | null
 }
 
-export default function RegistrationEventCard({ event, registration, participant }: Props) {
+export default function RegistrationEventCard({ event, registration, participant, pendingCancellationRequest }: Props) {
   const router = useRouter()
   const [status, setStatus] = useState(registration.status)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
+  const [hasPendingRequest, setHasPendingRequest] = useState(!!pendingCancellationRequest)
 
-  const statusKey = status
-  const config = regStatusConfig[statusKey] ?? { label: statusKey, className: 'bg-secondary text-foreground', Icon: Clock }
-  const StatusIcon = config.Icon
+  // multidate cancel UI state
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [selectedDates, setSelectedDates] = useState<string[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const formData = registration.form_data ?? {}
   const filledFields = formFields.filter(
     f => formData[f.id] !== undefined && formData[f.id] !== null && formData[f.id] !== ''
   )
+
+  // Collect all multidate fields + their selected dates
+  const multidateFields = formFields.filter(f => f.type === 'multidate')
+  const allSelectedDates: string[] = multidateFields.flatMap(f => {
+    const val = formData[f.id]
+    return Array.isArray(val) ? (val as string[]) : []
+  })
+  const hasMultidate = allSelectedDates.length > 0
+
   const dispStatus = effectiveStatus(event)
   const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
     ? `/archive/${event.slug ?? event.id}`
     : `/events/${event.slug ?? event.id}`
 
-  const canCancel = status !== 'cancelled' && dispStatus !== 'finished' && dispStatus !== 'cancelled'
+  const canCancel =
+    status !== 'cancelled' &&
+    !hasPendingRequest &&
+    dispStatus !== 'finished' &&
+    dispStatus !== 'cancelled'
 
-  async function handleCancel() {
-    setCancelling(true)
+  const displayStatusKey = hasPendingRequest ? 'cancellation_pending' : status
+  const config = regStatusConfig[displayStatusKey] ?? { label: displayStatusKey, className: 'bg-secondary text-foreground', Icon: Clock }
+  const StatusIcon = config.Icon
+
+  function toggleDate(date: string) {
+    setSelectedDates(prev =>
+      prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date]
+    )
+  }
+
+  async function handleSubmitCancel() {
+    setSubmitting(true)
+    setError(null)
     try {
-      await fetch(`/api/registrations/${registration.id}`, {
-        method: 'PATCH',
+      const body = hasMultidate && selectedDates.length > 0
+        ? { cancelled_dates: selectedDates }
+        : {}
+
+      const res = await fetch(`/api/registrations/${registration.id}/cancel-request`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify(body),
       })
-      setStatus('cancelled')
-      setConfirmOpen(false)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json.error ?? 'Błąd wysyłki wniosku')
+        return
+      }
+      setHasPendingRequest(true)
+      setCancelOpen(false)
       router.refresh()
     } finally {
-      setCancelling(false)
+      setSubmitting(false)
     }
   }
 
@@ -106,6 +143,18 @@ export default function RegistrationEventCard({ event, registration, participant
             </p>
           </div>
 
+          {/* Pending cancellation request notice */}
+          {hasPendingRequest && (
+            <div className="w-full bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3">
+              <div className="flex items-start gap-2">
+                <Hourglass className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-orange-700">
+                  Wniosek o rezygnację został wysłany i oczekuje na akceptację organizatora.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Extra form fields */}
           {filledFields.length > 0 && (
             <div className="w-full bg-secondary rounded-2xl px-4 py-3 space-y-1">
@@ -125,7 +174,7 @@ export default function RegistrationEventCard({ event, registration, participant
             </Link>
             {canCancel && (
               <button
-                onClick={() => setConfirmOpen(true)}
+                onClick={() => { setCancelOpen(true); setSelectedDates([]); setError(null) }}
                 className="btn btn-sm border border-red-300 text-red-600 hover:bg-red-50"
               >
                 Rezygnuj
@@ -133,26 +182,53 @@ export default function RegistrationEventCard({ event, registration, participant
             )}
           </div>
 
-          {/* Inline cancellation confirmation */}
-          {confirmOpen && (
-            <div className="w-full bg-red-50 border border-red-200 rounded-2xl px-4 py-3 space-y-3">
+          {/* Cancellation panel */}
+          {cancelOpen && (
+            <div className="w-full bg-red-50 border border-red-200 rounded-2xl px-4 py-4 space-y-4">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700 font-medium">
-                  Na pewno chcesz zrezygnować z tego wydarzenia?
+                  {hasMultidate
+                    ? 'Wybierz terminy, z których chcesz zrezygnować:'
+                    : 'Na pewno chcesz zrezygnować z tego wydarzenia?'}
                 </p>
               </div>
+
+              {/* Multidate selector */}
+              {hasMultidate && (
+                <div className="space-y-2">
+                  {allSelectedDates.map(date => (
+                    <label key={date} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-red-500"
+                        checked={selectedDates.includes(date)}
+                        onChange={() => toggleDate(date)}
+                      />
+                      <span className="text-sm text-slate-700">{formatDateShort(date)}</span>
+                    </label>
+                  ))}
+                  <p className="text-xs text-slate-500 pt-1">
+                    Rezygnacja z wszystkich terminów spowoduje anulowanie całego zgłoszenia.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2">{error}</p>
+              )}
+
               <div className="flex gap-2">
                 <button
-                  onClick={handleCancel}
-                  disabled={cancelling}
+                  onClick={handleSubmitCancel}
+                  disabled={submitting || (hasMultidate && selectedDates.length === 0)}
                   className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                  {cancelling ? 'Rezygnuję…' : 'Tak, rezygnuję'}
+                  {submitting ? 'Wysyłam…' : 'Wyślij wniosek o rezygnację'}
                 </button>
                 <button
-                  onClick={() => setConfirmOpen(false)}
-                  disabled={cancelling}
+                  onClick={() => { setCancelOpen(false); setError(null) }}
+                  disabled={submitting}
                   className="btn btn-secondary btn-sm"
                 >
                   Anuluj

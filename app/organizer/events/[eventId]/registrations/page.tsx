@@ -5,6 +5,7 @@ import CsvExportButton from '@/components/CsvExportButton'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 import RegistrationsClientList from '@/components/RegistrationsClientList'
+import CancellationRequestsPanel from '@/components/CancellationRequestsPanel'
 import Link from 'next/link'
 
 interface Props {
@@ -31,6 +32,7 @@ export default async function RegistrationsPage({ params }: Props) {
     { count: confirmedCount },
     { count: pendingCount },
     { count: cancelledCount },
+    { data: cancellationRequests },
   ] = await Promise.all([
     supabase
       .from('registrations')
@@ -41,6 +43,12 @@ export default async function RegistrationsPage({ params }: Props) {
     supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'confirmed'),
     supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'pending'),
     supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'cancelled'),
+    supabase
+      .from('cancellation_requests')
+      .select('*, registrations(participant_id, participants(dog_name, owner_name, owner_email))')
+      .eq('event_id', eventId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
   ])
 
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
@@ -98,12 +106,20 @@ export default async function RegistrationsPage({ params }: Props) {
           Brak zapisów na to wydarzenie
         </div>
       ) : (
-        <RegistrationsClientList
-          initialRegistrations={registrations as any}
-          eventFormFields={eventFormFields}
-          groupingField={event.grouping_field ?? null}
-          eventId={eventId}
-        />
+        <>
+          <CancellationRequestsPanel
+            requests={(cancellationRequests ?? []).map((r: any) => ({
+              ...r,
+              participant: r.registrations?.participants ?? null,
+            }))}
+          />
+          <RegistrationsClientList
+            initialRegistrations={registrations as any}
+            eventFormFields={eventFormFields}
+            groupingField={event.grouping_field ?? null}
+            eventId={eventId}
+          />
+        </>
       )}
     </div>
   )

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import RegistrationEventCard from '@/components/RegistrationEventCard'
 import RegistrationsCalendar from '@/components/RegistrationsCalendar'
 import type { Metadata } from 'next'
+import type { CancellationRequest } from '@/types'
 
 export const metadata: Metadata = { title: 'Moje zapisy' }
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,20 @@ export default async function MyRegistrationsPage() {
         .order('created_at', { ascending: false })
       ).data ?? []
     : []
+
+  // Fetch pending cancellation requests for all registrations
+  const registrationIds = (registrations as Array<Record<string, unknown>>).map(r => r.id as string)
+  const pendingRequestMap = new Map<string, CancellationRequest>()
+  if (registrationIds.length > 0) {
+    const { data: pendingRequests } = await authClient
+      .from('cancellation_requests')
+      .select('*')
+      .in('registration_id', registrationIds)
+      .eq('status', 'pending')
+    for (const req of pendingRequests ?? []) {
+      pendingRequestMap.set(req.registration_id, req as CancellationRequest)
+    }
+  }
 
   // Build flat list of specific dates from multidate form fields,
   // falling back to event start_at if no multidate selections found.
@@ -93,6 +108,7 @@ export default async function MyRegistrationsPage() {
               event={reg.events as import('@/types').DogEvent}
               registration={{ id: reg.id as string, status: reg.status as string, created_at: reg.created_at as string, form_data: reg.form_data as Record<string, unknown> }}
               participant={reg.participants as import('@/types').Participant}
+              pendingCancellationRequest={pendingRequestMap.get(reg.id as string) ?? null}
             />
           ))}
         </div>

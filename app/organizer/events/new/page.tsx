@@ -87,6 +87,7 @@ export default function NewEventPage() {
       lng,
       gallery_images: galleryImages,
       grouping_field: groupingField || null,
+      form_template_id: selectedTemplateId,
     }
 
     try {

@@ -50,6 +50,7 @@ export default async function EditEventPage({ params }: Props) {
           lng: event.lng ?? null,
           gallery_images: Array.isArray(event.gallery_images) ? event.gallery_images : [],
           grouping_field: event.grouping_field ?? null,
+          form_template_id: event.form_template_id ?? null,
         }}
       />
     </div>

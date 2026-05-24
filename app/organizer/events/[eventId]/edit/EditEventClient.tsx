@@ -38,6 +38,7 @@ interface Props {
     lng: number | null
     gallery_images: string[]
     grouping_field: string | null
+    form_template_id: string | null
   }
 }
 
@@ -47,7 +48,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [eventTypeId, setEventTypeId] = useState<string>(initialData.event_type_id ?? '')
   const [formFields, setFormFields] = useState<FormField[]>(initialData.form_fields ?? [])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(initialData.form_template_id ?? null)
   const [hasResults, setHasResults] = useState(initialData.has_results ?? false)
   const [resultsPublic, setResultsPublic] = useState(initialData.results_public ?? true)
   const [hasSchedule, setHasSchedule] = useState(initialData.has_schedule ?? false)
@@ -329,6 +330,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <FormTemplatePicker
             eventTypeId={eventTypeId || null}
             selectedTemplateId={selectedTemplateId}
+            initialConfiguredFields={initialData.form_fields ?? []}
             onSelect={handleTemplateSelect}
           />
           {groupableFields.length > 0 && (

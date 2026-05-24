@@ -30,6 +30,7 @@ export interface DogEvent {
   current_start_index: number
   track_distance_m: number | null
   live_phase: string | null
+  form_template_id: string | null
 }
 
 export interface Participant {
@@ -116,6 +117,18 @@ export interface FormTemplate {
   fields: FormField[]
   created_at: string
   updated_at: string
+}
+
+export interface CancellationRequest {
+  id: string
+  registration_id: string
+  event_id: string
+  cancelled_dates: string[] | null
+  status: 'pending' | 'accepted' | 'rejected'
+  requested_by: string | null
+  processed_at: string | null
+  processed_by: string | null
+  created_at: string
 }
 
 export type AgilityLevel = 'none' | 'beginner' | 'intermediate' | 'advanced' | 'competition'

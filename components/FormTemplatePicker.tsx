@@ -15,12 +15,13 @@ interface TemplateMeta {
 interface Props {
   eventTypeId: string | null
   selectedTemplateId: string | null
+  initialConfiguredFields?: FormField[]
   onSelect: (templateId: string | null, fields: FormField[]) => void
 }
 
 type ModalMode = 'create' | 'edit'
 
-export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, onSelect }: Props) {
+export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, initialConfiguredFields, onSelect }: Props) {
   const [templates, setTemplates] = useState<TemplateMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -33,7 +34,7 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, on
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [configuredFields, setConfiguredFields] = useState<FormField[]>([])
+  const [configuredFields, setConfiguredFields] = useState<FormField[]>(initialConfiguredFields ?? [])
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true)

@@ -82,7 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init()
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      // Redirect to password reset page whenever a recovery session is established
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.href = '/reset-password'
+        return
+      }
       setSession(s)
       setUser(s?.user ?? null)
       if (s?.user) {
@@ -121,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setSession(null)
     setRole(null)
+    window.location.href = '/'
   }
 
   return (

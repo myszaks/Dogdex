@@ -31,7 +31,7 @@ interface Props {
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   confirmed: { label: 'Potwierdzony', className: 'bg-emerald-100 text-emerald-700' },
-  pending:   { label: 'Oczekujacy',   className: 'bg-amber-100 text-amber-700' },
+  pending:   { label: 'Oczekujący',   className: 'bg-amber-100 text-amber-700' },
   cancelled: { label: 'Anulowany',    className: 'bg-red-100 text-red-700' },
 }
 
@@ -68,9 +68,9 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
     : 0
 
   const infoRows = [
-    { label: 'Plec',          value: gender },
+    { label: 'Płeć',          value: gender },
     { label: 'Umaszczenie',   value: dog.coat_color },
-    { label: 'Rodowod / chip', value: dog.pedigree_or_chip },
+    { label: 'Rodowód / chip', value: dog.pedigree_or_chip },
     { label: 'Poziom agility', value: agility },
   ].filter(r => r.value)
 
@@ -81,7 +81,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
       body: JSON.stringify(data),
     })
     const json = await res.json()
-    if (!res.ok) throw new Error(json.error ?? 'Blad zapisu')
+    if (!res.ok) throw new Error(json.error ?? 'Błąd zapisu')
     setEditing(false)
     router.refresh()
   }
@@ -197,7 +197,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                       Szczepienie
                     </p>
                     <p className="font-heading font-semibold text-foreground text-lg leading-tight">
-                      Wsciekl.
+                      Wścieklizna
                     </p>
                   </div>
                   <div className={cn(
@@ -219,7 +219,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{vaccineExpired ? 'Wygaslo' : `${daysLeft} dni`}</span>
+                  <span>{vaccineExpired ? 'Wygasło' : `${daysLeft} dni`}</span>
                   <span>{vaccineExpiry.toLocaleDateString('pl-PL')}</span>
                 </div>
               </div>
@@ -228,12 +228,12 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
             {/* Career achievements */}
             <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-                Osiagniecia
+                Osiągnięcia
               </p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="font-heading font-bold text-3xl text-foreground leading-none">{firstPlaces}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Zloto</p>
+                  <p className="text-xs text-muted-foreground mt-1">Złoto</p>
                 </div>
                 <div>
                   <p className="font-heading font-bold text-3xl text-foreground leading-none">{podium.length}</p>
@@ -287,8 +287,8 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                 <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
                   <CalendarDays className="w-7 h-7 text-muted-foreground" />
                 </div>
-                <p className="font-heading font-semibold text-foreground">Brak historii zawodow</p>
-                <p className="text-muted-foreground text-sm mt-1">Pojawi sie tu po zapisie na pierwsze wydarzenie.</p>
+                <p className="font-heading font-semibold text-foreground">Brak historii zawodów</p>
+                <p className="text-muted-foreground text-sm mt-1">Pojawi się tu po zapisie na pierwsze wydarzenie.</p>
               </div>
             ) : (
               <div className="bg-card rounded-3xl border border-border shadow-sm overflow-y-auto max-h-[60vh]">
@@ -371,8 +371,8 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                 <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
                   <Trophy className="w-7 h-7 text-amber-400" />
                 </div>
-                <p className="font-heading font-semibold text-foreground">Jeszcze zadnych medali</p>
-                <p className="text-muted-foreground text-sm mt-1">Czas to zmienic na zawodach!</p>
+                <p className="font-heading font-semibold text-foreground">Jeszcze żadnych medali</p>
+                <p className="text-muted-foreground text-sm mt-1">Czas to zmienić na zawodach!</p>
               </div>
             ) : (
               <div className="overflow-y-auto max-h-[60vh]">

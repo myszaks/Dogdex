@@ -4,6 +4,7 @@ import ResultsForm from '@/components/ResultsForm'
 import SpeedwayLiveEntry from '@/components/SpeedwayLiveEntry'
 import type { SpeedwayLiveParticipant } from '@/components/SpeedwayLiveEntry'
 import NextStartButton from '@/components/NextStartButton'
+import PublishResultsButton from '@/components/PublishResultsButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { extractSizeClassFromFormData } from '@/lib/speedway'
@@ -117,6 +118,8 @@ export default async function ResultsPage({ params }: Props) {
           Tylko uczestnicy z potwierdzonym zapisem są widoczni poniżej.
         </p>
       </div>
+
+      <PublishResultsButton eventId={eventId} resultsPublic={!!event.results_public} />
 
       {isSpeedway ? (
         <SpeedwayLiveEntry

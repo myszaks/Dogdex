@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       escapeCsv(p.owner_email),
       escapeCsv(p.dog_name),
       escapeCsv(p.dog_breed),
-      escapeCsv(reg.status),
+      escapeCsv(({ pending: 'Oczekujące', confirmed: 'Potwierdzone', cancelled: 'Anulowane' } as Record<string, string>)[reg.status as string] ?? reg.status),
       escapeCsv(reg.created_at ? new Date(reg.created_at as string).toLocaleString('pl-PL') : ''),
       ...extras,
     ].join(',')

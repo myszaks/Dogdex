@@ -92,13 +92,13 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
     try {
       if (modalMode === 'edit' && editingId) {
         const delRes = await fetch(`/api/form-templates/${editingId}`, { method: 'DELETE' })
-        if (!delRes.ok) throw new Error('Blad usuwania starego szablonu')
+        if (!delRes.ok) throw new Error('Błąd usuwania starego szablonu')
         const res = await fetch('/api/form-templates', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name: modalName.trim(), event_type_id: eventTypeId, fields: modalFields }),
         })
-        if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Blad serwera') }
+        if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Błąd serwera') }
         const updated: TemplateMeta = await res.json()
         setTemplates(prev => prev.filter(t => t.id !== editingId).concat(updated))
         if (selectedTemplateId === editingId) {
@@ -112,14 +112,14 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name: modalName.trim(), event_type_id: eventTypeId, fields: modalFields }),
         })
-        if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Blad serwera') }
+        if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Błąd serwera') }
         const newTemplate: TemplateMeta = await res.json()
         setTemplates(prev => [newTemplate, ...prev])
         onSelect(newTemplate.id, newTemplate.fields)
       }
       closeModal()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Blad')
+      setSaveError(err instanceof Error ? err.message : 'Błąd')
     } finally {
       setSaving(false)
     }
@@ -357,7 +357,7 @@ function TemplateCard({
           <p className="font-medium text-slate-800 truncate">{template.name}</p>
           <p className="text-xs text-slate-400 mt-0.5">
             {template.fields.length > 0
-              ? `${template.fields.length} pol dodatkowych`
+              ? `${template.fields.length} pól dodatkowych`
               : 'Tylko pola podstawowe'}
             {eventType && (
               <span className="ml-2 text-slate-300">· {eventType.icon} {eventType.name}</span>

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { formatDateShort } from '@/lib/utils'
 import type { FormField, Dog } from '@/types'
 import useUser from '@/hooks/useUser'
@@ -119,6 +119,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   const [base, setBase] = useState<BaseValues>(BASE_INITIAL)
   const [dynamic, setDynamic] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const submittingRef = useRef(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -179,6 +180,8 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
     setError(null)
 
@@ -229,6 +232,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         if (res.status === 409 && typeof json.error === 'string' && json.error.includes('Istnieje już zapis')) {
           setFieldErrors({ ownerEmail: json.error, dogName: json.error })
           setLoading(false)
+          submittingRef.current = false
           return
         }
         throw new Error(json.error ?? 'Błąd serwera')
@@ -240,6 +244,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
       setError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setLoading(false)
+      submittingRef.current = false
     }
   }
 
@@ -287,12 +292,13 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           <div>
             <label className="form-label">Imię psa *</label>
             <input
-              className="form-input"
+              className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogName"
               value={base.dogName}
               onChange={handleBase}
               required
               placeholder="Burek"
+              disabled={!!selectedDogId}
             />
             {fieldErrors.dogName && (
               <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
@@ -302,11 +308,12 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           <div>
             <label className="form-label">Rasa psa</label>
             <input
-              className="form-input"
+              className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogBreed"
               value={base.dogBreed}
               onChange={handleBase}
               placeholder="Border Collie"
+              disabled={!!selectedDogId}
             />
           </div>
         </>

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Props {
   regId: string
@@ -25,6 +26,7 @@ const statusConfig: Record<string, { label: string; next: string; colorClass: st
 }
 
 export default function RegistrationStatusButton({ regId, status }: Props) {
+  const router = useRouter()
   const [currentStatus, setCurrentStatus] = useState(status)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +48,7 @@ export default function RegistrationStatusButton({ regId, status }: Props) {
         throw new Error(json.error ?? 'Błąd zmiany statusu')
       }
       setCurrentStatus(config.next)
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Błąd')
     } finally {

@@ -1,8 +1,10 @@
 'use client'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { Search, MapPin, User, X, Tag } from 'lucide-react'
+
+const DEBOUNCE_MS = 300
 
 export default function EventFilter({ location }: { location?: string }) {
   const router = useRouter()
@@ -26,11 +28,29 @@ export default function EventFilter({ location }: { location?: string }) {
   const currentSearch = searchParams.get('szukaj') ?? ''
   const currentOrganizer = searchParams.get('organizator') ?? ''
 
+  // Local state for text inputs – decoupled from URL to prevent typing interruption
+  const [searchValue, setSearchValue] = useState(currentSearch)
+  const [locationValue, setLocationValue] = useState(currentLocation)
+  const [organizerValue, setOrganizerValue] = useState(currentOrganizer)
+
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  function handleTextChange(key: string, value: string, setter: (v: string) => void) {
+    setter(value)
+    if (debounceRefs.current[key]) clearTimeout(debounceRefs.current[key])
+    debounceRefs.current[key] = setTimeout(() => {
+      router.push(`${pathname}?${createQueryString({ [key]: value })}`, { scroll: false })
+    }, DEBOUNCE_MS)
+  }
+
   function handleChange(key: string, value: string) {
     router.push(`${pathname}?${createQueryString({ [key]: value })}`, { scroll: false })
   }
 
   function handleClear() {
+    setSearchValue('')
+    setLocationValue('')
+    setOrganizerValue('')
     router.push(pathname, { scroll: false })
   }
 
@@ -58,8 +78,8 @@ export default function EventFilter({ location }: { location?: string }) {
           <input
             className="form-input pl-9"
             placeholder="Szukaj nazwy..."
-            value={currentSearch}
-            onChange={e => handleChange('szukaj', e.target.value)}
+            value={searchValue}
+            onChange={e => handleTextChange('szukaj', e.target.value, setSearchValue)}
           />
         </div>
 
@@ -86,8 +106,8 @@ export default function EventFilter({ location }: { location?: string }) {
           <input
             className="form-input pl-9"
             placeholder="Lokalizacja..."
-            value={currentLocation}
-            onChange={e => handleChange('lokalizacja', e.target.value)}
+            value={locationValue}
+            onChange={e => handleTextChange('lokalizacja', e.target.value, setLocationValue)}
           />
         </div>
 
@@ -97,8 +117,8 @@ export default function EventFilter({ location }: { location?: string }) {
           <input
             className="form-input pl-9"
             placeholder="Organizator..."
-            value={currentOrganizer}
-            onChange={e => handleChange('organizator', e.target.value)}
+            value={organizerValue}
+            onChange={e => handleTextChange('organizator', e.target.value, setOrganizerValue)}
           />
         </div>
       </div>

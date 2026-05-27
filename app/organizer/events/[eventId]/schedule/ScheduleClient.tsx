@@ -444,8 +444,8 @@ export default function ScheduleClient({
                                     <Plus className="w-4 h-4 text-slate-300" />
                                   </div>
                                   <div>
-                                    <p className="text-sm font-medium text-slate-400">Slot Available</p>
-                                    <p className="text-xs text-slate-300">Assign a participant</p>
+                                    <p className="text-sm font-medium text-slate-400">Wolne miejsce</p>
+                                    <p className="text-xs text-slate-300">Przypisz uczestnika</p>
                                   </div>
                                 </div>
                               )}
@@ -509,7 +509,7 @@ export default function ScheduleClient({
                   {/* Add New Participant placeholder */}
                   <div className="border-2 border-dashed border-[#E2E8F0] rounded-2xl p-3 flex items-center gap-2 text-slate-300 mt-3">
                     <Plus className="w-4 h-4 shrink-0" />
-                    <span className="text-xs">Add New Participant</span>
+                    <span className="text-xs">Dodaj nowego uczestnika</span>
                   </div>
                 </div>
               )}

@@ -78,14 +78,6 @@ export async function PATCH(req: Request, { params }: Params) {
     update.changed_fields = changedFields
   }
 
-  // 4b: When transitioning to 'finished', close the live stream
-  if ('status' in body && body.status === 'finished' && existingEvent.status !== 'finished') {
-    if (existingEvent.results_public === true) {
-      // Results already in DB from live session – mark stream as closed
-      update.results_public = false
-    }
-  }
-
   const { data, error } = await supabase
     .from('events')
     .update(update)

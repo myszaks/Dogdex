@@ -51,63 +51,62 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
   if (!dog) notFound()
   if (redirectTo) redirect(redirectTo)
 
-  // Historia: rejestracje powiązane przez dog_id lub email+imię psa
-  // Łączymy registrations → participants (dog_id = dog.id) → events
-  // Fallback: email match + dog_name match (stare zapisy bez dog_id)
-  const [{ data: regsByDogId }, { data: regsByEmail }] = await Promise.all([
-    supabase
+  // Historia: rejestracje powiązane przez dog_id (nowe) lub email+imię psa bez dog_id (legacy)
+  // Podejście przez participant_id zamiast filtrowania embedded table (unika cross-dog leakage)
+
+  // Krok 1: uczestnicy z dog_id = dog.id
+  const { data: participantsByDogId } = await supabase
+    .from('participants')
+    .select('id')
+    .eq('dog_id', dog.id)
+
+  // Krok 2: legacy uczestnicy bez dog_id (pasujący email + imię psa)
+  const { data: participantsLegacy } = await supabase
+    .from('participants')
+    .select('id')
+    .ilike('owner_email', user.email ?? '')
+    .ilike('dog_name', dog.name as string)
+    .is('dog_id', null)
+
+  const allParticipantIds = [
+    ...((participantsByDogId ?? []).map(p => p.id)),
+    ...((participantsLegacy ?? []).map(p => p.id)),
+  ].filter((id, i, arr) => arr.indexOf(id) === i) // deduplicate
+
+  let history: any[] = []
+
+  if (allParticipantIds.length > 0) {
+    // Krok 3: rejestracje dla tych uczestników
+    const { data: regs } = await supabase
       .from('registrations')
-      .select('id, status, events(id, title, start_at), participants(dog_id)')
-      .eq('participants.dog_id', dog.id),
-    supabase
-      .from('registrations')
-      .select('id, status, events(id, title, start_at), participants(dog_name, owner_email, dog_id)')
-      .ilike('participants.owner_email', user.email ?? '')
-      .ilike('participants.dog_name', dog.name as string),
-  ])
+      .select('id, status, participant_id, events(id, title, start_at)')
+      .in('participant_id', allParticipantIds)
 
-  // Zbierz unikalne rejestracje
-  const allRegs = new Map<string, any>()
-  for (const r of [...(regsByDogId ?? []), ...(regsByEmail ?? [])]) {
-    if (r && r.id) allRegs.set(r.id, r)
-  }
+    // Krok 4: wyniki – dopasowanie po participant_id (nie event_id)
+    const { data: results } = await supabase
+      .from('results')
+      .select('participant_id, rank, time_ms, notes, event_id')
+      .in('participant_id', allParticipantIds)
 
-  // Pobierz wyniki dla tych rejestracji przez participant_id
-  const regIds = Array.from(allRegs.keys())
-
-  let results: any[] = []
-  if (regIds.length > 0) {
-    // Pobierz participant_ids dla tych rejestracji
-    const { data: regWithPart } = await supabase
-      .from('registrations')
-      .select('id, participant_id')
-      .in('id', regIds)
-
-    const participantIds = regWithPart?.map(r => r.participant_id).filter(Boolean) ?? []
-
-    if (participantIds.length > 0) {
-      const { data: res } = await supabase
-        .from('results')
-        .select('participant_id, rank, time_ms, notes, event_id')
-        .in('participant_id', participantIds)
-      results = res ?? []
+    const resultsMap = new Map<string, any>()
+    for (const res of results ?? []) {
+      resultsMap.set(res.participant_id, res)
     }
-  }
 
-  // Zbuduj historię
-  const history = Array.from(allRegs.values()).map((r: any) => {
-    const result = results.find(res => res.event_id === r.events?.id) ?? null
-    return {
-      regId: r.id,
-      eventId: r.events?.id ?? '',
-      eventTitle: r.events?.title ?? 'Wydarzenie',
-      eventDate: r.events?.start_at ?? null,
-      status: r.status,
-      rank: result?.rank ?? null,
-      time_ms: result?.time_ms ?? null,
-      notes: result?.notes ?? null,
-    }
-  }).sort((a, b) => (b.eventDate ?? '').localeCompare(a.eventDate ?? ''))
+    history = (regs ?? []).map((r: any) => {
+      const result = resultsMap.get(r.participant_id) ?? null
+      return {
+        regId: r.id,
+        eventId: r.events?.id ?? '',
+        eventTitle: r.events?.title ?? 'Wydarzenie',
+        eventDate: r.events?.start_at ?? null,
+        status: r.status,
+        rank: result?.rank ?? null,
+        time_ms: result?.time_ms ?? null,
+        notes: result?.notes ?? null,
+      }
+    }).sort((a: any, b: any) => (b.eventDate ?? '').localeCompare(a.eventDate ?? ''))
+  }
 
   return (
     <DogProfileClient

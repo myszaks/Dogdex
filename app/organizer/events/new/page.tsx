@@ -61,6 +61,10 @@ export default function NewEventPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (entryFeeEnabled && !entryFee.trim()) {
+      setError('Podaj kwotę wpisowego lub odznacz opcję pobierania wpisowego.')
+      return
+    }
     setLoading(true)
     setError(null)
 

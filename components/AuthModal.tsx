@@ -71,11 +71,23 @@ export default function AuthModal({ open, onClose }: Props) {
   const pwChecks = checkPassword(password)
   const pwValid  = Object.values(pwChecks).every(Boolean)
 
+  function translateAuthError(msg: string): string {
+    const m = msg.toLowerCase()
+    if (m.includes('invalid login credentials') || m.includes('invalid credentials')) return 'Nieprawidłowy adres e-mail lub hasło.'
+    if (m.includes('email not confirmed')) return 'Adres e-mail nie został potwierdzony. Sprawdź skrzynkę.'
+    if (m.includes('too many requests')) return 'Zbyt wiele prób logowania. Spróbuj ponownie za chwilę.'
+    if (m.includes('user not found')) return 'Nie znaleziono konta z tym adresem e-mail.'
+    if (m.includes('anonymous sign-ins are disabled')) return 'Podaj adres e-mail i hasło.'
+    if (m.includes('unable to validate email') || m.includes('invalid format')) return 'Nieprawidłowy format adresu e-mail.'
+    if (m.includes('network') || m.includes('fetch')) return 'Błąd połączenia. Sprawdź internet i spróbuj ponownie.'
+    return msg
+  }
+
   async function signInWithEmail() {
     setLoading(true); reset()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) setError(translateAuthError(error.message))
     else onClose()
   }
 
@@ -98,7 +110,7 @@ export default function AuthModal({ open, onClose }: Props) {
       if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
         setEmailConflict(true)
       } else {
-        setError(error.message)
+        setError(translateAuthError(error.message))
       }
     } else if (data.user && Array.isArray((data.user as { identities?: unknown[] }).identities) && (data.user as { identities?: unknown[] }).identities?.length === 0) {
       // Email enumeration protection: Supabase returns fake success with empty identities
@@ -111,21 +123,23 @@ export default function AuthModal({ open, onClose }: Props) {
 
   async function signInWithGoogle() {
     setLoading(true); reset()
+    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${origin}/auth/callback` },
     })
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) setError(translateAuthError(error.message))
   }
 
   async function sendResetEmail() {
     setLoading(true); reset()
+    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: `${origin}/auth/callback?next=/reset-password`,
     })
     setLoading(false)
-    if (error) setError(error.message)
+    if (error) setError(translateAuthError(error.message))
     else setSuccess('Link do resetowania hasła został wysłany na podany adres.')
   }
 

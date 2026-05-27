@@ -7,15 +7,29 @@ import { EVENT_TYPES } from '@/lib/eventTypes'
 import { Suspense } from 'react'
 import type { DogEvent } from '@/types'
 import { CalendarDays, Radio, CalendarX2, MapPin, PawPrint } from 'lucide-react'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ typ?: string; lokalizacja?: string; szukaj?: string; organizator?: string }>
+  searchParams: Promise<{ typ?: string; lokalizacja?: string; szukaj?: string; organizator?: string; code?: string; token_hash?: string; type?: string }>
 }
 
 export default async function HomePage({ searchParams }: Props) {
   const sp = await searchParams
+
+  // Supabase fallback: if the auth code lands on the root (redirect URL not whitelisted),
+  // forward it to /auth/callback to be exchanged properly.
+  if (sp.code || sp.token_hash) {
+    const params = new URLSearchParams()
+    if (sp.code) params.set('code', sp.code)
+    if (sp.token_hash) params.set('token_hash', sp.token_hash)
+    if (sp.type) params.set('type', sp.type)
+    // Password recovery codes go to reset-password after exchange
+    if (sp.type === 'recovery' || sp.code) params.set('next', '/reset-password')
+    redirect(`/auth/callback?${params.toString()}`)
+  }
+
   const supabase = createServerClient()
   const now = new Date().toISOString()
   const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()

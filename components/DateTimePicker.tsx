@@ -30,6 +30,7 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
       isClearable={!required}
       showPopperArrow={false}
       minDate={minDate}
+      timeCaption="Godzina"
       autoComplete="off"
     />
   )

@@ -29,12 +29,6 @@ export default function SettingsClient({ email, provider }: Props) {
   const [pwError, setPwError] = useState<string | null>(null)
   const [pwSuccess, setPwSuccess] = useState(false)
 
-  // --- Change email ---
-  const [newEmail, setNewEmail] = useState('')
-  const [emailLoading, setEmailLoading] = useState(false)
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [emailSuccess, setEmailSuccess] = useState(false)
-
   const pwChecks = checkPassword(newPw)
   const pwValid = Object.values(pwChecks).every(Boolean)
 
@@ -72,23 +66,6 @@ export default function SettingsClient({ email, provider }: Props) {
     }
   }
 
-  async function handleChangeEmail(e: React.FormEvent) {
-    e.preventDefault()
-    setEmailError(null)
-    setEmailSuccess(false)
-    if (!newEmail || newEmail === email) { setEmailError('Podaj nowy adres e-mail.'); return }
-
-    setEmailLoading(true)
-    const { error } = await supabase.auth.updateUser({ email: newEmail })
-    setEmailLoading(false)
-    if (error) {
-      setEmailError(error.message)
-    } else {
-      setEmailSuccess(true)
-      setNewEmail('')
-    }
-  }
-
   async function handleSignOutAll() {
     await supabase.auth.signOut({ scope: 'global' })
     window.location.href = '/'
@@ -96,8 +73,9 @@ export default function SettingsClient({ email, provider }: Props) {
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <Link href="/profile" className="text-muted-foreground hover:text-foreground text-sm transition-colors">← Profil</Link>
+      <div className="flex items-center gap-4 mb-2">
+        <Link href="/profile" className="text-muted-foreground hover:text-foreground text-sm transition-colors shrink-0">← Profil</Link>
+        <span className="text-muted-foreground/30 select-none">|</span>
         <h1 className="page-title mb-0">Ustawienia konta</h1>
       </div>
 
@@ -159,26 +137,6 @@ export default function SettingsClient({ email, provider }: Props) {
           </p>
         </div>
       )}
-
-      {/* Change email */}
-      <form onSubmit={handleChangeEmail} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
-        <h2 className="font-heading font-semibold text-foreground">Zmiana adresu e-mail</h2>
-        <p className="text-sm text-muted-foreground">Obecny adres: <strong className="text-foreground">{email}</strong></p>
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Nowy adres e-mail</label>
-          <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
-            className="form-input" placeholder="nowy@email.com" autoComplete="email" />
-        </div>
-        {emailError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{emailError}</div>}
-        {emailSuccess && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            ✓ Link potwierdzający wysłany na <strong>{newEmail || 'nowy adres'}</strong>. Sprawdź skrzynkę.
-          </div>
-        )}
-        <button type="submit" disabled={emailLoading} className="btn btn-primary w-full">
-          {emailLoading ? 'Wysyłanie…' : 'Zmień e-mail'}
-        </button>
-      </form>
 
       {/* Sign out all devices */}
       <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-3">

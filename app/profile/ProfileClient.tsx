@@ -147,7 +147,6 @@ export default function ProfileClient({ email, fullName, company, role, createdA
             disabled
             className="form-input opacity-60 cursor-not-allowed"
           />
-          <p className="text-xs text-muted-foreground mt-1">Zmiana e-maila odbywa się przez ustawienia konta.</p>
         </div>
 
         {error && (

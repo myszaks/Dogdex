@@ -90,9 +90,10 @@ export async function POST(req: Request) {
       const participantIds = matchingParticipants.map(p => p.id)
       const { data: existingRegs } = await supabase
         .from('registrations')
-        .select('id')
+        .select('id, status')
         .in('participant_id', participantIds)
         .eq('event_id', eventId)
+        .in('status', ['pending', 'confirmed']) // Ignore cancelled registrations
         .limit(1)
 
       if (existingRegs && existingRegs.length > 0) {

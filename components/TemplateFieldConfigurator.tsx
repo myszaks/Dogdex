@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
 import type { FormField } from '@/types'
 import { formatDateShort } from '@/lib/utils'
+import OptionReorder from './OptionReorder'
 
 interface Props {
   fields: FormField[]
@@ -62,32 +62,7 @@ function FieldOptionsEditor({
   field: FormField
   onChange: (opts: string[]) => void
 }) {
-  const [addingDate, setAddingDate] = useState(false)
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
-
   const options = field.options ?? []
-
-  function removeOption(i: number) {
-    onChange(options.filter((_, idx) => idx !== i))
-  }
-
-  function updateOption(i: number, val: string) {
-    const next = [...options]
-    next[i] = val
-    onChange(next)
-  }
-
-  function addTextOption() {
-    onChange([...options, ''])
-  }
-
-  function addDateOption() {
-    if (newDate && !options.includes(newDate)) {
-      onChange([...options, newDate])
-    }
-    setNewDate(new Date().toISOString().slice(0, 10))
-    setAddingDate(false)
-  }
 
   const typeLabel =
     field.type === 'multidate'
@@ -115,95 +90,7 @@ function FieldOptionsEditor({
       )}
 
       <div className="space-y-1 pl-1 border-l-2 border-sky-200">
-        {options.length === 0 && (
-          <p className="text-xs text-slate-400 italic py-0.5">Brak opcji — dodaj poniżej</p>
-        )}
-
-        {options.map((opt, i) =>
-          field.type === 'multidate' ? (
-            <div key={i} className="flex items-center gap-1">
-              <span className="text-sm text-slate-700 flex-1 py-1 px-2 bg-slate-50 rounded">
-                {(() => {
-                  try {
-                    return formatDateShort(opt)
-                  } catch {
-                    return opt
-                  }
-                })()}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeOption(i)}
-                className="text-red-400 hover:text-red-600 px-2 text-sm"
-                title="Usuń"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <div key={i} className="flex gap-1">
-              <input
-                className="form-input flex-1 text-sm py-1"
-                value={opt}
-                onChange={e => updateOption(i, e.target.value)}
-                placeholder="Opcja..."
-              />
-              <button
-                type="button"
-                onClick={() => removeOption(i)}
-                className="text-red-400 hover:text-red-600 px-2 text-sm"
-                title="Usuń"
-              >
-                ✕
-              </button>
-            </div>
-          )
-        )}
-
-        {field.type === 'multidate' ? (
-          <div className="flex gap-2 items-center pt-0.5">
-            {addingDate ? (
-              <>
-                <input
-                  type="date"
-                  className="form-input text-sm flex-1"
-                  value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={addDateOption}
-                  className="btn btn-primary text-xs px-3 py-1"
-                >
-                  Dodaj
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddingDate(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700"
-                >
-                  Anuluj
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAddingDate(true)}
-                className="text-xs text-sky-600 hover:text-sky-800 font-medium"
-              >
-                + Dodaj datę
-              </button>
-            )}
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={addTextOption}
-            className="text-xs text-sky-600 hover:text-sky-800 font-medium pt-0.5"
-          >
-            + Dodaj opcję
-          </button>
-        )}
+        <OptionReorder options={options} onChange={onChange} type={field.type} />
       </div>
     </div>
   )

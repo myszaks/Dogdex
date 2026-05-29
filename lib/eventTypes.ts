@@ -30,6 +30,44 @@ export const EVENT_TYPES: EventType[] = [
     ],
   },
   {
+    id: 'speedway',
+    name: 'Speedway',
+    icon: '🏎️',
+    defaultFields: [
+      {
+        id: 'height_cm',
+        label: 'Wzrost psa w kłębie (cm)',
+        type: 'number',
+        required: true,
+        placeholder: 'np. 45',
+        description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (50–59.9cm), XL (≥60cm)',
+      },
+    ],
+  },
+  {
+    id: 'spacer',
+    name: 'Spacer',
+    icon: '🚶',
+    defaultFields: [
+      {
+        id: 'walk_dates',
+        label: 'Wybierz terminy spacerów',
+        type: 'multidate',
+        required: true,
+        options: [],
+        description: 'Zaznacz daty, które Ci odpowiadają.',
+      },
+    ],
+  },
+  {
+    id: 'fullfocus',
+    name: 'Full Focus',
+    icon: '🦴',
+    defaultFields: [
+      
+    ],
+  },
+  {
     id: 'flyball',
     name: 'Flyball',
     icon: '🎾',
@@ -49,7 +87,7 @@ export const EVENT_TYPES: EventType[] = [
         options: ['DN1', 'DN2', 'OC', 'Veteran'],
       },
     ],
-  },
+  },  
   {
     id: 'dog_show',
     name: 'Wystawa psów',
@@ -128,49 +166,12 @@ export const EVENT_TYPES: EventType[] = [
         options: ['Junior', 'Senior', 'Master'],
       },
     ],
-  },
-  {
-    id: 'speedway',
-    name: 'Speedway / Wyścigi',
-    icon: '🏎️',
-    defaultFields: [
-      {
-        id: 'height_cm',
-        label: 'Wzrost psa w kłębie (cm)',
-        type: 'number',
-        required: true,
-        placeholder: 'np. 45',
-        description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (50–59.9cm), XL (≥60cm)',
-      },
-    ],
-  },
-  {
-    id: 'spacer',
-    name: 'Spacer / Marsz',
-    icon: '🚶',
-    defaultFields: [
-      {
-        id: 'walk_dates',
-        label: 'Wybierz terminy spacerów',
-        type: 'multidate',
-        required: true,
-        options: [],
-        description: 'Zaznacz daty, które Ci odpowiadają.',
-      },
-      {
-        id: 'dog_count',
-        label: 'Liczba psów',
-        type: 'number',
-        required: false,
-        placeholder: '1',
-      },
-    ],
-  },
+  },  
   {
     id: 'wykłady',
     name: 'Wykłady / Szkolenia',
     icon: '📚',
-    defaultFields: [
+    defaultFields: [ 
       {
         id: 'experience_level',
         label: 'Poziom doświadczenia',
@@ -184,9 +185,9 @@ export const EVENT_TYPES: EventType[] = [
         type: 'text',
         required: false,
         placeholder: 'np. wegetariańskie, brak orzechów...',
-      },
+      }, 
     ],
-  },
+  },  
   {
     id: 'other',
     name: 'Inne',

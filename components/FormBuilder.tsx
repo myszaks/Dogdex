@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type { FormField } from '@/types'
+import OptionReorder from './OptionReorder'
 
 // ─── Field type labels ──────────────────────────────────────────────────────
 const FIELD_TYPES: Array<{ value: FormField['type']; label: string }> = [
@@ -49,18 +50,6 @@ function FieldCard({
   onMoveDown,
   templateMode,
 }: FieldCardProps) {
-  const [addingDate, setAddingDate] = useState(false)
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
-  function updateOption(optIdx: number, val: string) {
-    const next = [...(field.options ?? [])]
-    next[optIdx] = val
-    onUpdate(index, { options: next })
-  }
-
-  function removeOption(optIdx: number) {
-    onUpdate(index, { options: field.options?.filter((_, i) => i !== optIdx) })
-  }
-
   function addOption() {
     const newOpt = field.type === 'multidate'
       ? new Date().toISOString().slice(0, 10)
@@ -156,72 +145,11 @@ function FieldCard({
             ) : (
             <div className="space-y-1 pl-1 border-l-2 border-sky-200">
               <p className="text-xs font-medium text-slate-500">Opcje listy:</p>
-              {field.options?.map((opt, i) => (
-                <div key={i} className="flex gap-1">
-                  {field.type === 'multidate' ? (
-                    <input
-                      type="date"
-                      className="form-input flex-1 text-sm py-1"
-                      value={opt}
-                      onChange={e => updateOption(i, e.target.value)}
-                    />
-                  ) : (
-                    <input
-                      className="form-input flex-1 text-sm py-1"
-                      value={opt}
-                      onChange={e => updateOption(i, e.target.value)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removeOption(i)}
-                    className="text-red-400 hover:text-red-600 px-2 text-sm"
-                    title="Usuń opcję"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              {field.type === 'multidate' ? (
-                <div className="flex gap-2 items-center">
-                  {addingDate ? (
-                    <>
-                      <input
-                        type="date"
-                        className="form-input text-sm w-full"
-                        value={newDate}
-                        onChange={e => setNewDate(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onUpdate(index, { options: [...(field.options ?? []), newDate] })
-                          setNewDate(new Date().toISOString().slice(0, 10))
-                          setAddingDate(false)
-                        }}
-                        className="btn btn-sm btn-primary"
-                      >
-                        Dodaj datę
-                      </button>
-                      <button type="button" onClick={() => setAddingDate(false)} className="text-sm text-slate-500">
-                        Anuluj
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => setAddingDate(true)} className="text-xs text-sky-600 hover:text-sky-800 font-medium">
-                      + Dodaj datę
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={addOption}
-                  className="text-xs text-sky-600 hover:text-sky-800 font-medium"
-                >
-                  + Dodaj opcję
-                </button>
-              )}
+                  <OptionReorder
+                    options={field.options ?? []}
+                    onChange={next => onUpdate(index, { options: next })}
+                    type={field.type}
+                  />
             </div>
             )
           )}

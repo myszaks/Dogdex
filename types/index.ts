@@ -56,6 +56,8 @@ export interface Registration {
   schedule_sent_at: string | null
   checked_in: boolean
   checked_in_at: string | null
+  /** Tracks sent reminders. For regular events: ISO timestamp string. For multidate: Record<YYYY-MM-DD, true>. */
+  reminder_sent_at: string | Record<string, boolean> | null
   participants?: Participant
   events?: DogEvent
 }

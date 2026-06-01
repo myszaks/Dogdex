@@ -71,12 +71,18 @@ export default async function SchedulePage({ params }: Props) {
 
   return (
     <div>
-      <Link
-        href={`/organizer/events/${eventId}/registrations`}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors"
-      >
-        ← Powrót do zapisów
-      </Link>
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        <Link
+          href={`/organizer/events/${eventId}/registrations`}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors"
+        >
+          👥 Zapisy
+        </Link>
+        <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-sky-700 border-b-2 border-sky-600 -mb-px">
+          📅 Grafik
+        </span>
+      </div>
 
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>

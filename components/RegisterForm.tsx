@@ -398,9 +398,32 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         {loading ? 'Wysyłanie...' : '✓ Wyślij zapis'}
       </button>
 
-      <p className="text-xs text-slate-400 text-center">
-        Dane osobowe przetwarzane są wyłącznie w celu organizacji wydarzenia.
-      </p>
+      <details className="group rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-500">
+        <summary className="flex cursor-pointer items-center justify-between px-3 py-2.5 font-medium text-slate-600 select-none list-none">
+          Informacja o przetwarzaniu danych osobowych (RODO)
+          <svg
+            className="w-3.5 h-3.5 text-slate-400 transition-transform group-open:rotate-180 shrink-0 ml-2"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <div className="px-3 pb-3 space-y-1.5 border-t border-slate-200 pt-2.5">
+          <p>
+            Administratorem Twoich danych osobowych jest organizator wydarzenia. Dane (imię i nazwisko, adres e-mail,
+            imię psa) są przetwarzane wyłącznie w celu organizacji wydarzeń i kontaktu z uczestnikiem, na podstawie
+            art. 6 ust. 1 lit. b RODO (wykonanie umowy/umowy przedwstępnej).
+          </p>
+          <p>
+            Dane będą przechowywane przez czas organizacji i rozliczenia wydarzenia. Przysługuje Ci prawo dostępu,
+            sprostowania, usunięcia oraz wniesienia skargi do Prezesa UODO (ul. Stawki 2, 00-193 Warszawa).
+          </p>
+          <p>
+            Podanie danych jest dobrowolne, ale niezbędne do uczestnictwa w wydarzeniu.
+            Platforma Dogdex pełni rolę procesora danych i przetwarza je wyłącznie w imieniu organizatora.
+          </p>
+        </div>
+      </details>
     </form>
   )
 }

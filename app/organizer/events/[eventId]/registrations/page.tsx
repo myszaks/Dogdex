@@ -33,6 +33,7 @@ export default async function RegistrationsPage({ params }: Props) {
     { count: pendingCount },
     { count: cancelledCount },
     { data: cancellationRequests },
+    { count: slotCount },
   ] = await Promise.all([
     supabase
       .from('registrations')
@@ -49,9 +50,11 @@ export default async function RegistrationsPage({ params }: Props) {
       .eq('event_id', eventId)
       .eq('status', 'pending')
       .order('created_at', { ascending: true }),
+    supabase.from('time_slots').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
   ])
 
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
+  const hasSchedule = (slotCount ?? 0) > 0
 
   const stats = {
     total: count ?? 0,
@@ -76,10 +79,25 @@ export default async function RegistrationsPage({ params }: Props) {
               <p className="text-sm text-sky-600 mt-0.5">📅 {formatDate(event.start_at)}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          {/*<div className="flex items-center gap-2 flex-wrap">
             <CsvExportButton eventId={eventId} />
-          </div>
+          </div>*/}
         </div>
+      </div>
+
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-sky-700 border-b-2 border-sky-600 -mb-px">
+          👥 Zapisy
+        </span>
+        {hasSchedule && (
+          <Link
+            href={`/organizer/events/${eventId}/schedule`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors"
+          >
+            📅 Grafik
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">

@@ -49,6 +49,44 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nieprawidłowy status' }, { status: 400 })
   }
 
+  // Organizer partial date cancellation: cancelledDates = string[] → remove dates, null → cancel all
+  if (body.status === 'cancelled' && isOrganizerOrAdmin && 'cancelledDates' in body) {
+    const cancelledDates = body.cancelledDates as string[] | null
+    if (cancelledDates !== null && Array.isArray(cancelledDates) && cancelledDates.length > 0) {
+      const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+      const eventFormFields: Array<{ id: string; type: string }> =
+        Array.isArray(event?.form_fields) ? (event!.form_fields as Array<{ id: string; type: string }>) : []
+      const multidateFieldIds = eventFormFields.filter(f => f.type === 'multidate').map(f => f.id)
+      const formData: Record<string, unknown> = (reg.form_data ?? {}) as Record<string, unknown>
+      const updatedFormData: Record<string, unknown> = { ...formData }
+
+      for (const fieldId of multidateFieldIds) {
+        const existing = Array.isArray(formData[fieldId]) ? (formData[fieldId] as string[]) : []
+        updatedFormData[fieldId] = existing.filter(d => !cancelledDates.includes(d))
+      }
+
+      const allGone =
+        multidateFieldIds.length > 0 &&
+        multidateFieldIds.every(fieldId => {
+          const remaining = updatedFormData[fieldId]
+          return Array.isArray(remaining) && remaining.length === 0
+        })
+
+      const regUpdatePartial: Record<string, unknown> = { form_data: updatedFormData }
+      if (allGone) regUpdatePartial.status = 'cancelled'
+
+      const { data: dataPartial, error: errPartial } = await supabase
+        .from('registrations')
+        .update(regUpdatePartial)
+        .eq('id', id)
+        .select('*, participants(*), events(*)')
+        .single()
+
+      if (errPartial) return NextResponse.json({ error: errPartial.message }, { status: 500 })
+      return NextResponse.json(dataPartial)
+    }
+  }
+
   const update: Record<string, unknown> = {}
   if ('status' in body) update.status = body.status
   // Organizer/admin can also update time_slot_id for schedule management

@@ -39,7 +39,40 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
   const { event } = await resolveEvent(eventId)
-  return { title: event?.title ?? 'Wydarzenie' }
+  if (!event) return { title: 'Wydarzenie' }
+
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dogdex.pl'
+  const canonicalUrl = `${baseUrl}/events/${event.slug ?? event.id}`
+  const description = event.description
+    ? event.description.slice(0, 200).replace(/\s+/g, ' ').trim()
+    : `Wydarzenie psie: ${event.title}${event.location ? ` – ${event.location}` : ''}`
+
+  const images = event.image_url
+    ? [{ url: event.image_url, width: 1200, height: 630, alt: event.title }]
+    : [{ url: `${baseUrl}/og-default.jpg`, width: 1200, height: 630, alt: 'Dogdex' }]
+
+  return {
+    title: event.title,
+    description,
+    openGraph: {
+      title: event.title,
+      description,
+      url: canonicalUrl,
+      siteName: 'Dogdex',
+      locale: 'pl_PL',
+      type: 'website',
+      images,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: event.title,
+      description,
+      images: images.map(i => i.url),
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  }
 }
 
 export const revalidate = 60

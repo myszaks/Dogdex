@@ -619,3 +619,86 @@ export async function sendContactConfirmation(payload: Pick<ContactEmailPayload,
     // Confirmation is non-critical; don't propagate
   }
 }
+
+// ---------------------------------------------------------------------------
+// 24h training reminder
+// ---------------------------------------------------------------------------
+
+interface ReminderEmailPayload {
+  to: string
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  eventDate: string | null
+  eventLocation: string | null
+  /** For multidate events: the specific date(s) occurring tomorrow */
+  reminderDates?: string[] | null
+}
+
+export async function sendReminderEmail(payload: ReminderEmailPayload): Promise<void> {
+  const smtpUser = process.env.SMTP_USER
+  const smtpPass = process.env.SMTP_PASS
+  if (!smtpUser || !smtpPass) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Email] SMTP not configured — skipping reminder email to', payload.to)
+    }
+    return
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  })
+
+  const datesHtml = payload.reminderDates?.length
+    ? payload.reminderDates.map(d => {
+        try {
+          const formatted = new Intl.DateTimeFormat('pl-PL', {
+            weekday: 'long', day: 'numeric', month: 'long',
+          }).format(new Date(d))
+          return `<li style="margin:4px 0">${escHtml(formatted)}</li>`
+        } catch { return `<li style="margin:4px 0">${escHtml(d)}</li>` }
+      }).join('')
+    : null
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex – Przypomnienie o treningu</h2>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+      <p>Jutro odbywa się wydarzenie, na które jesteś zapisany/-a z psem <strong>${escHtml(payload.dogName)}</strong>.</p>
+
+      <div style="background:#f0f9ff;border-radius:12px;padding:16px;margin:20px 0">
+        <table style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Wydarzenie:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td>
+          </tr>
+          ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b;font-size:13px">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+          ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b;font-size:13px">Miejsce:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
+          <tr><td style="padding:8px;color:#64748b;font-size:13px">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+        </table>
+        ${datesHtml ? `<p style="margin:12px 0 4px;font-weight:600;color:#0f172a;font-size:13px">Twoje jutrzejsze terminy:</p><ul style="margin:0;padding-left:20px;color:#334155">${datesHtml}</ul>` : ''}
+      </div>
+
+      <p style="background:#fef9c3;border-radius:8px;padding:12px;color:#854d0e">
+        🕐 Do zobaczenia jutro! Pamiętaj zabrać ze sobą wszystko, co potrzebne.
+      </p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${smtpUser}>`,
+      to: payload.to,
+      subject: `⏰ Przypomnienie – jutro: ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki przypomnienia:', err)
+    }
+  }
+}

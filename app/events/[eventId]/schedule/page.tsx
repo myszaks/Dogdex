@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -33,6 +34,21 @@ export default async function PublicSchedulePage({ params }: Props) {
     .maybeSingle()
 
   if (!event) notFound()
+
+  // Check if the current user is registered for this event
+  const { user } = await getServerUser()
+  let isRegistered = false
+
+  if (user?.email) {
+    const { data: userReg } = await supabase
+      .from('registrations')
+      .select('id, participants!inner(owner_email)')
+      .eq('event_id', event.id)
+      .eq('status', 'confirmed')
+      .eq('participants.owner_email', user.email.toLowerCase())
+      .maybeSingle()
+    isRegistered = !!userReg
+  }
 
   const { data: slots } = await supabase
     .from('time_slots')
@@ -77,12 +93,16 @@ export default async function PublicSchedulePage({ params }: Props) {
   // Only show slots that have at least one participant assigned
   const filledSlots = (slots ?? []).filter(s => (participantsBySlot.get(s.id)?.length ?? 0) > 0)
 
+  const backLink = (
+    <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
+      ← Powrót do wydarzenia
+    </Link>
+  )
+
   if (filledSlots.length === 0) {
     return (
       <div>
-        <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
-          ← Powrót do wydarzenia
-        </Link>
+        {backLink}
         <h1 className="page-title">📅 Grafik godzinowy</h1>
         <div className="card text-center py-12 text-slate-400">
           <p className="text-4xl mb-3">🕐</p>
@@ -100,14 +120,78 @@ export default async function PublicSchedulePage({ params }: Props) {
     slotsByDate.get(slot.slot_date)!.push(slot)
   }
 
+  // ── Not registered: show limited view (times + occupancy only) ──────────
+  if (!isRegistered) {
+    return (
+      <div>
+        {backLink}
+        <h1 className="page-title">📅 Grafik godzinowy</h1>
+        <p className="text-slate-500 mb-4">{event.title}</p>
+
+        <div className="card bg-sky-50 border-sky-200 mb-6 flex items-start gap-3">
+          <span className="text-2xl">🔒</span>
+          <div>
+            <p className="font-medium text-sky-800">Widoczny tylko dla zapisanych uczestników</p>
+            <p className="text-sm text-sky-600 mt-0.5">
+              Szczegóły harmonogramu (imiona i psy) są dostępne wyłącznie dla osób potwierdzonych na to wydarzenie.
+              Poniżej widoczna jest liczba wolnych i zajętych miejsc.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {[...slotsByDate.entries()].map(([date, dateSlots]) => {
+            const formattedDate = new Intl.DateTimeFormat('pl-PL', {
+              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+            }).format(new Date(date))
+
+            return (
+              <div key={date}>
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 capitalize">
+                  {formattedDate}
+                </h2>
+                <div className="space-y-2">
+                  {dateSlots.map(slot => {
+                    const count = participantsBySlot.get(slot.id)?.length ?? 0
+                    const max = slot.max_participants
+                    const free = max !== null ? Math.max(0, max - count) : null
+                    return (
+                      <div key={slot.id} className="card">
+                        <div className="flex items-center gap-4">
+                          <div className="text-center shrink-0 w-14">
+                            <p className="text-xl font-bold text-sky-600">
+                              {slot.slot_time.slice(0, 5)}
+                            </p>
+                            {slot.label && (
+                              <p className="text-xs text-slate-400 mt-0.5 leading-tight">{slot.label}</p>
+                            )}
+                          </div>
+                          <div>
+                            {max !== null ? (
+                              free === 0
+                                ? <span className="badge badge-red">Brak miejsc</span>
+                                : <span className="badge badge-green">Wolne miejsca: {free}</span>
+                            ) : (
+                              <span className="text-sm text-slate-500">Zajęte: {count}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Registered: show full schedule ──────────────────────────────────────
   return (
     <div>
-      <Link
-        href={`/events/${event.slug ?? event.id}`}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors"
-      >
-        ← Powrót do wydarzenia
-      </Link>
+      {backLink}
 
       <h1 className="page-title">📅 Grafik godzinowy</h1>
       <p className="text-slate-500 mb-6">{event.title}</p>

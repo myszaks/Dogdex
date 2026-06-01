@@ -7,7 +7,9 @@ import {
   type DropResult,
 } from '@hello-pangea/dnd'
 import RegistrationStatusButton from '@/components/RegistrationStatusButton'
-import { formatDate, formatDateShort } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card'
+import { formatDateShort } from '@/lib/utils'
+import { GripVertical, Mail, CalendarDays } from 'lucide-react'
 import type { FormField, Registration } from '@/types'
 
 interface Props {
@@ -53,70 +55,102 @@ export default function RegistrationsClientList({
     setSaving(false)
   }
 
-  function renderFormData(reg: Registration) {
-    if (!reg.form_data || !Object.keys(reg.form_data).length) return null
+  function renderFormChips(reg: Registration) {
+    const chips: { label: string; value: string }[] = []
+
+    for (const f of eventFormFields) {
+      const val = reg.form_data?.[f.id]
+      if (val === undefined || val === null || val === '') continue
+      let display: string
+      if (Array.isArray(val)) {
+        display = f.type === 'multidate'
+          ? val.map((d: string) => { try { return formatDateShort(d) } catch { return d } }).join(', ')
+          : (val as string[]).join(', ')
+      } else {
+        display = String(val)
+      }
+      chips.push({ label: f.label, value: display })
+    }
+
+    // Unknown keys
+    for (const [k, v] of Object.entries(reg.form_data as Record<string, unknown>)) {
+      if (eventFormFields.some(f => f.id === k)) continue
+      if (v === undefined || v === null || v === '') continue
+      chips.push({ label: k, value: Array.isArray(v) ? (v as string[]).join(', ') : String(v) })
+    }
+
+    if (!chips.length) return null
+
     return (
-      <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
-        {eventFormFields
-          .filter(f => reg.form_data[f.id] !== undefined && reg.form_data[f.id] !== null && reg.form_data[f.id] !== '')
-          .map(f => {
-            const val = reg.form_data[f.id]
-            let display: string
-            if (Array.isArray(val)) {
-              display =
-                f.type === 'multidate'
-                  ? val.map((d: string) => { try { return formatDateShort(d) } catch { return d } }).join(', ')
-                  : (val as string[]).join(', ')
-            } else {
-              display = String(val)
-            }
-            return (
-              <div key={f.id} className="flex gap-2 text-xs">
-                <span className="text-slate-400 shrink-0">{f.label}:</span>
-                <span className="text-slate-700 font-medium">{display}</span>
-              </div>
-            )
-          })}
-        {/* Unknown keys not in template */}
-        {Object.entries(reg.form_data as Record<string, unknown>)
-          .filter(([k]) => !eventFormFields.some(f => f.id === k))
-          .filter(([, v]) => v !== undefined && v !== null && v !== '')
-          .map(([k, v]) => (
-            <div key={k} className="flex gap-2 text-xs">
-              <span className="text-slate-400 shrink-0">{k}:</span>
-              <span className="text-slate-700 font-medium">
-                {Array.isArray(v) ? (v as string[]).join(', ') : String(v)}
-              </span>
-            </div>
-          ))}
+      <div className="flex flex-wrap gap-1 mt-2">
+        {chips.map(({ label, value }) => (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1 bg-muted rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-full"
+          >
+            <span className="text-foreground/50 shrink-0">{label}:</span>
+            <span className="font-medium text-foreground/80 truncate">{value}</span>
+          </span>
+        ))}
       </div>
     )
   }
 
-  function renderCard(reg: Registration, dragHandle?: React.ReactNode) {
+  function renderTile(reg: Registration, index?: number, dragHandle?: React.ReactNode) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const p = (reg as any).participants
+    const multidateDates = eventFormFields
+      .filter(f => f.type === 'multidate')
+      .flatMap(f => {
+        const val = (reg.form_data as Record<string, unknown>)?.[f.id]
+        return Array.isArray(val) ? (val as string[]) : []
+      })
+
     return (
-      <div className="card">
-        <div className="flex items-start gap-2">
-          {dragHandle}
-          <div className="flex items-start justify-between gap-3 flex-1 min-w-0">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-800">
+      <Card size="sm" className="relative transition-shadow hover:shadow-md">
+        <CardHeader className="border-b pb-2">
+          <div className="flex items-start gap-1.5 min-w-0">
+            {dragHandle}
+            {index !== undefined && (
+              <span className="shrink-0 text-xs font-mono text-muted-foreground/60 pt-0.5 w-5 text-right">
+                {index + 1}.
+              </span>
+            )}
+            <CardTitle className="min-w-0 flex-1">
+              <span className="truncate block">
                 🐕 {p?.dog_name ?? '—'}
-                {p?.dog_breed && (
-                  <span className="text-slate-400 font-normal text-sm ml-1.5">({p.dog_breed})</span>
-                )}
-              </p>
-              <p className="text-sm text-slate-600">👤 {p?.owner_name ?? '—'}</p>
-              {p?.owner_email && <p className="text-xs text-slate-400">{p.owner_email}</p>}
-              <p className="text-xs text-slate-400 mt-0.5">{formatDate(reg.created_at)}</p>
-            </div>
-            <RegistrationStatusButton regId={reg.id} status={reg.status} />
+              </span>
+              {p?.dog_breed && (
+                <span className="text-xs font-normal text-muted-foreground block truncate">{p.dog_breed}</span>
+              )}
+            </CardTitle>
           </div>
-        </div>
-        {renderFormData(reg)}
-      </div>
+          <CardAction>
+            <RegistrationStatusButton
+              regId={reg.id}
+              status={reg.status}
+              multidateDates={multidateDates}
+            />
+          </CardAction>
+        </CardHeader>
+
+        <CardContent className="pt-2 space-y-1">
+          <p className="text-sm font-medium text-foreground/90 truncate">
+            👤 {p?.owner_name ?? '—'}
+          </p>
+          {p?.owner_email && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+              <Mail className="w-3 h-3 shrink-0" />
+              {p.owner_email}
+            </p>
+          )}
+          <p className="flex items-center gap-1 text-xs text-muted-foreground/60">
+            <CalendarDays className="w-3 h-3 shrink-0" />
+            {new Date(reg.created_at).toLocaleDateString('pl-PL')}
+          </p>
+          {renderFormChips(reg)}
+        </CardContent>
+      </Card>
     )
   }
 
@@ -142,13 +176,13 @@ export default function RegistrationsClientList({
           .sort(([a], [b]) => a.localeCompare(b, 'pl'))
           .map(([group, regs]) => (
             <div key={group}>
-              <h3 className="text-sm font-semibold text-slate-600 mb-2 uppercase tracking-wide border-b border-slate-200 pb-1">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1 mb-3">
                 {group}{' '}
-                <span className="text-slate-400 font-normal normal-case">({regs.length})</span>
+                <span className="font-normal normal-case text-muted-foreground/60">({regs.length})</span>
               </h3>
-              <div className="space-y-2">
-                {regs.map(reg => (
-                  <div key={reg.id}>{renderCard(reg)}</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                {regs.map((reg, i) => (
+                  <div key={reg.id}>{renderTile(reg, i)}</div>
                 ))}
               </div>
             </div>
@@ -157,35 +191,41 @@ export default function RegistrationsClientList({
     )
   }
 
-  // --- DnD view ---
+  // --- DnD grid view ---
   return (
     <>
       {saving && (
-        <p className="text-xs text-slate-400 mb-2 text-center">💾 Zapisywanie kolejności...</p>
+        <p className="text-xs text-muted-foreground mb-2 text-center">💾 Zapisywanie kolejności...</p>
       )}
-      <p className="text-xs text-slate-400 mb-3">
-        ⠿ Przeciągaj karty, aby zmienić kolejność startową uczestników.
+      <p className="text-xs text-muted-foreground/60 mb-3 flex items-center gap-1">
+        <GripVertical className="w-3.5 h-3.5" />
+        Przeciągaj kafelki, aby zmienić kolejność startową uczestników.
       </p>
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="registrations">
           {provided => (
-            <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2"
+            >
               {registrations.map((reg, index) => (
                 <Draggable key={reg.id} draggableId={reg.id} index={index}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.draggableProps}
-                      className={snapshot.isDragging ? 'opacity-80 scale-[1.01] shadow-lg' : ''}
+                      className={snapshot.isDragging ? 'opacity-80 scale-[1.02] z-10' : ''}
                     >
-                      {renderCard(
+                      {renderTile(
                         reg,
+                        index,
                         <div
                           {...provided.dragHandleProps}
-                          className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mt-1 shrink-0 select-none text-lg leading-none"
+                          className="cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground mt-0.5 shrink-0 select-none"
                           title="Przeciągnij, aby zmienić kolejność"
                         >
-                          ⠿
+                          <GripVertical className="w-4 h-4" />
                         </div>
                       )}
                     </div>
@@ -200,3 +240,4 @@ export default function RegistrationsClientList({
     </>
   )
 }
+

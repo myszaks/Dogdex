@@ -83,6 +83,26 @@ export async function PATCH(req: Request, { params }: Params) {
         .single()
 
       if (errPartial) return NextResponse.json({ error: errPartial.message }, { status: 500 })
+
+      // Remove schedule_assignments for the cancelled dates
+      const eventId = event?.id as string | undefined
+      if (eventId) {
+        const serviceClient = createServerClient()
+        const { data: cancelledSlots } = await serviceClient
+          .from('time_slots')
+          .select('id')
+          .eq('event_id', eventId)
+          .in('slot_date', cancelledDates)
+
+        if (cancelledSlots?.length) {
+          await serviceClient
+            .from('schedule_assignments')
+            .delete()
+            .eq('registration_id', id)
+            .in('time_slot_id', cancelledSlots.map(s => s.id))
+        }
+      }
+
       return NextResponse.json(dataPartial)
     }
   }

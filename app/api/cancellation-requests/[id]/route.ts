@@ -132,14 +132,35 @@ export async function PATCH(req: Request, { params }: Params) {
   if (newRegistrationStatus) regUpdate.status = newRegistrationStatus
   if (newFormData) regUpdate.form_data = newFormData
 
+  const serviceClient = createServerClient()
+
   if (Object.keys(regUpdate).length > 0) {
-    const serviceClient = createServerClient()
     const { error: regError } = await serviceClient
       .from('registrations')
       .update(regUpdate)
       .eq('id', reg.id as string)
 
     if (regError) return NextResponse.json({ error: regError.message }, { status: 500 })
+  }
+
+  // If specific dates were cancelled, remove any schedule_assignments for those dates
+  if (cancelledDates !== null && cancelledDates.length > 0) {
+    const eventId = (event as Record<string, unknown> | null)?.id as string | undefined
+    if (eventId) {
+      const { data: cancelledSlots } = await serviceClient
+        .from('time_slots')
+        .select('id')
+        .eq('event_id', eventId)
+        .in('slot_date', cancelledDates)
+
+      if (cancelledSlots?.length) {
+        await serviceClient
+          .from('schedule_assignments')
+          .delete()
+          .eq('registration_id', reg.id as string)
+          .in('time_slot_id', cancelledSlots.map(s => s.id))
+      }
+    }
   }
 
   // Mark request accepted

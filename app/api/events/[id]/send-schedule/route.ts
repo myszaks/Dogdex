@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: Params) {
   // Verify ownership
   const { data: event } = await supabase
     .from('events')
-    .select('created_by, title, start_at, location')
+    .select('created_by, title, start_at, location, form_fields')
     .eq('id', id)
     .single()
 
@@ -31,10 +31,16 @@ export async function POST(req: Request, { params }: Params) {
   let body: { assignmentIds?: string[] } = {}
   try { body = await req.json() } catch { /* send to all */ }
 
+  // Determine multidate field IDs for this event (used to filter cancelled dates)
+  const multidateFieldIds = (Array.isArray(event.form_fields)
+    ? (event.form_fields as Array<{ id: string; type: string }>)
+    : []
+  ).filter(f => f.type === 'multidate').map(f => f.id)
+
   // Fetch confirmed registrations for this event
   const { data: regs } = await supabase
     .from('registrations')
-    .select('id, participants(owner_email, owner_name, dog_name)')
+    .select('id, form_data, participants(owner_email, owner_name, dog_name)')
     .eq('event_id', id)
     .eq('status', 'confirmed')
 
@@ -91,6 +97,16 @@ export async function POST(req: Request, { params }: Params) {
     const reg = regMap.get(assignment.registration_id)
     const p = reg?.participants as { owner_email?: string; owner_name?: string; dog_name?: string } | null
     if (!p?.owner_email) continue
+
+    // Defensive check: skip if this slot date is no longer in the participant's form_data
+    // (handles cases where a partial date cancellation wasn't fully cleaned up)
+    if (multidateFieldIds.length > 0) {
+      const formData = (reg as Record<string, unknown>)?.form_data as Record<string, unknown> ?? {}
+      const registeredDates = multidateFieldIds.flatMap(fieldId =>
+        Array.isArray(formData[fieldId]) ? (formData[fieldId] as string[]) : []
+      )
+      if (!registeredDates.some(d => d.startsWith(slot.slot_date))) continue
+    }
 
     const key = p.owner_email
     if (!emailGroups.has(key)) {

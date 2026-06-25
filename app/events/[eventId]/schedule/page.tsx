@@ -29,7 +29,7 @@ export default async function PublicSchedulePage({ params }: Props) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, start_at, location, slug')
+    .select('id, title, start_at, location, slug, form_fields')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .maybeSingle()
 
@@ -60,11 +60,27 @@ export default async function PublicSchedulePage({ params }: Props) {
   // Fetch all confirmed registrations for this event
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, participants(dog_name, owner_name)')
+    .select('id, form_data, participants(dog_name, owner_name)')
     .eq('event_id', event.id)
     .eq('status', 'confirmed')
 
   const regIds = (registrations ?? []).map(r => r.id as string)
+
+  const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown>).form_fields)
+    ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)
+        .filter(field => field.type === 'multidate')
+        .map(field => field.id)
+    : []
+
+  const regDatesById = new Map(
+    (registrations ?? []).map(r => {
+      const formData = (r as Record<string, unknown>).form_data as Record<string, unknown> | null
+      const selectedDates = multiDateFieldIds.flatMap(fieldId =>
+        Array.isArray(formData?.[fieldId]) ? (formData?.[fieldId] as string[]) : []
+      )
+      return [r.id as string, new Set(selectedDates)]
+    })
+  )
 
   // Fetch schedule_assignments to know which slot each registration is in
   const { data: assignments } = regIds.length
@@ -85,9 +101,16 @@ export default async function PublicSchedulePage({ params }: Props) {
   const participantsBySlot = new Map<string, ParticipantEntry[]>()
   for (const a of assignments ?? []) {
     if (!a.time_slot_id) continue
-    if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])
     const entry = regById.get(a.registration_id)
-    if (entry) participantsBySlot.get(a.time_slot_id)!.push(entry)
+    if (!entry) continue
+
+    const selectedDates = regDatesById.get(a.registration_id)
+    if (selectedDates && selectedDates.size > 0) {
+      if (!a.item_date || !selectedDates.has(a.item_date)) continue
+    }
+
+    if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])
+    participantsBySlot.get(a.time_slot_id)!.push(entry)
   }
 
   // Only show slots that have at least one participant assigned

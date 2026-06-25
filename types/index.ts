@@ -153,3 +153,84 @@ export interface Dog {
   created_at: string
   updated_at: string
 }
+
+// ============================================================
+// Treningi indywidualne (Individual Trainings)
+// ============================================================
+
+export interface TrainerProfile {
+  id: string
+  trainer_id: string
+  is_active: boolean
+  full_name: string
+  bio: string | null
+  profile_image_url: string | null
+  location_city: string | null
+  location_details: string | null
+  price_per_hour: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingType {
+  id: string
+  trainer_id: string
+  name: string
+  description: string | null
+  price_per_hour: number | null
+  duration_min: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingAvailability {
+  id: string
+  training_type_id: string
+  day_of_week: number  // 0 = Sunday, 6 = Saturday (ISO 8601)
+  start_time: string   // "10:00"
+  end_time: string     // "18:00"
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingBooking {
+  id: string
+  training_type_id: string
+  user_id: string
+  dog_id: string | null
+  scheduled_at: string
+  duration_min: number
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
+  cancellation_reason: string | null
+  cancellation_requested_by: 'user' | 'trainer' | null
+  cancellation_approved_at: string | null
+  notes_user: string | null
+  notes_trainer: string | null
+  created_at: string
+  updated_at: string
+  training_types?: TrainingType
+  training_payments?: TrainingPayment[]
+  dogs?: { id: string; name: string }
+}
+
+export interface TrainingPayment {
+  id: string
+  booking_id: string
+  amount: number
+  currency: string
+  stripe_session_id: string | null
+  stripe_payment_intent_id: string | null
+  stripe_account_id: string | null
+  status: 'pending' | 'completed' | 'failed' | 'refunded'
+  payment_method_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainerProfileWithStats extends TrainerProfile {
+  training_types?: TrainingType[]
+  rating?: number
+  total_bookings?: number
+}

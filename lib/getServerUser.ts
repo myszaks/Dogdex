@@ -40,4 +40,12 @@ export async function checkRoleForApi(
   return { user: user!, role: role! }
 }
 
+/**
+ * Helper: Check if user can manage a trainer resource (training types, availability, etc.)
+ * User can manage if they own it (userId === trainerId) OR they are admin
+ */
+export function canManageTrainerResource(userId: string, trainerId: string, userRole: string | null): boolean {
+  return userId === trainerId || userRole === 'admin'
+}
+
 

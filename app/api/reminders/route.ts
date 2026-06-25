@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
 import { sendReminderEmail } from '@/lib/email'
+import { getIsoDateInTimeZone, hasMultidateSelection, shouldSendMultidateReminder } from '@/lib/reminders'
 
 /**
  * GET /api/reminders
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
   // Tomorrow's date as ISO date string (YYYY-MM-DD)
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowDate = tomorrow.toISOString().slice(0, 10)
+  const tomorrowDate = getIsoDateInTimeZone(tomorrow)
 
   let sent = 0
   let skipped = 0
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
 
       // Check if this event has multidate fields — if so, skip here (handled in section 2)
       const formData = (reg.form_data ?? {}) as Record<string, unknown>
-      const hasMultidate = Object.values(formData).some(v => Array.isArray(v) && (v as unknown[]).every(x => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}/.test(x as string)))
+      const hasMultidate = hasMultidateSelection(formData)
       if (hasMultidate) { skipped++; continue }
 
       const eventDate = event.start_at
@@ -103,7 +104,7 @@ export async function GET(req: Request) {
   // We query registrations joined with events that have form_fields of type multidate
   const { data: multidateRegs } = await supabase
     .from('registrations')
-    .select('id, form_data, reminder_sent_at, event_id, events(id, title, start_at, location, form_fields), participants(dog_name, owner_name, owner_email)')
+    .select('id, form_data, reminder_sent_at, event_id, events(id, title, status, start_at, end_at, location, form_fields), participants(dog_name, owner_name, owner_email)')
     .eq('status', 'confirmed')
 
   for (const reg of multidateRegs ?? []) {
@@ -113,6 +114,12 @@ export async function GET(req: Request) {
     const eventFormFields = Array.isArray(event.form_fields)
       ? (event.form_fields as Array<{ id: string; type: string }>)
       : []
+    if (!shouldSendMultidateReminder({
+      status: String(event.status ?? 'upcoming'),
+      start_at: event.start_at ? String(event.start_at) : null,
+      end_at: event.end_at ? String(event.end_at) : null,
+    })) continue
+
     const multidateFieldIds = eventFormFields.filter(f => f.type === 'multidate').map(f => f.id)
     if (!multidateFieldIds.length) continue
 

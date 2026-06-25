@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { DogEvent } from "@/types"
+import { effectiveEventStatus, isEventRegistrationOpen } from "@/lib/eventStatus"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -93,24 +94,10 @@ export function statusBadgeClasses(status: string): string {
 }
 
 export function isRegistrationOpen(event: DogEvent): boolean {
-  if (effectiveStatus(event) !== 'upcoming') return false
-  if (event.registration_deadline) {
-    return new Date(event.registration_deadline) > new Date()
-  }
-  return true
+  return isEventRegistrationOpen(event)
 }
 
 export function effectiveStatus(event: DogEvent): string {
-  // Always trust explicit terminal states set by admin
-  if (event.status === 'cancelled') return 'cancelled'
-
-  // Derive ongoing/finished/upcoming from actual dates
-  const now = new Date()
-  const start = event.start_at ? new Date(event.start_at) : null
-  const end = event.end_at ? new Date(event.end_at) : null
-
-  if (end && now > end) return 'finished'
-  if (start && now >= start) return 'ongoing'
-  return 'upcoming'
+  return effectiveEventStatus(event)
 }
 

@@ -1,47 +1,24 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { getServerUser } from '@/lib/getServerUser'
-import { sendTrainingBookingConfirmation, sendTrainingBookingToTrainer } from '@/lib/email'
 import Stripe from 'stripe'
+import { sendTrainingBookingConfirmation, sendTrainingBookingToTrainer } from '@/lib/email'
+import { getServerUser } from '@/lib/getServerUser'
+import { createAuthClient } from '@/lib/supabaseServer'
+import {
+  bookingFitsAvailability,
+  bookingsOverlap,
+  getBookingDateTimeParts,
+  resolveBookingDuration,
+} from '@/lib/trainingBooking'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null
-
-const BOOKING_TIME_ZONE = 'Europe/Warsaw'
-
-function getDateTimeParts(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: BOOKING_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date)
-
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find(part => part.type === type)?.value || ''
-
-  return {
-    date: `${value('year')}-${value('month')}-${value('day')}`,
-    time: `${value('hour')}:${value('minute')}`,
-  }
-}
-
-function toMinutes(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
-}
 
 export async function GET() {
   const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
 
   const supabase = await createAuthClient()
-
-  // User can see their own bookings
   const { data, error } = await supabase
     .from('training_bookings')
     .select(`
@@ -68,14 +45,12 @@ export async function POST(req: Request) {
   }
 
   const { training_type_id, dog_id, scheduled_at, duration_min, notes_user } = body
-
   if (!training_type_id || !scheduled_at) {
     return NextResponse.json({ error: 'Typ treningu i czas są wymagane' }, { status: 400 })
   }
 
   const supabase = await createAuthClient()
 
-  // Get training type details
   const { data: trainingType } = await supabase
     .from('training_types')
     .select('*')
@@ -86,22 +61,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nie znaleziono typu treningu' }, { status: 404 })
   }
 
-  // Get trainer profile
   const { data: trainerProfile } = await supabase
     .from('trainer_profiles')
     .select('*')
     .eq('trainer_id', trainingType.trainer_id)
     .single()
 
-  const actualDuration = typeof duration_min === 'number' ? duration_min : trainingType.duration_min
+  const actualDuration = resolveBookingDuration(duration_min, trainingType.duration_min)
   const scheduledDate = new Date(scheduled_at as string)
   if (Number.isNaN(scheduledDate.getTime()) || actualDuration <= 0) {
     return NextResponse.json({ error: 'Nieprawidłowy termin lub czas trwania' }, { status: 400 })
   }
 
+  if (dog_id) {
+    const { data: dog } = await supabase
+      .from('dogs')
+      .select('id')
+      .eq('id', dog_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!dog) {
+      return NextResponse.json({ error: 'Nieprawidłowy pies dla tej rezerwacji' }, { status: 403 })
+    }
+  }
+
   const endTime = new Date(scheduledDate.getTime() + actualDuration * 60000)
 
-  // Check trainer-level conflicts across all training types.
   const { data: trainerTrainingTypes, error: trainerTrainingTypesError } = await supabase
     .from('training_types')
     .select('id')
@@ -123,11 +109,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: conflictsError.message }, { status: 500 })
   }
 
-  const hasConflict = (existingBookings || []).some(existing => {
-    const existingStart = new Date(existing.scheduled_at)
-    const existingEnd = new Date(existingStart.getTime() + existing.duration_min * 60000)
-    return existingStart < endTime && existingEnd > scheduledDate
-  })
+  const hasConflict = (existingBookings || []).some(existing =>
+    bookingsOverlap(
+      new Date(existing.scheduled_at),
+      existing.duration_min,
+      scheduledDate,
+      actualDuration
+    )
+  )
 
   if (hasConflict) {
     return NextResponse.json(
@@ -136,26 +125,7 @@ export async function POST(req: Request) {
     )
   }
 
-  // Check for conflicts (double booking)
-  const { data: conflicts } = await supabase
-    .from('training_bookings')
-    .select('id')
-    .eq('training_type_id', training_type_id)
-    .in('status', ['pending', 'confirmed'])
-    .gt('scheduled_at', scheduledDate.toISOString())
-    .lt('scheduled_at', endTime.toISOString())
-
-  if (conflicts && conflicts.length > 0) {
-    return NextResponse.json(
-      { error: 'Ten termin jest już zarezerwowany. Wybierz inny czas.' },
-      { status: 409 }
-    )
-  }
-
-  // Check trainer availability (date-based system)
-  const { date: bookingDate, time: bookingStartTime } = getDateTimeParts(scheduledDate)
-  const { date: bookingEndDate, time: bookingEndTime } = getDateTimeParts(endTime)
-
+  const { date: bookingDate } = getBookingDateTimeParts(scheduledDate)
   const { data: availabilitySlot } = await supabase
     .from('trainer_date_availability')
     .select('*')
@@ -171,24 +141,13 @@ export async function POST(req: Request) {
     )
   }
 
-  // Verify booking time falls within availability slot.
-  const bookingStartMinutes = toMinutes(bookingStartTime)
-  const bookingEndMinutes = toMinutes(bookingEndTime)
-  const availabilityStartMinutes = toMinutes(availabilitySlot.start_time)
-  const availabilityEndMinutes = toMinutes(availabilitySlot.end_time)
-
-  if (
-    bookingEndDate !== bookingDate ||
-    bookingStartMinutes < availabilityStartMinutes ||
-    bookingEndMinutes > availabilityEndMinutes
-  ) {
+  if (!bookingFitsAvailability(scheduledDate, actualDuration, availabilitySlot.start_time, availabilitySlot.end_time)) {
     return NextResponse.json(
       { error: `Trener dostępny jest od ${availabilitySlot.start_time} do ${availabilitySlot.end_time}` },
       { status: 409 }
     )
   }
 
-  // Create booking
   const { data: booking, error } = await supabase
     .from('training_bookings')
     .insert([{
@@ -205,11 +164,8 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Get user email for confirmation (from JWT user object)
   const userEmail = user.email || ''
   const userName = user.user_metadata?.full_name || 'Użytkownik'
-
-  // Format date for email
   const formatter = new Intl.DateTimeFormat('pl-PL', {
     day: 'numeric',
     month: 'long',
@@ -219,7 +175,6 @@ export async function POST(req: Request) {
   })
   const formattedDate = formatter.format(scheduledDate)
 
-  // Send confirmation email to user
   await sendTrainingBookingConfirmation({
     to: userEmail,
     userName,
@@ -230,9 +185,8 @@ export async function POST(req: Request) {
     price: trainingType.price_per_hour,
   })
 
-  // Send notification to trainer
   const { data: { user: trainerUser } } = await supabase.auth.admin.getUserById(trainingType.trainer_id)
-  
+
   if (trainerUser?.email) {
     await sendTrainingBookingToTrainer({
       to: trainerUser.email,
@@ -246,7 +200,6 @@ export async function POST(req: Request) {
     })
   }
 
-  // If trainer has Stripe account, create checkout session
   let checkoutUrl: string | null = null
   if (stripe && trainerProfile?.stripe_account_id && trainingType.price_per_hour) {
     try {
@@ -269,7 +222,7 @@ export async function POST(req: Request) {
           success_url: `${process.env.NEXT_PUBLIC_APP_URL}/moje-treningi?payment=success&booking_id=${booking.id}`,
           cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/moje-treningi?payment=cancelled&booking_id=${booking.id}`,
           payment_intent_data: {
-            application_fee_amount: 0, // 0% fee for now; can be adjusted later
+            application_fee_amount: 0,
             on_behalf_of: trainerProfile.stripe_account_id,
           },
           metadata: {
@@ -284,7 +237,6 @@ export async function POST(req: Request) {
       )
       checkoutUrl = session.url
 
-      // Save Stripe session ID to training_payments
       await supabase.from('training_payments').insert([{
         booking_id: booking.id,
         amount: trainingType.price_per_hour,
@@ -295,7 +247,6 @@ export async function POST(req: Request) {
       }])
     } catch (err) {
       console.error('[Stripe] Error creating checkout session:', err)
-      // Continue without checkout – booking is created, payment is optional
     }
   }
 

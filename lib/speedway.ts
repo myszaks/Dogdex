@@ -21,12 +21,14 @@ export function getSizeClass(heightCm: number): SizeClass {
 
 /** Prędkość w km/h na podstawie najlepszego czasu i długości toru */
 export function computeSpeedKmh(bestMs: number, distanceM: number): number {
+  if (bestMs <= 0 || distanceM <= 0) return 0
   const seconds = bestMs / 1000
   return Math.round(((distanceM / seconds) * 3.6) * 100) / 100
 }
 
 /** Formatuje ms → "4.57 s" */
 export function formatRunTime(ms: number): string {
+  if (ms <= 0) return '—'
   return (ms / 1000).toFixed(2) + ' s'
 }
 

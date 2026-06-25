@@ -22,6 +22,17 @@ export async function POST(_req: Request, { params }: Params) {
 
   const supabase = await createAuthClient()
 
+  const { data: event } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', eventId)
+    .single()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
   // Pobierz wszystkie wyniki dla tego wydarzenia
   const { data: results, error } = await supabase
     .from('results')

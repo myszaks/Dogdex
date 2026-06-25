@@ -11,13 +11,22 @@ interface Params {
  */
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
+
+  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  if ('error' in authResult) return authResult.error
+
   const supabase = createServerClient()
 
   const { data: event } = await supabase
     .from('events')
-    .select('form_fields')
+    .select('created_by, form_fields')
     .eq('id', id)
     .single()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
 
   const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown> | null)?.form_fields)
     ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)

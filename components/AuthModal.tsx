@@ -1,12 +1,16 @@
 "use client"
-import { useState } from 'react'
+
+import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { supabase } from '@/lib/supabaseClient'
 
 type View = 'login' | 'register' | 'forgot'
 type Props = { open: boolean; onClose: () => void }
 
-// ── Branded OAuth buttons ────────────────────────────────────────────────────
+type ResetCooldown = {
+  email: string
+  until: number
+}
 
 function GoogleButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
@@ -27,24 +31,15 @@ function GoogleButton({ disabled, onClick }: { disabled: boolean; onClick: () =>
   )
 }
 
-function AppleButton({ disabled }: { disabled: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled
-      title="Logowanie przez Apple – wkrótce dostępne"
-      className="relative flex items-center justify-center gap-3 w-full rounded-lg px-4 py-2 bg-black text-sm font-medium text-white opacity-50 cursor-not-allowed select-none"
-    >
-      <svg width="16" height="18" viewBox="0 0 814 1000" aria-hidden="true" fill="white">
-        <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 376.7 0 248.3 0 125.6c0-70 23.8-142.6 68.7-199.1C98.9 88.7 143.6 58 194.4 38.2c39.4-15.3 86.3-23.8 138.7-23.8 50.7 0 100.7 19.6 138.7 42.7 38.4 23.4 76.5 59.5 101.6 59.5 0 0 26.2-18.2 63-40.8 36.8-22.6 83.1-40.8 137.5-40.8 0 0-1.3.1-3.4.2z"/>
-      </svg>
-      Kontynuuj z Apple
-      <span className="absolute -top-1.5 -right-1.5 bg-amber-400 text-white text-[10px] font-bold px-1 rounded">wkrótce</span>
-    </button>
-  )
+function formatCooldown(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
 
 export default function AuthModal({ open, onClose }: Props) {
   const [view, setView] = useState<View>('login')
@@ -56,20 +51,54 @@ export default function AuthModal({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [emailConflict, setEmailConflict] = useState(false)
+  const [resetCooldown, setResetCooldown] = useState<ResetCooldown | null>(null)
+  const [cooldownNow, setCooldownNow] = useState(Date.now())
 
-  function reset() { setError(null); setSuccess(null); setEmailConflict(false) }
-  function switchView(v: View) { reset(); setView(v) }
+  const normalizedEmail = normalizeEmail(email)
+
+  function reset() {
+    setError(null)
+    setSuccess(null)
+    setEmailConflict(false)
+  }
+
+  function switchView(v: View) {
+    reset()
+    setView(v)
+  }
+
+  useEffect(() => {
+    if (!resetCooldown || resetCooldown.until <= Date.now()) return
+    const timer = window.setInterval(() => {
+      setCooldownNow(Date.now())
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [resetCooldown])
+
+  useEffect(() => {
+    if (resetCooldown && cooldownNow >= resetCooldown.until) {
+      setResetCooldown(null)
+    }
+  }, [cooldownNow, resetCooldown])
 
   function checkPassword(pw: string) {
     return {
-      length:  pw.length >= 9,
-      upper:   /[A-Z]/.test(pw),
-      digit:   /[0-9]/.test(pw),
+      length: pw.length >= 9,
+      upper: /[A-Z]/.test(pw),
+      digit: /[0-9]/.test(pw),
       special: /[^A-Za-z0-9]/.test(pw),
     }
   }
+
   const pwChecks = checkPassword(password)
-  const pwValid  = Object.values(pwChecks).every(Boolean)
+  const pwValid = Object.values(pwChecks).every(Boolean)
+
+  const cooldownLeftSeconds =
+    resetCooldown && resetCooldown.email === normalizedEmail
+      ? Math.max(0, Math.ceil((resetCooldown.until - cooldownNow) / 1000))
+      : 0
+
+  const resetBlocked = cooldownLeftSeconds > 0
 
   function translateAuthError(msg: string): string {
     const m = msg.toLowerCase()
@@ -84,7 +113,8 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signInWithEmail() {
-    setLoading(true); reset()
+    setLoading(true)
+    reset()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
     if (error) setError(translateAuthError(error.message))
@@ -92,8 +122,13 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signUpWithEmail() {
-    if (!pwValid) { setError('Hasło nie spełnia wymagań złożoności.'); return }
-    setLoading(true); reset()
+    if (!pwValid) {
+      setError('Hasło nie spełnia wymagań złożoności.')
+      return
+    }
+
+    setLoading(true)
+    reset()
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -105,6 +140,7 @@ export default function AuthModal({ open, onClose }: Props) {
       },
     })
     setLoading(false)
+
     if (error) {
       const msg = error.message.toLowerCase()
       if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already')) {
@@ -112,9 +148,11 @@ export default function AuthModal({ open, onClose }: Props) {
       } else {
         setError(translateAuthError(error.message))
       }
-    } else if (data.user && Array.isArray((data.user as { identities?: unknown[] }).identities) && (data.user as { identities?: unknown[] }).identities?.length === 0) {
-      // Email enumeration protection: Supabase returns fake success with empty identities
-      // when the email is already registered
+    } else if (
+      data.user &&
+      Array.isArray((data.user as { identities?: unknown[] }).identities) &&
+      (data.user as { identities?: unknown[] }).identities?.length === 0
+    ) {
       setEmailConflict(true)
     } else {
       setSuccess('Sprawdź swoją skrzynkę e-mail i potwierdź konto.')
@@ -122,7 +160,8 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signInWithGoogle() {
-    setLoading(true); reset()
+    setLoading(true)
+    reset()
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -133,14 +172,43 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function sendResetEmail() {
-    setLoading(true); reset()
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    if (resetBlocked) {
+      setError(`Odczekaj ${formatCooldown(cooldownLeftSeconds)} przed kolejnym wysłaniem linku.`)
+      return
+    }
+
+    setLoading(true)
+    reset()
+    const response = await fetch('/api/auth/password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
     })
+    const data = await response.json().catch(() => ({}))
     setLoading(false)
-    if (error) setError(translateAuthError(error.message))
-    else setSuccess('Link do resetowania hasła został wysłany na podany adres.')
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        const retryAfterSeconds = typeof data?.retryAfterSeconds === 'number' ? data.retryAfterSeconds : 300
+        setResetCooldown({
+          email: normalizedEmail,
+          until: Date.now() + retryAfterSeconds * 1000,
+        })
+        setCooldownNow(Date.now())
+        setError('Link do resetowania hasła można wysłać tylko raz na 5 minut.')
+      } else {
+        setError(translateAuthError(String(data?.error ?? 'Nie udało się wysłać linku resetującego.')))
+      }
+      return
+    }
+
+    const retryAfterSeconds = typeof data?.retryAfterSeconds === 'number' ? data.retryAfterSeconds : 300
+    setResetCooldown({
+      email: normalizedEmail,
+      until: Date.now() + retryAfterSeconds * 1000,
+    })
+    setCooldownNow(Date.now())
+    setSuccess('Link do resetowania hasła został wysłany na podany adres.')
   }
 
   const titles: Record<View, string> = {
@@ -157,19 +225,30 @@ export default function AuthModal({ open, onClose }: Props) {
             {error}
           </div>
         )}
+
         {success && (
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
             {success}
           </div>
         )}
 
-        {/* === LOGIN === */}
         {view === 'login' && (
           <div className="space-y-3">
-            <input value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="Email" className="form-input" autoComplete="email" />
-            <input value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Hasło" type="password" className="form-input" autoComplete="current-password" />
+            <input
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="E-mail"
+              className="form-input"
+              autoComplete="email"
+            />
+            <input
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Hasło"
+              type="password"
+              className="form-input"
+              autoComplete="current-password"
+            />
             <button className="btn btn-primary w-full" onClick={signInWithEmail} disabled={loading}>
               {loading ? 'Logowanie…' : 'Zaloguj się'}
             </button>
@@ -193,7 +272,6 @@ export default function AuthModal({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* === REGISTER === */}
         {view === 'register' && (
           <div className="space-y-3">
             {success ? (
@@ -209,38 +287,63 @@ export default function AuthModal({ open, onClose }: Props) {
               </div>
             ) : (
               <>
-                <input value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="Imię i nazwisko (opcjonalne)" className="form-input" autoComplete="name" />
-                <input value={company} onChange={e => setCompany(e.target.value)}
-                  placeholder="Firma / klub (opcjonalne)" className="form-input" autoComplete="organization" />
-                <input value={email} onChange={e => { setEmail(e.target.value); setEmailConflict(false) }}
-                  placeholder="Email" className="form-input" autoComplete="email" />
+                <input
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="Imię i nazwisko (opcjonalne)"
+                  className="form-input"
+                  autoComplete="name"
+                />
+                <input
+                  value={company}
+                  onChange={e => setCompany(e.target.value)}
+                  placeholder="Firma / klub (opcjonalne)"
+                  className="form-input"
+                  autoComplete="organization"
+                />
+                <input
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setEmailConflict(false) }}
+                  placeholder="E-mail"
+                  className="form-input"
+                  autoComplete="email"
+                />
                 {emailConflict && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
                     <p className="text-sm text-amber-800 font-semibold">Ten adres e-mail jest już zarejestrowany.</p>
                     <p className="text-xs text-amber-700">Być może logowałeś się wcześniej przez Google.</p>
                     <div className="space-y-2">
                       <GoogleButton disabled={loading} onClick={signInWithGoogle} />
-                      <button type="button" className="w-full text-sm text-accent hover:text-orange-600 font-medium transition-colors"
-                        onClick={() => switchView('forgot')}>
+                      <button
+                        type="button"
+                        className="w-full text-sm text-accent hover:text-orange-600 font-medium transition-colors"
+                        onClick={() => switchView('forgot')}
+                      >
                         Wyślij link do resetowania hasła
                       </button>
                     </div>
                   </div>
                 )}
                 <div>
-                  <input value={password} onChange={e => setPassword(e.target.value)}
-                    placeholder="Hasło" type="password" className="form-input" autoComplete="new-password" />
+                  <input
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Hasło"
+                    type="password"
+                    className="form-input"
+                    autoComplete="new-password"
+                  />
                   {password.length > 0 && (
                     <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
                       {([
-                        [pwChecks.length,  'Min. 9 znaków'],
-                        [pwChecks.upper,   'Duża litera'],
-                        [pwChecks.digit,   'Cyfra'],
+                        [pwChecks.length, 'Min. 9 znaków'],
+                        [pwChecks.upper, 'Duża litera'],
+                        [pwChecks.digit, 'Cyfra'],
                         [pwChecks.special, 'Znak specjalny'],
                       ] as [boolean, string][]).map(([ok, label]) => (
                         <span key={label} className={`flex items-center gap-1 text-xs ${ok ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                          <span className="font-bold">{ok ? '✓' : '○'}</span>{label}
+                          <span className="font-bold">{ok ? '✓' : '○'}</span>
+                          {label}
                         </span>
                       ))}
                     </div>
@@ -269,17 +372,26 @@ export default function AuthModal({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* === FORGOT PASSWORD === */}
         {view === 'forgot' && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Podaj swój adres e-mail, a wyślemy Ci link do resetowania hasła.
             </p>
-            <input value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="Email" className="form-input" autoComplete="email" />
-            <button className="btn btn-primary w-full" onClick={sendResetEmail} disabled={loading}>
-              {loading ? 'Wysyłanie…' : 'Wyślij link'}
+            <input
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="E-mail"
+              className="form-input"
+              autoComplete="email"
+            />
+            <button className="btn btn-primary w-full" onClick={sendResetEmail} disabled={loading || resetBlocked}>
+              {loading ? 'Wysyłanie…' : resetBlocked ? `Odczekaj ${formatCooldown(cooldownLeftSeconds)}` : 'Wyślij link'}
             </button>
+            {resetBlocked && (
+              <p className="text-xs text-center text-slate-500">
+                Dla tego adresu kolejny link wyślesz za {formatCooldown(cooldownLeftSeconds)}.
+              </p>
+            )}
             <p className="text-sm text-center pt-1">
               <button onClick={() => switchView('login')} className="text-accent hover:text-orange-600 font-medium transition-colors">
                 Wróć do logowania
@@ -291,4 +403,3 @@ export default function AuthModal({ open, onClose }: Props) {
     </Modal>
   )
 }
-

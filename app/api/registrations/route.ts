@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
+import { isEventRegistrationOpen } from '@/lib/eventStatus'
 
 export async function GET(req: Request) {
   const auth = await checkRoleForApi(['organizer', 'admin'])
@@ -55,12 +56,12 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, status, auto_confirm, max_participants, title, start_at, location, form_fields')
+    .select('id, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline')
     .eq('id', eventId)
     .single()
 
   if (!event) return NextResponse.json({ error: 'Wydarzenie nie istnieje' }, { status: 404 })
-  if (event.status !== 'upcoming') {
+  if (!isEventRegistrationOpen(event)) {
     return NextResponse.json({ error: 'Zapisy na to wydarzenie są zamknięte' }, { status: 409 })
   }
 
@@ -148,6 +149,10 @@ export async function POST(req: Request) {
     .single()
 
   if (rError || !registration) {
+    await supabase
+      .from('participants')
+      .delete()
+      .eq('id', participant.id)
     return NextResponse.json(
       { error: rError?.message ?? 'Błąd tworzenia zapisu' },
       { status: 500 }

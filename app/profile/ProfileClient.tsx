@@ -71,6 +71,9 @@ export default function ProfileClient({ email, fullName, company, role, createdA
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
+      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        ← Strona główna
+      </Link>
       <h1 className="page-title">Profil</h1>
 
       {/* Avatar + meta */}

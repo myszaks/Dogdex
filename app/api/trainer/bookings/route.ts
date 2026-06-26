@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/getServerUser'
 
 export async function GET() {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const supabase = await createAuthClient()
 

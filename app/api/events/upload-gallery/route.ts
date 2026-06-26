@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     })
 
   if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się przesłać zdjęcia' }, { status: 500 })
   }
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filename)

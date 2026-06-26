@@ -10,13 +10,13 @@ export async function GET() {
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się pobrać typów treningów' }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function POST(req: Request) {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   // Only organizers and admins can create training types
   if (role !== 'organizer' && role !== 'admin') {
@@ -51,6 +51,6 @@ export async function POST(req: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się utworzyć typu treningu' }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

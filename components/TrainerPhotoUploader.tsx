@@ -60,7 +60,7 @@ export default function TrainerPhotoUploader({ currentUrl, onUrlChange }: Props)
       const res = await fetch('/api/trainer/upload-photo', { method: 'POST', body: fd })
       const json = await res.json()
 
-      if (!res.ok) throw new Error(json.error ?? 'Błąd uploadu')
+      if (!res.ok) throw new Error(json.error ?? 'Błąd przesyłania zdjęcia')
 
       // Delete old photo if exists
       if (currentUrl) {
@@ -71,7 +71,7 @@ export default function TrainerPhotoUploader({ currentUrl, onUrlChange }: Props)
       setSrcUrl(null)
       inputRef.current!.value = ''
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Błąd uploadu')
+      setError(err instanceof Error ? err.message : 'Błąd przesyłania zdjęcia')
     } finally {
       setUploading(false)
     }

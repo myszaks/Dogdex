@@ -42,7 +42,16 @@ export async function GET(req: Request) {
 
   function escapeCsv(val: unknown): string {
     if (val == null) return ''
-    const str = Array.isArray(val) ? val.join('; ') : String(val)
+    const formatValue = (value: unknown): string => {
+      if (typeof value === 'boolean') return value ? 'Tak' : 'Nie'
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase()
+        if (normalized === 'true') return 'Tak'
+        if (normalized === 'false') return 'Nie'
+      }
+      return String(value)
+    }
+    const str = Array.isArray(val) ? val.map(formatValue).join('; ') : formatValue(val)
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
       return `"${str.replace(/"/g, '""')}"`
     }

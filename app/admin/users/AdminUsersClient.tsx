@@ -10,6 +10,11 @@ type Profile = {
 }
 
 const ALL_ROLES = ['user', 'organizer', 'admin']
+const ROLE_LABELS: Record<string, string> = {
+  user: 'Użytkownik',
+  organizer: 'Organizator',
+  admin: 'Administrator',
+}
 
 export default function AdminUsersClient() {
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -79,7 +84,7 @@ export default function AdminUsersClient() {
                       className="form-input w-36 py-1"
                     >
                       {ALL_ROLES.map(r => (
-                        <option key={r} value={r}>{r}</option>
+                        <option key={r} value={r}>{ROLE_LABELS[r] ?? 'Nieznana rola'}</option>
                       ))}
                     </select>
                     {saving === p.id && (

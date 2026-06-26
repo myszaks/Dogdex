@@ -39,6 +39,27 @@ export function parseRunMs(s: string): number | null {
   return Math.round(v * 1000)
 }
 
+function parseHeightCm(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = parseFloat(String(value).replace(',', '.'))
+  return Number.isNaN(n) ? null : n
+}
+
+function isHeightFieldKey(key: string): boolean {
+  const normalized = key
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  return (
+    normalized === 'height_cm' ||
+    normalized.startsWith('height_cm_') ||
+    normalized.includes('wzrost') ||
+    normalized.includes('wysokosc') ||
+    normalized.includes('height')
+  )
+}
+
 /** Wyznacza najlepszy czas (null jeśli oba brak) */
 export function bestMs(run1: number | null, run2: number | null): number | null {
   if (run1 !== null && run2 !== null) return Math.min(run1, run2)
@@ -67,10 +88,10 @@ export function extractSizeClassFromFormData(
   if (!formData) return null
 
   // 1. height_cm → przelicz wzrost na klasę
-  const heightRaw = formData.height_cm
-  if (heightRaw !== null && heightRaw !== undefined && heightRaw !== '') {
-    const n = parseFloat(String(heightRaw))
-    if (!isNaN(n)) return getSizeClass(n)
+  for (const [key, value] of Object.entries(formData)) {
+    if (!isHeightFieldKey(key)) continue
+    const height = parseHeightCm(value)
+    if (height !== null) return getSizeClass(height)
   }
 
   // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana

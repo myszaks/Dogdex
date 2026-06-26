@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: Params) {
     .eq('id', id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Nie znaleziono rezerwacji' }, { status: 404 })
 
   return NextResponse.json(data)
@@ -28,7 +28,7 @@ export async function GET(req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: Record<string, unknown>
   try {
@@ -92,7 +92,7 @@ export async function PATCH(req: Request, { params }: Params) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się zaktualizować rezerwacji' }, { status: 500 })
 
   // Send emails based on status change
   if (status === 'confirmed' && isTrainer) {

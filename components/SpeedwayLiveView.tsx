@@ -100,6 +100,9 @@ export default function SpeedwayLiveView({
   const participantsMap = Object.fromEntries(
     participants.map(p => [p.participantId, p])
   )
+  const participantOrder = Object.fromEntries(
+    participants.map((p, index) => [p.participantId, index])
+  )
 
   // Classes that actually have stored results (authoritative grouping for results table)
   const activeResultClasses = SIZE_CLASSES.filter(cls =>
@@ -113,6 +116,21 @@ export default function SpeedwayLiveView({
       .select('id, participant_id, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank')
       .eq('event_id', eventId)
     if (data) setResults(data as SpeedwayResult[])
+  }, [eventId, supabase])
+
+  const fetchEventState = useCallback(async () => {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('events')
+      .select('current_start_index, live_phase')
+      .eq('id', eventId)
+      .single()
+
+    if (!data) return
+    if (typeof data.current_start_index === 'number') setStartIndex(data.current_start_index)
+    if (typeof data.live_phase === 'string' || data.live_phase === null) {
+      setLivePhase(data.live_phase as string | null)
+    }
   }, [eventId, supabase])
 
   useEffect(() => {
@@ -141,16 +159,32 @@ export default function SpeedwayLiveView({
       )
       .subscribe()
 
+    const interval = window.setInterval(() => {
+      fetchEventState()
+      fetchResults()
+    }, 5000)
+
+    const refresh = () => {
+      fetchEventState()
+      fetchResults()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+
     return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
       supabase.removeChannel(resultsChannel)
       supabase.removeChannel(eventChannel)
     }
-  }, [eventId, fetchResults, supabase])
+  }, [eventId, fetchEventState, fetchResults, supabase])
 
-  // Decode current + next 2 positions
+  // Decode current + upcoming positions using the same sequence as organizer entry.
   const current = decodeGlobalIndex(startIndex, activeSizeClasses, byCls)
-  const next1 = decodeGlobalIndex(startIndex + 1, activeSizeClasses, byCls)
-  const next2 = decodeGlobalIndex(startIndex + 2, activeSizeClasses, byCls)
+  const upcoming = Array.from({ length: 5 }, (_, i) =>
+    decodeGlobalIndex(startIndex + i + 1, activeSizeClasses, byCls)
+  ).filter((position): position is DecodedPosition => position !== null)
 
   // Results map by participant_id
   const resultsMap: Record<string, SpeedwayResult> = {}
@@ -254,32 +288,43 @@ export default function SpeedwayLiveView({
             </div>
           </div>
 
-          {(next1 || next2) && (
+          {upcoming.length > 0 && (
             <div className="card bg-slate-50 mt-3">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">
                 Przygotowuje się
               </p>
               <div className="space-y-2">
-                {([next1, next2] as const).filter(Boolean).map((n, i) =>
-                  n ? (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
-                        {n.dogInClass + 1}
-                      </span>
-                      <div>
-                        <p className="font-medium text-slate-700 text-sm">
-                          {n.participant.dogName ?? '—'}
-                        </p>
-                        <p className="text-xs text-slate-400">{n.participant.ownerName ?? '—'}</p>
-                        {n.run !== current.run && (
-                          <span className="text-xs font-semibold text-sky-500">
-                            Runda {n.run}
+                {upcoming.map((n, i) => {
+                  const prev = i === 0 ? current : upcoming[i - 1]
+                  const startsNewClass = prev.cls !== n.cls
+                  return (
+                    <div key={`${n.participant.participantId}-${n.run}-${i}`} className="space-y-2">
+                      {startsNewClass && (
+                        <div className="flex items-center gap-2 py-1">
+                          <span className="h-px flex-1 bg-sky-200" />
+                          <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-sky-700">
+                            Następna klasa: {n.cls}
                           </span>
-                        )}
+                          <span className="h-px flex-1 bg-sky-200" />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
+                          {n.dogInClass + 1}
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-700 text-sm">
+                            {n.participant.dogName ?? '—'}
+                          </p>
+                          <p className="text-xs text-slate-400">{n.participant.ownerName ?? '—'}</p>
+                          <span className="text-xs font-semibold text-sky-500">
+                            Klasa {n.cls} · Runda {n.run}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ) : null
-                )}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -299,15 +344,7 @@ export default function SpeedwayLiveView({
             r.run2_ms !== null || r.run2_status !== null
           ))
           .sort((a, b) => {
-            const ra = a.class_rank ?? null
-            const rb = b.class_rank ?? null
-            if (ra !== null && rb !== null) return ra - rb
-            const ba = a.best_ms ?? null
-            const bb = b.best_ms ?? null
-            if (ba !== null && bb !== null) return ba - bb
-            if (ba !== null) return -1
-            if (bb !== null) return 1
-            return 0
+            return (participantOrder[a.participant_id] ?? 9999) - (participantOrder[b.participant_id] ?? 9999)
           })
           .map(r => ({ r, p: participantsMap[r.participant_id] ?? null }))
 
@@ -322,26 +359,19 @@ export default function SpeedwayLiveView({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-left">
-                    <th className="px-4 py-2 w-8 text-xs font-semibold text-slate-400">#</th>
-                    <th className="px-2 py-2 text-xs font-semibold text-slate-400">Pies</th>
+                    <th className="px-4 py-2 text-xs font-semibold text-slate-400">Pies</th>
                     <th className="px-2 py-2 text-xs font-semibold text-slate-400 text-right">R1</th>
-                    <th className="px-2 py-2 text-xs font-semibold text-slate-400 text-right">R2</th>
-                    <th className="px-4 py-2 text-xs font-semibold text-slate-400 text-right">Najlepszy</th>
+                    <th className="px-4 py-2 text-xs font-semibold text-slate-400 text-right">R2</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {clsResults.map(({ p, r }, i) => {
-                    const rank = r?.class_rank ?? i + 1
-                    const hasFinalRank = r?.class_rank !== null
+                  {clsResults.map(({ p, r }) => {
                     return (
                       <tr
                         key={r.participant_id}
-                        className={i === 0 && hasFinalRank ? 'bg-yellow-50' : 'hover:bg-slate-50'}
+                        className="hover:bg-slate-50"
                       >
-                        <td className="px-4 py-3 font-bold text-slate-500 w-8">
-                          {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`}
-                        </td>
-                        <td className="px-2 py-3">
+                        <td className="px-4 py-3">
                           <p className="font-medium text-slate-800">{p?.dogName ?? '—'}</p>
                           <p className="text-xs text-slate-400">{p?.ownerName ?? '—'}</p>
                         </td>
@@ -350,11 +380,6 @@ export default function SpeedwayLiveView({
                         </td>
                         <td className="px-2 py-3 font-mono text-right text-slate-600">
                           {timeDisplay(r?.run2_ms ?? null, r?.run2_status ?? null)}
-                        </td>
-                        <td className={`px-4 py-3 font-mono font-semibold text-right ${
-                          r?.best_ms !== null ? 'text-sky-600' : 'text-slate-300'
-                        }`}>
-                          {timeDisplay(r?.best_ms ?? null, null)}
                         </td>
                       </tr>
                     )

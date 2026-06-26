@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
 import { formatDate, isRegistrationOpen, effectiveStatus } from '@/lib/utils'
 import RegisterForm from '@/components/RegisterForm'
 import { getEventType } from '@/lib/eventTypes'
@@ -41,10 +42,14 @@ export default async function RegisterPage({ params }: Props) {
 
   const regOpen = isRegistrationOpen(event)
   const dispStatus = effectiveStatus(event)
+  const eventHref = `/events/${event.slug ?? event.id}`
 
   if (dispStatus !== 'upcoming' || !regOpen) {
     return (
       <div className="max-w-lg mx-auto">
+        <Link href={eventHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+          ← Powrót do wydarzenia
+        </Link>
         <div className="card text-center py-16">
           <p className="text-5xl mb-4">{dispStatus !== 'upcoming' ? '🚫' : '🔒'}</p>
           <p className="text-lg font-semibold text-slate-700">
@@ -65,6 +70,9 @@ export default async function RegisterPage({ params }: Props) {
 
   return (
     <div className="max-w-lg mx-auto">
+      <Link href={eventHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Powrót do wydarzenia
+      </Link>
       <h1 className="page-title">📋 Zapis na wydarzenie</h1>
 
       <div className="card mb-6 bg-sky-50 border-sky-200">

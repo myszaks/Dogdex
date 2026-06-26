@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Wszystkie pola są wymagane' }, { status: 400 })
   }
   if (!EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: 'Nieprawidłowy adres email' }, { status: 400 })
+    return NextResponse.json({ error: 'Nieprawidłowy adres e-mail' }, { status: 400 })
   }
   if (name.length > 120 || subject.length > 200 || message.length > 5000) {
     return NextResponse.json({ error: 'Przekroczono maksymalną długość pola' }, { status: 400 })

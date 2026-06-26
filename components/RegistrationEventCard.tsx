@@ -16,13 +16,18 @@ const regStatusConfig: Record<string, { label: string; className: string; Icon: 
 }
 
 function formatFieldValue(field: FormField, val: unknown): string {
+  if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
+  if (field.type === 'checkbox' && typeof val === 'string') {
+    const normalized = val.trim().toLowerCase()
+    if (normalized === 'true') return 'Tak'
+    if (normalized === 'false') return 'Nie'
+  }
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => { try { return formatDateShort(d as string) } catch { return String(d) } }).join(', ')
     }
-    return val.join(', ')
+    return val.map(v => formatFieldValue(field, v)).join(', ')
   }
-  if (field.type === 'checkbox') return val ? 'Tak' : 'Nie'
   return String(val)
 }
 

@@ -4,7 +4,7 @@ import { getServerUser, canManageTrainerResource } from '@/lib/getServerUser'
 
 export async function POST(req: Request) {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: Record<string, unknown>
   try {
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const url = new URL(req.url)
   const id = url.searchParams.get('id')

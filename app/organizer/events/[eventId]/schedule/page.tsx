@@ -71,6 +71,9 @@ export default async function SchedulePage({ params }: Props) {
 
   return (
     <div>
+      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Panel organizatora
+      </Link>
       {/* Tab navigation */}
       <div className="flex gap-1 mb-6 border-b border-slate-200">
         <Link

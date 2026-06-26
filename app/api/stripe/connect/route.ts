@@ -3,7 +3,7 @@ import { getServerUser } from '@/lib/getServerUser'
 
 export async function GET() {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const clientId = process.env.STRIPE_CLIENT_ID
   const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/callback`

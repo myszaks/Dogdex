@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/getServerUser'
 
 export async function POST(req: NextRequest) {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File | null
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         upsert: false,
       })
 
-    if (error) throw new Error(error.message)
+    if (error) throw new Error('Nie udało się przesłać zdjęcia')
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('Upload error:', err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Błąd uploadu' },
+      { error: err instanceof Error ? err.message : 'Błąd przesyłania zdjęcia' },
       { status: 500 }
     )
   }
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'Brak URL' }, { status: 400 })

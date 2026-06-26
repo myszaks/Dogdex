@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const { user } = await getServerUser()
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
 
     // Fetch trainer's date availability slots
@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
       .order('available_date', { ascending: true })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Nie udało się pobrać dostępności' }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
   } catch (err) {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
     )
   }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   try {
     const { user } = await getServerUser()
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (!available_date || !start_time || !end_time) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Brakuje wymaganych pól' },
         { status: 400 }
       )
     }
@@ -80,13 +80,13 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         )
       }
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Nie udało się zapisać dostępności' }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (err) {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
     )
   }
@@ -96,14 +96,14 @@ export async function DELETE(request: NextRequest) {
   try {
     const { user } = await getServerUser()
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
 
     const body = await request.json()
     const { id } = body
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      return NextResponse.json({ error: 'Brakuje identyfikatora' }, { status: 400 })
     }
 
     // Verify the slot belongs to the trainer
@@ -115,7 +115,7 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (fetchError || !slot) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
     }
 
     // Delete the slot
@@ -125,13 +125,13 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Nie udało się usunąć dostępności' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (err) {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
     )
   }

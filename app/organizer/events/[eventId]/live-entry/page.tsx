@@ -1,5 +1,5 @@
 import { createAuthClient } from '@/lib/supabaseServer'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireRole } from '@/lib/getServerUser'
 import LiveEntryClient from './LiveEntryClient'
 import Link from 'next/link'
@@ -24,6 +24,9 @@ export default async function LiveEntryPage({ params }: Props) {
   if (!event) notFound()
   if (!event.has_results) notFound()
   const eventId = event.id
+  if (event.event_type_id === 'speedway') {
+    redirect(`/organizer/events/${event.slug ?? eventId}/results`)
+  }
 
   const [{ data: registrations }, { data: results }] = await Promise.all([
     supabase

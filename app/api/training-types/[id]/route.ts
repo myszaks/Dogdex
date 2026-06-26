@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: Params) {
     .eq('id', id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się pobrać typu treningu' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
   return NextResponse.json(data)
@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const { id } = await params
   const supabase = await createAuthClient()
@@ -45,6 +45,6 @@ export async function DELETE(req: Request, { params }: Params) {
     .delete()
     .eq('id', id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się usunąć typu treningu' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

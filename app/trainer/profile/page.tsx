@@ -7,6 +7,11 @@ import { ArrowLeft, Check } from 'lucide-react'
 import type { TrainerProfile } from '@/types'
 import TrainerPhotoUploader from '@/components/TrainerPhotoUploader'
 
+const STRIPE_ERROR_MESSAGES: Record<string, string> = {
+  Brak_autoryzacji: 'Brak autoryzacji Stripe. Spróbuj połączyć konto ponownie.',
+  Stripe_error: 'Nie udało się połączyć konta Stripe. Spróbuj ponownie za chwilę.',
+}
+
 export default function TrainerProfilePage() {
   const searchParams = useSearchParams()
   const [profile, setProfile] = useState<TrainerProfile & { stripe_onboarded?: boolean } | null>(null)
@@ -35,7 +40,7 @@ export default function TrainerProfilePage() {
       setTimeout(() => setSaved(false), 3000)
     }
     if (stripeError) {
-      setError(`Błąd Stripe: ${stripeError}`)
+      setError(STRIPE_ERROR_MESSAGES[stripeError] ?? 'Wystąpił błąd Stripe. Spróbuj ponownie za chwilę.')
       setTimeout(() => setError(null), 5000)
     }
   }, [searchParams])
@@ -128,6 +133,10 @@ export default function TrainerProfilePage() {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
+        <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
+          <ArrowLeft className="w-4 h-4" />
+          Wróć do panelu
+        </Link>
         <div className="text-center text-slate-500">Ładowanie…</div>
       </div>
     )

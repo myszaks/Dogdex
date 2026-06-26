@@ -42,6 +42,9 @@ export default async function ResultsPage({ params }: Props) {
   if (!event.has_results) {
     return (
       <div>
+        <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+          ← Panel organizatora
+        </Link>
         <h1 className="page-title">🏆 Wyniki</h1>
         <div className="card text-center py-12 text-slate-500">
           <p className="text-4xl mb-3">⚙️</p>
@@ -93,10 +96,13 @@ export default async function ResultsPage({ params }: Props) {
 
   return (
     <div>
+      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Panel organizatora
+      </Link>
       <h1 className="page-title">🏆 Wyniki</h1>
 
       {/* Live control panel – only for ongoing events with ordered participants */}
-      {effectiveStatus(event) === 'ongoing' && (registrations?.length ?? 0) > 0 && (
+      {effectiveStatus(event) === 'ongoing' && !isSpeedway && (registrations?.length ?? 0) > 0 && (
         <div className="space-y-3 mb-5">
           <NextStartButton
             eventId={eventId}

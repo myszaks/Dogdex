@@ -37,15 +37,20 @@ interface RegistrationEmailPayload {
 }
 
 function formatFieldValue(field: FormField, val: unknown): string {
+  if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
+  if (field.type === 'checkbox' && typeof val === 'string') {
+    const normalized = val.trim().toLowerCase()
+    if (normalized === 'true') return 'Tak'
+    if (normalized === 'false') return 'Nie'
+  }
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => {
         try { return escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d as string))) } catch { return escHtml(String(d)) }
       }).join(', ')
     }
-    return val.map(v => escHtml(String(v))).join(', ')
+    return val.map(v => escHtml(formatFieldValue(field, v))).join(', ')
   }
-  if (field.type === 'checkbox') return val ? 'Tak' : 'Nie'
   return escHtml(String(val))
 }
 
@@ -554,7 +559,7 @@ export async function sendContactEmail(payload: ContactEmailPayload): Promise<vo
           <td style="padding:10px 14px;font-weight:600">${escHtml(payload.name)}</td>
         </tr>
         <tr>
-          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">Email:</td>
+          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">E-mail:</td>
           <td style="padding:10px 14px;border-top:1px solid #e2e8f0">
             <a href="mailto:${escHtml(payload.email)}" style="color:#0369a1">${escHtml(payload.email)}</a>
           </td>

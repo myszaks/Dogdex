@@ -105,7 +105,7 @@ export default function ContactModal({ open, onClose }: Props) {
               />
             </div>
             <div>
-              <label className="form-label">Email *</label>
+              <label className="form-label">E-mail *</label>
               <input
                 type="email"
                 required

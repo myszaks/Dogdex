@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/getServerUser'
 
 export async function GET() {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   // Only organizers and admins can view their trainer profile
   if (role !== 'organizer' && role !== 'admin') {
@@ -19,7 +19,7 @@ export async function GET() {
     .single()
 
   if (error && error.code !== 'PGRST116') {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się pobrać profilu trenera' }, { status: 500 })
   }
 
   // Return null if no profile exists (user can create one)
@@ -28,7 +28,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const { user, role } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   // Only organizers and admins can create/update trainer profile
   if (role !== 'organizer' && role !== 'admin') {
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Nie udało się zaktualizować profilu trenera' }, { status: 500 })
     return NextResponse.json(data)
   } else {
     // Create new
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Nie udało się utworzyć profilu trenera' }, { status: 500 })
     return NextResponse.json(data, { status: 201 })
   }
 }

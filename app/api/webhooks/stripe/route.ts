@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json(
-      { error: 'Missing signature or webhook secret' },
+      { error: 'Brakuje podpisu lub sekretu webhooka' },
       { status: 400 }
     )
   }
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error('[Webhook] Unexpected error:', err)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
     )
   }

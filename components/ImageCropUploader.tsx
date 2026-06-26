@@ -47,7 +47,7 @@ async function cropToBlob(image: HTMLImageElement, pixelCrop: PixelCrop, type: s
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
       if (blob) resolve(blob)
-      else reject(new Error('Canvas toBlob failed'))
+      else reject(new Error('Nie udało się przygotować zdjęcia.'))
     }, type, 0.88)
   })
 }
@@ -99,7 +99,7 @@ export default function ImageCropUploader({ currentUrl, onUrlChange }: Props) {
 
       const res = await fetch('/api/events/upload-thumbnail', { method: 'POST', body: fd })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? 'Błąd uploadu')
+      if (!res.ok) throw new Error(json.error ?? 'Błąd przesyłania zdjęcia')
 
       // if replacing existing, delete old
       if (currentUrl) {
@@ -109,7 +109,7 @@ export default function ImageCropUploader({ currentUrl, onUrlChange }: Props) {
       onUrlChange(json.url)
       setSrcUrl(null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Błąd uploadu')
+      setError(err instanceof Error ? err.message : 'Błąd przesyłania zdjęcia')
     } finally {
       setUploading(false)
     }

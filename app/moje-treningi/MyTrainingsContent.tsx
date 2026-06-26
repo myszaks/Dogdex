@@ -100,7 +100,7 @@ export default function MyTrainingsContent() {
       case 'completed':
         return 'Ukończone'
       default:
-        return status
+        return 'Nieznany status'
     }
   }
 
@@ -118,6 +118,9 @@ export default function MyTrainingsContent() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12">
+        <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+          ← Profil
+        </Link>
         <div className="text-center text-slate-500">Ładowanie…</div>
       </div>
     )
@@ -132,6 +135,9 @@ export default function MyTrainingsContent() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+      <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Profil
+      </Link>
       <div className="mb-8">
         <h1 className="page-title mb-2">Moje Treningi</h1>
         <p className="text-muted-foreground">

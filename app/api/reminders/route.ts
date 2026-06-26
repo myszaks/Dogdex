@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const querySecret = searchParams.get('secret') ?? ''
     const provided = authHeader.replace(/^Bearer\s+/i, '') || querySecret
     if (provided !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
   }
 

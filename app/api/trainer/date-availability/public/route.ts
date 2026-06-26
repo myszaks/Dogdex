@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const trainerId = searchParams.get('trainer_id')
 
     if (!trainerId) {
-      return NextResponse.json({ error: 'Missing trainer_id' }, { status: 400 })
+      return NextResponse.json({ error: 'Brakuje identyfikatora trenera' }, { status: 400 })
     }
 
     // Fetch trainer's date availability slots (public)
@@ -25,13 +25,13 @@ export async function GET(request: NextRequest) {
       .order('available_date', { ascending: true })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Nie udało się pobrać dostępnych terminów' }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
   } catch (err) {
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
     )
   }

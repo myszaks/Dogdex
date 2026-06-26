@@ -146,6 +146,10 @@ export default function BookTrainingPage({ params }: Props) {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
+        <Link href={trainerId ? `/trainings/${trainerId}` : '/trainings'} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
+          <ArrowLeft className="w-4 h-4" />
+          Wróć
+        </Link>
         <div className="text-center text-slate-500">Ładowanie…</div>
       </div>
     )

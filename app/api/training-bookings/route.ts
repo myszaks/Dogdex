@@ -16,7 +16,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 export async function GET() {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const supabase = await createAuthClient()
   const { data, error } = await supabase
@@ -29,13 +29,13 @@ export async function GET() {
     .eq('user_id', user.id)
     .order('scheduled_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function POST(req: Request) {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Nie autoryzowany' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: Record<string, unknown>
   try {
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     .eq('trainer_id', trainingType.trainer_id)
 
   if (trainerTrainingTypesError) {
-    return NextResponse.json({ error: trainerTrainingTypesError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się sprawdzić dostępności trenera' }, { status: 500 })
   }
 
   const trainerTrainingTypeIds = (trainerTrainingTypes || []).map(type => type.id)
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     .lt('scheduled_at', endTime.toISOString())
 
   if (conflictsError) {
-    return NextResponse.json({ error: conflictsError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się sprawdzić konfliktów rezerwacji' }, { status: 500 })
   }
 
   const hasConflict = (existingBookings || []).some(existing =>
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 })
 
   const userEmail = user.email || ''
   const userName = user.user_metadata?.full_name || 'Użytkownik'

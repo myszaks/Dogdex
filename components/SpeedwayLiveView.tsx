@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
@@ -82,6 +82,7 @@ export default function SpeedwayLiveView({
   participants,
   initialResults,
 }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const [startIndex, setStartIndex] = useState(initialStartIndex)
   const [livePhase, setLivePhase] = useState(initialLivePhase)
   const [results, setResults] = useState<SpeedwayResult[]>(initialResults)
@@ -106,14 +107,17 @@ export default function SpeedwayLiveView({
   )
 
   const fetchResults = useCallback(async () => {
+    if (!supabase) return
     const { data } = await supabase
       .from('results')
       .select('id, participant_id, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank')
       .eq('event_id', eventId)
     if (data) setResults(data as SpeedwayResult[])
-  }, [eventId])
+  }, [eventId, supabase])
 
   useEffect(() => {
+    if (!supabase) return
+
     const resultsChannel = supabase
       .channel(`sw-results-${eventId}`)
       .on(
@@ -141,7 +145,7 @@ export default function SpeedwayLiveView({
       supabase.removeChannel(resultsChannel)
       supabase.removeChannel(eventChannel)
     }
-  }, [eventId, fetchResults])
+  }, [eventId, fetchResults, supabase])
 
   // Decode current + next 2 positions
   const current = decodeGlobalIndex(startIndex, activeSizeClasses, byCls)

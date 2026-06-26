@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { formatDateShort } from '@/lib/utils'
 import type { FormField, Dog } from '@/types'
 import useUser from '@/hooks/useUser'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 interface Props {
   eventId: string
@@ -113,6 +113,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 
 
 export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
 
@@ -130,7 +131,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   const [profileName, setProfileName] = useState<string>('')
 
   useEffect(() => {
-    if (!isLoggedIn || !user) return
+    if (!isLoggedIn || !user || !supabase) return
 
     // Fetch user's full name from profile
     supabase
@@ -149,7 +150,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         if (Array.isArray(dogs)) setUserDogs(dogs)
       })
       .catch(() => {})
-  }, [isLoggedIn, user?.id])
+  }, [isLoggedIn, user?.id, supabase])
 
   function handleDogSelect(dogId: string) {
     setSelectedDogId(dogId)

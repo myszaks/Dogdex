@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
-import { supabase } from '@/lib/supabaseClient'
+import { requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 type View = 'login' | 'register' | 'forgot'
 type Props = { open: boolean; onClose: () => void }
@@ -113,6 +113,7 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signInWithEmail() {
+    const supabase = requireSupabaseBrowserClient()
     setLoading(true)
     reset()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -122,6 +123,7 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signUpWithEmail() {
+    const supabase = requireSupabaseBrowserClient()
     if (!pwValid) {
       setError('Hasło nie spełnia wymagań złożoności.')
       return
@@ -160,6 +162,7 @@ export default function AuthModal({ open, onClose }: Props) {
   }
 
   async function signInWithGoogle() {
+    const supabase = requireSupabaseBrowserClient()
     setLoading(true)
     reset()
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin

@@ -1,7 +1,7 @@
 "use client"
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
-import type { User, Session } from '@supabase/supabase-js'
+import { getSupabaseBrowserClient, requireSupabaseBrowserClient } from '@/lib/supabaseClient'
+import type { User, Session, RealtimeChannel } from '@supabase/supabase-js'
 
 type AuthContextValue = {
   user: User | null
@@ -15,14 +15,16 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = getSupabaseBrowserClient()
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
 
   async function fetchRole(userId: string) {
-    const { data } = await supabase
+    const client = requireSupabaseBrowserClient()
+    const { data } = await client
       .from('profiles')
       .select('role')
       .eq('id', userId)
@@ -31,13 +33,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function subscribeToProfileChanges(userId: string) {
+    const client = getSupabaseBrowserClient()
+    if (!client) return
+
     // Clean up any existing channel first
     if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current)
+      client.removeChannel(realtimeChannelRef.current)
       realtimeChannelRef.current = null
     }
 
-    const channel = supabase
+    const channel = client
       .channel(`profile-role-${userId}`)
       .on(
         'postgres_changes',
@@ -58,17 +63,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function unsubscribeFromProfileChanges() {
+    const client = getSupabaseBrowserClient()
     if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current)
+      client?.removeChannel(realtimeChannelRef.current)
       realtimeChannelRef.current = null
     }
   }
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
+
+    const client = supabase
     let mounted = true
 
     async function init() {
-      const { data } = await supabase.auth.getSession()
+      const { data } = await client.auth.getSession()
       const sess = data.session
       if (!mounted) return
       setSession(sess)
@@ -82,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init()
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+    const { data: sub } = client.auth.onAuthStateChange((event, s) => {
       // Redirect to password reset page whenever a recovery session is established
       if (event === 'PASSWORD_RECOVERY') {
         window.location.href = '/reset-password'
@@ -102,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Refresh role when user returns to the tab (fallback for when Realtime is not enabled)
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        supabase.auth.getUser().then(({ data }) => {
+        client.auth.getUser().then(({ data }) => {
           if (data.user) fetchRole(data.user.id)
         })
       }
@@ -115,14 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribeFromProfileChanges()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [])
+  }, [supabase])
 
   async function login(email: string, password: string) {
-    await supabase.auth.signInWithPassword({ email, password })
+    const client = requireSupabaseBrowserClient()
+    await client.auth.signInWithPassword({ email, password })
   }
 
   async function logout() {
-    await supabase.auth.signOut()
+    const client = requireSupabaseBrowserClient()
+    await client.auth.signOut()
     setUser(null)
     setSession(null)
     setRole(null)

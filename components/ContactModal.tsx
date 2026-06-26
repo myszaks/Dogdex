@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Modal from './Modal'
 import useUser from '@/hooks/useUser'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 interface Props {
   open: boolean
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export default function ContactModal({ open, onClose }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -28,7 +29,7 @@ export default function ContactModal({ open, onClose }: Props) {
     const metaName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? '') as string
     if (metaName) {
       setName(metaName)
-    } else {
+    } else if (supabase) {
       supabase
         .from('profiles')
         .select('full_name')
@@ -38,7 +39,7 @@ export default function ContactModal({ open, onClose }: Props) {
           if (data?.full_name) setName(data.full_name as string)
         })
     }
-  }, [user, open])
+  }, [user, open, supabase])
 
   // Reset form when closing
   useEffect(() => {

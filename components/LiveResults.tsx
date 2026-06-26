@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 import { formatTime } from '@/lib/utils'
 
 interface ParticipantInfo {
@@ -23,12 +23,14 @@ interface Props {
 }
 
 export default function LiveResults({ eventId, initialResults }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const [results, setResults] = useState<ResultRow[]>(initialResults)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [connected, setConnected] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
   const fetchResults = useCallback(async () => {
+    if (!supabase) return
     const { data } = await supabase
       .from('results')
       .select('*, participants(dog_name, owner_name, dog_breed)')
@@ -38,7 +40,7 @@ export default function LiveResults({ eventId, initialResults }: Props) {
       setResults(data as ResultRow[])
       setLastUpdated(new Date())
     }
-  }, [eventId])
+  }, [eventId, supabase])
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -47,6 +49,8 @@ export default function LiveResults({ eventId, initialResults }: Props) {
   }
 
   useEffect(() => {
+    if (!supabase) return
+
     const channel = supabase
       .channel(`live-results-${eventId}`)
       .on(
@@ -68,7 +72,7 @@ export default function LiveResults({ eventId, initialResults }: Props) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [eventId, fetchResults])
+  }, [eventId, fetchResults, supabase])
 
   return (
     <div>

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient, requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 function checkPassword(pw: string) {
   return {
@@ -13,6 +13,7 @@ function checkPassword(pw: string) {
 }
 
 function ResetPasswordForm() {
+  const supabase = getSupabaseBrowserClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -25,6 +26,8 @@ function ResetPasswordForm() {
   const pwValid = Object.values(pwChecks).every(Boolean)
 
   useEffect(() => {
+    if (!supabase) return
+
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setSessionReady(true)
     })
@@ -33,9 +36,10 @@ function ResetPasswordForm() {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setSessionReady(true)
     })
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   async function handleSubmit(e: React.FormEvent) {
+    const supabase = requireSupabaseBrowserClient()
     e.preventDefault()
     setError(null)
 

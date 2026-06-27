@@ -12,6 +12,7 @@ create extension if not exists "uuid-ossp";
 
 create table if not exists events (
   id          uuid primary key default gen_random_uuid(),
+  slug        text not null,
   title       text not null,
   description text,
   start_at    timestamptz,
@@ -70,6 +71,7 @@ create table if not exists results (
 
 create index if not exists idx_events_status   on events(status);
 create index if not exists idx_events_start_at on events(start_at);
+create unique index if not exists events_slug_key on events(slug);
 create index if not exists idx_registrations_event_id       on registrations(event_id);
 create index if not exists idx_registrations_participant_id on registrations(participant_id);
 create index if not exists idx_results_event_id on results(event_id);
@@ -108,9 +110,10 @@ create policy "registrations_public_insert" on registrations for insert with che
 -- Dane przykładowe (opcjonalne – usuń w produkcji)
 -- ============================================================
 
-insert into events (title, description, location, start_at, end_at, status)
+insert into events (slug, title, description, location, start_at, end_at, status)
 values
   (
+    'zawody-agility-lato-2026',
     'Zawody Agility – Lato 2026',
     'Otwarte zawody agility dla wszystkich ras. Kategorie startowe: A1, A2, A3, Open.',
     'Warszawa, Tor Psich Sportów, ul. Psia 15',
@@ -119,6 +122,7 @@ values
     'upcoming'
   ),
   (
+    'grupowy-spacer-psi-czerwiec',
     'Grupowy Spacer Psi – Czerwiec',
     'Miesięczny spacer integracyjny dla właścicieli psów. Trasa 5 km, mile dla rodzin.',
     'Kraków, Planty – przy fontannie',
@@ -127,6 +131,7 @@ values
     'upcoming'
   ),
   (
+    'zawody-flyball-wiosna-2025',
     'Zawody Flyball – Wiosna 2025',
     'Znakomita rywalizacja drużynowa! Pobity rekord toru.',
     'Wrocław, Centrum Kynologiczne',
@@ -340,6 +345,7 @@ grant select, insert, update, delete on public.form_templates to authenticated;
 -- Profil trenera (wizytówka)
 create table if not exists trainer_profiles (
   id                 uuid primary key default gen_random_uuid(),
+  slug               text not null,
   trainer_id         uuid not null unique references auth.users(id) on delete cascade,
   is_active          boolean not null default false,
   full_name          text not null,
@@ -354,10 +360,12 @@ create table if not exists trainer_profiles (
 
 create index if not exists idx_trainer_profiles_is_active on trainer_profiles(is_active);
 create index if not exists idx_trainer_profiles_trainer_id on trainer_profiles(trainer_id);
+create unique index if not exists trainer_profiles_slug_key on trainer_profiles(slug);
 
 -- Rodzaje treningów oferowanych przez trenera
 create table if not exists training_types (
   id             uuid primary key default gen_random_uuid(),
+  slug           text not null,
   trainer_id     uuid not null references auth.users(id) on delete cascade,
   name           text not null,  -- np. "Agility", "Behawiorystyka"
   description    text,
@@ -370,6 +378,7 @@ create table if not exists training_types (
 
 create index if not exists idx_training_types_trainer_id on training_types(trainer_id);
 create index if not exists idx_training_types_is_active on training_types(is_active);
+create unique index if not exists training_types_trainer_slug_key on training_types(trainer_id, slug);
 
 -- Dostępność trenera na poszczególne dni i godziny
 create table if not exists training_availability (

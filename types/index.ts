@@ -1,6 +1,6 @@
 export interface DogEvent {
   id: string
-  slug: string | null
+  slug: string
   title: string
   description: string | null
   start_at: string | null
@@ -139,7 +139,7 @@ export type DogGender = 'male' | 'female'
 export interface Dog {
   id: string
   user_id: string
-  slug: string | null
+  slug: string
   name: string
   breed: string | null
   gender: DogGender | null
@@ -160,6 +160,7 @@ export interface Dog {
 
 export interface TrainerProfile {
   id: string
+  slug: string
   trainer_id: string
   is_active: boolean
   full_name: string
@@ -174,6 +175,7 @@ export interface TrainerProfile {
 
 export interface TrainingType {
   id: string
+  slug: string
   trainer_id: string
   name: string
   description: string | null

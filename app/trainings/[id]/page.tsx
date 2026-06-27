@@ -13,16 +13,16 @@ export default function TrainerDetailPage({ params }: Props) {
   const [trainer, setTrainer] = useState<TrainerProfile & { training_types?: TrainingType[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [id, setId] = useState<string | null>(null)
+  const [trainerSlug, setTrainerSlug] = useState<string | null>(null)
 
   useEffect(() => {
-    params.then(p => setId(p.id))
+    params.then(p => setTrainerSlug(p.id))
   }, [params])
 
   useEffect(() => {
-    if (!id) return
+    if (!trainerSlug) return
 
-    fetch(`/api/trainers/${id}`)
+    fetch(`/api/trainers/${trainerSlug}`)
       .then(r => {
         if (!r.ok) throw new Error('Nie znaleziono trenera')
         return r.json()
@@ -35,7 +35,7 @@ export default function TrainerDetailPage({ params }: Props) {
         setError(err.message || 'Błąd przy ładowaniu trenera')
         setLoading(false)
       })
-  }, [id])
+  }, [trainerSlug])
 
   if (loading) {
     return (
@@ -122,7 +122,7 @@ export default function TrainerDetailPage({ params }: Props) {
             {trainer.training_types.map(type => (
               <Link
                 key={type.id}
-                href={`/trainings/${id}/book/${type.id}`}
+                href={`/trainings/${trainer.slug}/book/${type.slug}`}
                 className="card hover:shadow-lg transition-all cursor-pointer group"
               >
                 <div className="p-6">

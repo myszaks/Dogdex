@@ -9,7 +9,7 @@ import { effectiveStatus } from '@/lib/utils'
 
 export default function OrganizerEventCard({ event }: { event: DogEvent }) {
   const dispStatus = effectiveStatus(event)
-  const eid = event.slug ?? event.id
+  const eid = event.slug
   const editDisabled = dispStatus === 'ongoing' || dispStatus === 'finished'
   return (
     <EventCard
@@ -62,7 +62,7 @@ export default function OrganizerEventCard({ event }: { event: DogEvent }) {
             </Link>
           )}
           <Link
-            href={dispStatus === 'finished' || dispStatus === 'cancelled' ? `/archive/${event.slug ?? event.id}` : `/events/${event.slug ?? event.id}`}
+            href={dispStatus === 'finished' || dispStatus === 'cancelled' ? `/archive/${event.slug}` : `/events/${event.slug}`}
             className="btn btn-secondary btn-sm"
           >
             <Eye className="w-3.5 h-3.5" />

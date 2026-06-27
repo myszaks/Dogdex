@@ -53,7 +53,7 @@ export default function TrainingsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {trainers.map(trainer => (
-            <Link key={trainer.id} href={`/trainings/${trainer.trainer_id}`}>
+            <Link key={trainer.id} href={`/trainings/${trainer.slug}`}>
               <div className="card hover:shadow-lg transition-shadow cursor-pointer h-full">
                 {/* Image */}
                 {trainer.profile_image_url ? (

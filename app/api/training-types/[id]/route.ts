@@ -8,13 +8,29 @@ interface Params {
 
 export async function GET(req: Request, { params }: Params) {
   const { id } = await params
+  const { searchParams } = new URL(req.url)
+  const trainerSlug = searchParams.get('trainer')
   const supabase = await createAuthClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('training_types')
     .select('*, training_availability(*)')
-    .eq('id', id)
-    .single()
+
+  if (trainerSlug) {
+    const { data: trainer } = await supabase
+      .from('trainer_profiles')
+      .select('trainer_id')
+      .eq('slug', trainerSlug)
+      .maybeSingle()
+
+    if (!trainer) return NextResponse.json({ error: 'Nie znaleziono trenera' }, { status: 404 })
+
+    query = query.eq('trainer_id', trainer.trainer_id).eq('slug', id)
+  } else {
+    query = query.eq('id', id)
+  }
+
+  const { data, error } = await query.maybeSingle()
 
   if (error) return NextResponse.json({ error: 'Nie udało się pobrać typu treningu' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })

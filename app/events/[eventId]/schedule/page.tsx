@@ -117,7 +117,7 @@ export default async function PublicSchedulePage({ params }: Props) {
   const filledSlots = (slots ?? []).filter(s => (participantsBySlot.get(s.id)?.length ?? 0) > 0)
 
   const backLink = (
-    <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
+    <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
       ← Powrót do wydarzenia
     </Link>
   )

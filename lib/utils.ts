@@ -13,6 +13,7 @@ export function toSlug(title: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/ł/g, 'l')
+    .replace(/Ł/g, 'l')
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
     .replace(/\s+/g, '-')

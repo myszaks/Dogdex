@@ -41,7 +41,7 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
     const { data } = await supabase.from('dogs').select('*').eq('id', dogId).eq('user_id', user.id).maybeSingle()
     if (data) {
       dog = data
-      if (data.slug) redirectTo = `/moje-psy/${data.slug}${edit === '1' ? '?edit=1' : ''}`
+      redirectTo = `/moje-psy/${data.slug}${edit === '1' ? '?edit=1' : ''}`
     }
   } else {
     const { data } = await supabase.from('dogs').select('*').eq('slug', dogId).eq('user_id', user.id).maybeSingle()
@@ -79,7 +79,7 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
     // Krok 3: rejestracje dla tych uczestników
     const { data: regs } = await supabase
       .from('registrations')
-      .select('id, status, participant_id, events(id, title, start_at)')
+      .select('id, status, participant_id, events(id, slug, title, start_at)')
       .in('participant_id', allParticipantIds)
 
     // Krok 4: wyniki – dopasowanie po participant_id (nie event_id)
@@ -97,7 +97,7 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
       const result = resultsMap.get(r.participant_id) ?? null
       return {
         regId: r.id,
-        eventId: r.events?.id ?? '',
+        eventSlug: (r.events?.slug as string) || '',
         eventTitle: r.events?.title ?? 'Wydarzenie',
         eventDate: r.events?.start_at ?? null,
         status: r.status,

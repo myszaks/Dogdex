@@ -74,8 +74,8 @@ export default function RegistrationEventCard({ event, registration, participant
 
   const dispStatus = effectiveStatus(event)
   const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
-    ? `/archive/${event.slug ?? event.id}`
-    : `/events/${event.slug ?? event.id}`
+    ? `/archive/${event.slug}`
+    : `/events/${event.slug}`
 
   const canCancel =
     status !== 'cancelled' &&

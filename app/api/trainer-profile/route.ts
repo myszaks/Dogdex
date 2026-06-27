@@ -1,6 +1,30 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { toSlug } from '@/lib/utils'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+async function generateTrainerSlug(
+  supabase: SupabaseClient,
+  fullName: string,
+  excludeTrainerId: string,
+): Promise<string> {
+  const base = toSlug(fullName) || 'trener'
+  let slug = base
+  let i = 2
+
+  while (true) {
+    const { data } = await supabase
+      .from('trainer_profiles')
+      .select('id')
+      .eq('slug', slug)
+      .neq('trainer_id', excludeTrainerId)
+      .maybeSingle()
+
+    if (!data) return slug
+    slug = `${base}-${i++}`
+  }
+}
 
 export async function GET() {
   const { user, role } = await getServerUser()
@@ -57,7 +81,10 @@ export async function POST(req: Request) {
     .eq('trainer_id', user.id)
     .single()
 
+  const slug = await generateTrainerSlug(supabase, full_name.trim(), user.id)
+
   const profileData = {
+    slug,
     full_name: full_name.trim(),
     bio: (bio as string | null) || null,
     location_city: (location_city as string | null) || null,

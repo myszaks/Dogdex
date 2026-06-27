@@ -36,6 +36,7 @@ export interface SpeedwayLiveParticipant {
 
 interface Props {
   eventId: string
+  eventSlug: string
   initialTrackDistanceM: number | null
   participants: SpeedwayLiveParticipant[]
 }
@@ -80,7 +81,7 @@ function timeDisplay(ms: number | null, status: RunStatus): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, participants }: Props) {
+export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDistanceM, participants }: Props) {
   const router = useRouter()
 
   // ── Track distance ────────────────────────────────────────────────────────
@@ -461,7 +462,7 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
         <p className="font-semibold text-slate-700">Brak psów po odprawie</p>
         <p className="text-sm mt-1">
           Przejdź do{' '}
-          <a href={`/organizer/events/${eventId}/checkin`} className="text-sky-600 underline">
+          <a href={`/organizer/events/${eventSlug}/checkin`} className="text-sky-600 underline">
             Odprawa
           </a>
           , aby zatwierdzić uczestników.

@@ -25,7 +25,7 @@ async function resolveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/events/${byId.slug}` : null
+      const target = `/events/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!event) return { title: 'Wydarzenie' }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dogdex.pl'
-  const canonicalUrl = `${baseUrl}/events/${event.slug ?? event.id}`
+  const canonicalUrl = `${baseUrl}/events/${event.slug}`
   const description = event.description
     ? event.description.slice(0, 200).replace(/\s+/g, ' ').trim()
     : `Wydarzenie psie: ${event.title}${event.location ? ` – ${event.location}` : ''}`
@@ -188,7 +188,7 @@ export default async function EventDetailPage({ params }: Props) {
             </div>
           )}
           {dispStatus === 'ongoing' && event.has_results && event.results_public && (
-            <Link href={`/live/${event.id}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
+            <Link href={`/live/${event.slug}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
               <Radio className="w-4 h-4 animate-pulse" />
               Wyniki live
             </Link>
@@ -216,7 +216,7 @@ export default async function EventDetailPage({ params }: Props) {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-heading font-semibold text-lg text-foreground">Harmonogram</h2>
                 <Link
-                  href={`/events/${event.slug ?? event.id}/schedule`}
+                  href={`/events/${event.slug}/schedule`}
                   className="text-sm text-accent font-medium hover:underline flex items-center gap-1"
                 >
                   Zobacz pełny <ChevronRight className="w-4 h-4" />
@@ -345,13 +345,13 @@ export default async function EventDetailPage({ params }: Props) {
               </p>
             )}
             {dispStatus === 'finished' && event.has_results && (
-              <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full py-2.5">
+              <Link href={`/archive/${event.slug}`} className="btn btn-secondary w-full py-2.5">
                 <Trophy className="w-4 h-4" />
                 Zobacz wyniki
               </Link>
             )}
             {dispStatus === 'ongoing' && event.has_results && event.results_public && (
-              <Link href={`/live/${event.id}`} className="btn btn-primary w-full py-2.5">
+              <Link href={`/live/${event.slug}`} className="btn btn-primary w-full py-2.5">
                 <Radio className="w-4 h-4 animate-pulse" />
                 Wyniki live
               </Link>

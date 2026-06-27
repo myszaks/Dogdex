@@ -92,6 +92,67 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const { user } = await getServerUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { id, start_time, end_time } = body
+
+    if (!id || !start_time || !end_time) {
+      return NextResponse.json(
+        { error: 'Brakuje wymaganych pól' },
+        { status: 400 }
+      )
+    }
+
+    if (start_time >= end_time) {
+      return NextResponse.json(
+        { error: 'Czas zakończenia musi być po czasie rozpoczęcia' },
+        { status: 400 }
+      )
+    }
+
+    const { data: slot, error: fetchError } = await supabase
+      .from('trainer_date_availability')
+      .select('id')
+      .eq('id', id)
+      .eq('trainer_id', user.id)
+      .single()
+
+    if (fetchError || !slot) {
+      return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+    }
+
+    const { data, error } = await supabase
+      .from('trainer_date_availability')
+      .update({
+        start_time,
+        end_time,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('trainer_id', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: 'Nie udało się zaktualizować dostępności' }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'Wewnętrzny błąd serwera' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const { user } = await getServerUser()

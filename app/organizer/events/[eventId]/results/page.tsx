@@ -52,7 +52,7 @@ export default async function ResultsPage({ params }: Props) {
           <p className="text-sm mt-1">
             Włącz opcję <strong>Wyniki i ranking</strong> w ustawieniach wydarzenia.
           </p>
-          <a href={`/organizer/events/${eventId}/edit`} className="btn btn-secondary btn-sm mt-4 inline-flex">
+          <a href={`/organizer/events/${event.slug}/edit`} className="btn btn-secondary btn-sm mt-4 inline-flex">
             ✏️ Edytuj wydarzenie
           </a>
         </div>
@@ -110,7 +110,7 @@ export default async function ResultsPage({ params }: Props) {
             totalCount={registrations?.length ?? 0}
           />
           <Link
-            href={`/organizer/events/${eventId}/live-entry`}
+            href={`/organizer/events/${event.slug}/live-entry`}
             className="btn btn-primary w-full"
           >
             ⚡ Szybkie wprowadzanie wyników
@@ -130,6 +130,7 @@ export default async function ResultsPage({ params }: Props) {
       {isSpeedway ? (
         <SpeedwayLiveEntry
           eventId={eventId}
+          eventSlug={event.slug}
           initialTrackDistanceM={event.track_distance_m ?? null}
           participants={speedwayParticipants}
         />

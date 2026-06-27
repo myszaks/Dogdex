@@ -20,7 +20,7 @@ export default async function CheckInPage({ params }: Props) {
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase
-    .from('events').select('id, title, event_type_id')
+    .from('events').select('id, slug, title, event_type_id')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
   const eventId = event.id
@@ -50,7 +50,7 @@ export default async function CheckInPage({ params }: Props) {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href={`/organizer/events/${eventId}/registrations`}
+          href={`/organizer/events/${event.slug}/registrations`}
           className="text-slate-400 hover:text-slate-600 text-sm"
         >
           ← Zapisy

@@ -20,7 +20,7 @@ async function resolveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/live/${byId.slug}` : null
+      const target = `/live/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }
@@ -94,7 +94,7 @@ export default async function LivePage({ params }: Props) {
 
   return (
     <div>
-      <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+      <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
         ← Powrót do wydarzenia
       </Link>
       <div className="flex items-center gap-2 mb-2">

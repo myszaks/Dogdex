@@ -77,7 +77,7 @@ export default async function SchedulePage({ params }: Props) {
       {/* Tab navigation */}
       <div className="flex gap-1 mb-6 border-b border-slate-200">
         <Link
-          href={`/organizer/events/${eventId}/registrations`}
+          href={`/organizer/events/${event.slug}/registrations`}
           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors"
         >
           👥 Zapisy
@@ -93,7 +93,7 @@ export default async function SchedulePage({ params }: Props) {
           <p className="text-sm text-slate-500 mt-1">{event.title}</p>
         </div>
         <Link
-          href={`/events/${event.slug ?? event.id}/schedule`}
+          href={`/events/${event.slug}/schedule`}
           target="_blank"
           className="btn btn-secondary btn-sm"
         >

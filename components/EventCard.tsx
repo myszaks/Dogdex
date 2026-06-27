@@ -31,8 +31,8 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
   const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
-    ? `/archive/${event.slug ?? event.id}`
-    : `/events/${event.slug ?? event.id}`
+    ? `/archive/${event.slug}`
+    : `/events/${event.slug}`
 
   return (
     <div className="bg-card rounded-3xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
@@ -114,7 +114,7 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
                 </span>
               )}
               {dispStatus === 'ongoing' && event.has_results && event.results_public && (
-                <Link href={`/live/${event.id}`} className="btn btn-primary btn-sm">
+                <Link href={`/live/${event.slug}`} className="btn btn-primary btn-sm">
                   <Radio className="w-3.5 h-3.5" />
                   Wyniki live
                 </Link>

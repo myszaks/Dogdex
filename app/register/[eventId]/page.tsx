@@ -16,7 +16,7 @@ async function resolveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/register/${byId.slug}` : null
+      const target = `/register/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }
@@ -42,7 +42,7 @@ export default async function RegisterPage({ params }: Props) {
 
   const regOpen = isRegistrationOpen(event)
   const dispStatus = effectiveStatus(event)
-  const eventHref = `/events/${event.slug ?? event.id}`
+  const eventHref = `/events/${event.slug}`
 
   if (dispStatus !== 'upcoming' || !regOpen) {
     return (

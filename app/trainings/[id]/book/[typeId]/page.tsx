@@ -2,10 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Clock, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, AlertCircle, PlusCircle } from 'lucide-react'
 import { format, addDays, startOfDay } from 'date-fns'
 import { pl } from 'date-fns/locale'
-import type { TrainingType } from '@/types'
+import type { Dog, TrainingType } from '@/types'
+import DogForm from '@/components/DogForm'
+import Modal from '@/components/Modal'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface DateAvailabilitySlot {
   id: string
@@ -14,15 +23,21 @@ interface DateAvailabilitySlot {
   start_time: string
   end_time: string
   is_active: boolean
+  booked_slots?: Array<{ time: string; duration_min: number }>
 }
 
 interface Props {
   params: Promise<{ id: string; typeId: string }>
 }
 
+function timeToMinutes(time: string) {
+  const [hours, minutes] = time.slice(0, 5).split(':').map(Number)
+  return hours * 60 + minutes
+}
+
 export default function BookTrainingPage({ params }: Props) {
-  const [trainerId, setTrainerId] = useState<string | null>(null)
-  const [typeId, setTypeId] = useState<string | null>(null)
+  const [trainerSlug, setTrainerSlug] = useState<string | null>(null)
+  const [typeSlug, setTypeSlug] = useState<string | null>(null)
   const [trainingType, setTrainingType] = useState<TrainingType | null>(null)
   const [trainerAvailability, setTrainerAvailability] = useState<DateAvailabilitySlot[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -31,20 +46,24 @@ export default function BookTrainingPage({ params }: Props) {
   const [booking, setBooking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [dogId, setDogId] = useState<string>('')
+  const [dogs, setDogs] = useState<Dog[]>([])
+  const [dogsLoading, setDogsLoading] = useState(true)
+  const [canManageDogs, setCanManageDogs] = useState(true)
+  const [selectedDogId, setSelectedDogId] = useState<string>('')
+  const [dogModalOpen, setDogModalOpen] = useState(false)
   const [notes, setNotes] = useState<string>('')
 
   useEffect(() => {
     params.then(p => {
-      setTrainerId(p.id)
-      setTypeId(p.typeId)
+      setTrainerSlug(p.id)
+      setTypeSlug(p.typeId)
     })
   }, [params])
 
   useEffect(() => {
-    if (!typeId) return
+    if (!trainerSlug || !typeSlug) return
 
-    fetch(`/api/training-types/${typeId}`)
+    fetch(`/api/training-types/${typeSlug}?trainer=${encodeURIComponent(trainerSlug)}`)
       .then(r => r.json())
       .then(data => {
         setTrainingType(data)
@@ -59,13 +78,33 @@ export default function BookTrainingPage({ params }: Props) {
         setError('Błąd przy ładowaniu')
         setLoading(false)
       })
-  }, [typeId])
+  }, [trainerSlug, typeSlug])
 
-  // Generate available time slots based on date availability
-  const getAvailableSlots = () => {
-    if (!selectedDate) return []
+  useEffect(() => {
+    fetch('/api/dogs')
+      .then(async response => {
+        if (response.status === 401) {
+          setCanManageDogs(false)
+          return []
+        }
+        if (!response.ok) throw new Error('Nie udało się pobrać psów')
+        setCanManageDogs(true)
+        return response.json()
+      })
+      .then(data => {
+        const nextDogs = Array.isArray(data) ? data : []
+        setDogs(nextDogs)
+        setSelectedDogId(current => current || nextDogs[0]?.id || '')
+      })
+      .catch(() => {
+        setDogs([])
+      })
+      .finally(() => setDogsLoading(false))
+  }, [])
 
-    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+  // Generate full-hour slots based on date availability.
+  const getAvailableSlotsForDate = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd')
     const dateSlot = trainerAvailability.find(a => a.available_date === dateStr && a.is_active)
 
     if (!dateSlot) return []
@@ -74,24 +113,44 @@ export default function BookTrainingPage({ params }: Props) {
     const [startHour, startMin] = dateSlot.start_time.split(':').map(Number)
     const [endHour, endMin] = dateSlot.end_time.split(':').map(Number)
 
-    let currentTime = new Date(selectedDate)
-    currentTime.setHours(startHour, startMin, 0, 0)
+    const currentTime = new Date(date)
+    currentTime.setHours(startHour, 0, 0, 0)
+    if (startMin > 0) {
+      currentTime.setHours(currentTime.getHours() + 1)
+    }
 
-    const endTime = new Date(selectedDate)
+    const endTime = new Date(date)
     endTime.setHours(endHour, endMin, 0, 0)
 
     const duration = trainingType?.duration_min || 60
 
     while (currentTime.getTime() + duration * 60000 <= endTime.getTime()) {
       slots.push(format(currentTime, 'HH:mm'))
-      currentTime.setMinutes(currentTime.getMinutes() + 30)
+      currentTime.setHours(currentTime.getHours() + 1)
     }
 
-    return slots
+    const bookedSlots = dateSlot.booked_slots ?? []
+    return slots.filter(slot => {
+      const slotStart = timeToMinutes(slot)
+      const slotEnd = slotStart + duration
+
+      return !bookedSlots.some(booked => {
+        const bookedStart = timeToMinutes(booked.time)
+        const bookedEnd = bookedStart + booked.duration_min
+        return slotStart < bookedEnd && slotEnd > bookedStart
+      })
+    })
+  }
+
+  const handleSelectDate = (date: Date) => {
+    const slots = getAvailableSlotsForDate(date)
+    if (slots.length === 0) return
+    setSelectedDate(date)
+    setSelectedTime(null)
   }
 
   const handleBooking = async () => {
-    if (!selectedDate || !selectedTime || !typeId) {
+    if (!selectedDate || !selectedTime || !trainingType) {
       setError('Wybierz datę i godzinę')
       return
     }
@@ -108,8 +167,9 @@ export default function BookTrainingPage({ params }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          training_type_id: typeId,
-          dog_id: dogId || null,
+          training_type_id: trainingType.id,
+          training_type_slug: trainingType.slug,
+          dog_id: selectedDogId || null,
           scheduled_at: scheduledAt.toISOString(),
           duration_min: trainingType?.duration_min || 60,
           notes_user: notes || null,
@@ -141,12 +201,26 @@ export default function BookTrainingPage({ params }: Props) {
     }
   }
 
-  const availableSlots = getAvailableSlots()
+  const availableSlots = selectedDate ? getAvailableSlotsForDate(selectedDate) : []
+
+  const handleAddDog = async (data: Partial<Dog>) => {
+    const response = await fetch('/api/dogs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const json = await response.json()
+    if (!response.ok) throw new Error(json.error ?? 'Błąd zapisu psa')
+
+    setDogs(prev => [...prev, json])
+    setSelectedDogId(json.id)
+    setDogModalOpen(false)
+  }
 
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <Link href={trainerId ? `/trainings/${trainerId}` : '/trainings'} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
+        <Link href={trainerSlug ? `/trainings/${trainerSlug}` : '/trainings'} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
           <ArrowLeft className="w-4 h-4" />
           Wróć
         </Link>
@@ -158,7 +232,7 @@ export default function BookTrainingPage({ params }: Props) {
   if (error && !trainingType) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <Link href={`/trainings/${trainerId}`} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
+        <Link href={trainerSlug ? `/trainings/${trainerSlug}` : '/trainings'} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
           <ArrowLeft className="w-4 h-4" />
           Wróć
         </Link>
@@ -171,7 +245,7 @@ export default function BookTrainingPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <Link href={`/trainings/${trainerId}`} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
+      <Link href={trainerSlug ? `/trainings/${trainerSlug}` : '/trainings'} className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
         Wróć do profilu trenera
       </Link>
@@ -192,18 +266,25 @@ export default function BookTrainingPage({ params }: Props) {
             {[...Array(14)].map((_, i) => {
               const date = addDays(startOfDay(new Date()), i)
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+              const dateSlots = getAvailableSlotsForDate(date)
+              const hasSlots = dateSlots.length > 0
               const dayStr = format(date, 'd', { locale: pl })
               const dateStr = format(date, 'EEE', { locale: pl })
 
               return (
                 <button
                   key={i}
-                  onClick={() => setSelectedDate(date)}
+                  type="button"
+                  onClick={() => handleSelectDate(date)}
+                  disabled={!hasSlots}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     isSelected
                       ? 'border-accent bg-accent/10 text-accent font-semibold'
-                      : 'border-border hover:border-accent/50'
+                      : hasSlots
+                        ? 'border-border hover:border-accent/50'
+                        : 'border-border bg-secondary/50 text-muted-foreground/40 cursor-not-allowed'
                   }`}
+                  title={hasSlots ? undefined : 'Brak dostępnych godzin w tym dniu'}
                 >
                   <div className="text-xs">{dateStr}</div>
                   <div className="font-semibold text-sm">{dayStr}</div>
@@ -252,13 +333,72 @@ export default function BookTrainingPage({ params }: Props) {
         {/* Dog Selection (Optional) */}
         <div className="mb-6">
           <label className="block text-sm font-semibold mb-3">Pies (opcjonalnie)</label>
-          <input
-            type="text"
-            value={dogId}
-            onChange={e => setDogId(e.target.value)}
-            placeholder="ID psa z Twoich psów"
-            className="form-input"
-          />
+          {dogsLoading ? (
+            <div className="form-input text-muted-foreground">Ładowanie psów...</div>
+          ) : !canManageDogs ? (
+            <div className="rounded-2xl border border-border bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
+              Zaloguj się, żeby wybrać psa z profilu.
+            </div>
+          ) : dogs.length > 0 ? (
+            <div className="space-y-2">
+              <Select
+                value={selectedDogId}
+                onValueChange={value => setSelectedDogId(value ?? '')}
+              >
+                <SelectTrigger className="form-input h-12 w-full rounded-2xl px-4 py-0">
+                  <SelectValue placeholder="Wybierz psa">
+                    {value => {
+                      if (!value) return 'Bez przypisanego psa'
+                      const dog = dogs.find(item => item.id === value)
+                      return dog ? `${dog.name}${dog.breed ? ` (${dog.breed})` : ''}` : 'Wybierz psa'
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  alignItemWithTrigger={false}
+                  className="z-[120] w-[var(--anchor-width)] min-w-[var(--anchor-width)] rounded-2xl p-1"
+                >
+                  <SelectItem value="" className="rounded-xl px-3 py-2.5 focus:bg-secondary focus:text-foreground">
+                    Bez przypisanego psa
+                  </SelectItem>
+                  {dogs.map(dog => (
+                    <SelectItem
+                      key={dog.id}
+                      value={dog.id}
+                      className="rounded-xl px-3 py-2.5 focus:bg-secondary focus:text-foreground"
+                    >
+                      {dog.name}{dog.breed ? ` (${dog.breed})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <button
+                type="button"
+                onClick={() => setDogModalOpen(true)}
+                className="text-sm text-accent hover:underline"
+              >
+                Dodaj kolejnego psa
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-secondary/60 px-4 py-4">
+              <p className="text-sm font-semibold text-foreground">Nie masz jeszcze dodanego psa.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Dodaj profil psa, żeby łatwiej powiązać rezerwację z jego danymi.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDogModalOpen(true)}
+                className="btn btn-secondary btn-sm mt-3"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Dodaj psa
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Notes */}
@@ -307,6 +447,10 @@ export default function BookTrainingPage({ params }: Props) {
           {booking ? 'Rezerwowanie…' : 'Zarezerwuj trening'}
         </button>
       </div>
+
+      <Modal open={dogModalOpen} onClose={() => setDogModalOpen(false)} title="Dodaj psa">
+        <DogForm onSave={handleAddDog} onCancel={() => setDogModalOpen(false)} />
+      </Modal>
     </div>
   )
 }

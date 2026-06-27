@@ -18,13 +18,14 @@ Pełna implementacja systemu rezerwacji treningów indywidualnych z następując
 
 **Public/User:**
 - `GET /api/trainers` – lista aktywnych trenerów
-- `GET /api/trainers/[id]` – profil trenera + jego typy treningów
+- `GET /api/trainers/[slug]` – profil trenera + jego typy treningów
 - `POST /api/training-bookings` – rezerwacja (z walidacją dostępności)
 - `GET /api/training-bookings` – moje rezerwacje
 
 **Trainer Management:**
 - `GET/POST /api/trainer-profile` – edycja profilu
 - `GET/POST /api/training-types` – zarządzanie typami
+- `GET /api/training-types/[slug]?trainer=[trainerSlug]` – publiczny typ treningu po slugach
 - `DELETE /api/training-types/[id]`
 - `POST /api/training-availability` – ustawianie dostępności
 - `DELETE /api/training-availability`
@@ -39,8 +40,8 @@ Pełna implementacja systemu rezerwacji treningów indywidualnych z następując
 
 **For Users:**
 - `/trainings` – lista trenerów (karty z foto, miastem, ceną)
-- `/trainings/[id]` – profil trenera + lista typów treningów
-- `/trainings/[id]/book/[typeId]` – rezerwacja z kalendarzem (14 dni, godziny 30-minutowe)
+- `/trainings/[trainerSlug]` – profil trenera + lista typów treningów
+- `/trainings/[trainerSlug]/book/[typeSlug]` – rezerwacja z kalendarzem (14 dni, godziny 30-minutowe)
 - `/moje-treningi` – moje rezerwacje (nadchodzące + historia)
 
 **For Trainers:**

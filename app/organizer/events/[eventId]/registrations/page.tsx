@@ -92,7 +92,7 @@ export default async function RegistrationsPage({ params }: Props) {
         </span>
         {hasSchedule && (
           <Link
-            href={`/organizer/events/${eventId}/schedule`}
+            href={`/organizer/events/${event.slug}/schedule`}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors"
           >
             📅 Grafik

@@ -1,6 +1,30 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { toSlug } from '@/lib/utils'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+async function generateTrainingTypeSlug(
+  supabase: SupabaseClient,
+  trainerId: string,
+  name: string,
+): Promise<string> {
+  const base = toSlug(name) || 'trening'
+  let slug = base
+  let i = 2
+
+  while (true) {
+    const { data } = await supabase
+      .from('training_types')
+      .select('id')
+      .eq('trainer_id', trainerId)
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (!data) return slug
+    slug = `${base}-${i++}`
+  }
+}
 
 export async function GET() {
   const supabase = await createAuthClient()
@@ -37,11 +61,13 @@ export async function POST(req: Request) {
   }
 
   const supabase = await createAuthClient()
+  const slug = await generateTrainingTypeSlug(supabase, user.id, name.trim())
 
   const { data, error } = await supabase
     .from('training_types')
     .insert([{
       trainer_id: user.id,
+      slug,
       name: (name as string).trim(),
       description: (description as string | null) || null,
       price_per_hour: typeof price_per_hour === 'number' ? price_per_hour : null,

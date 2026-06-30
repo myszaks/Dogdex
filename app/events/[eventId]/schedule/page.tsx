@@ -45,7 +45,7 @@ export default async function PublicSchedulePage({ params }: Props) {
       .select('id, participants!inner(owner_email)')
       .eq('event_id', event.id)
       .eq('status', 'confirmed')
-      .eq('participants.owner_email', user.email.toLowerCase())
+      .ilike('participants.owner_email', user.email)
       .maybeSingle()
     isRegistered = !!userReg
   }

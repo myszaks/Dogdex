@@ -109,7 +109,7 @@ export async function POST(req: Request) {
       dog_name: dogName.trim(),
       dog_breed: dogBreed?.trim() || null,
       owner_name: ownerName.trim(),
-      owner_email: ownerEmail?.trim() || null,
+      owner_email: ownerEmailNorm,
       dog_id: dogId || null,
       extra: {},
     }])

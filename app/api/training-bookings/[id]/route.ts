@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendTrainingBookingConfirmation, sendTrainingCancellationEmail } from '@/lib/email'
+import { formatEmailDateTime } from '@/lib/emailDate'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -101,14 +102,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const trainerProfile = (await supabase.from('trainer_profiles').select('*').eq('trainer_id', user.id).single()).data
 
     if (userEmail && trainerProfile) {
-      const formatter = new Intl.DateTimeFormat('pl-PL', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-      const formattedDate = formatter.format(new Date(booking.scheduled_at))
+      const formattedDate = formatEmailDateTime(booking.scheduled_at)
 
       await sendTrainingBookingConfirmation({
         to: userEmail,
@@ -123,14 +117,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (status === 'cancelled') {
     // Send cancellation emails to both user and trainer
-    const formatter = new Intl.DateTimeFormat('pl-PL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    const formattedDate = formatter.format(new Date(booking.scheduled_at))
+    const formattedDate = formatEmailDateTime(booking.scheduled_at)
 
     // Email to user (if cancelled by trainer)
     if (isTrainer) {

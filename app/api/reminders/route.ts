@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
 import { sendReminderEmail } from '@/lib/email'
 import { getIsoDateInTimeZone, hasMultidateSelection, shouldSendMultidateReminder } from '@/lib/reminders'
+import { formatEmailDate } from '@/lib/emailDate'
 
 /**
  * GET /api/reminders
@@ -74,7 +75,7 @@ export async function GET(req: Request) {
       if (hasMultidate) { skipped++; continue }
 
       const eventDate = event.start_at
-        ? new Intl.DateTimeFormat('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(event.start_at))
+        ? formatEmailDate(event.start_at, { weekday: true })
         : null
 
       try {
@@ -150,7 +151,7 @@ export async function GET(req: Request) {
     if (!p?.owner_email) { skipped++; continue }
 
     const eventDate = event.start_at
-      ? new Intl.DateTimeFormat('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(event.start_at as string))
+      ? formatEmailDate(event.start_at as string, { weekday: true })
       : null
 
     try {

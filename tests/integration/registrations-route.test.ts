@@ -22,6 +22,7 @@ describe('POST /api/registrations', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    sendRegistrationEmail.mockResolvedValue(undefined)
   })
 
   it('rejects registration when the deadline is already past', async () => {
@@ -149,5 +150,88 @@ describe('POST /api/registrations', () => {
 
     expect(response.status).toBe(500)
     expect(cleanupEq).toHaveBeenCalledWith('id', 'participant-1')
+  })
+
+  it('normalizes owner email before storing participant and sending confirmation', async () => {
+    const insertParticipant = vi.fn().mockReturnValue({
+      select: () => ({
+        single: async () => ({
+          data: { id: 'participant-1' },
+          error: null,
+        }),
+      }),
+    })
+
+    createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'events') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 'event-1',
+                    status: 'upcoming',
+                    auto_confirm: true,
+                    max_participants: null,
+                    title: 'Spacer',
+                    start_at: '2026-07-20T08:00:00.000Z',
+                    end_at: null,
+                    location: 'Park',
+                    form_fields: [],
+                    registration_deadline: null,
+                  },
+                }),
+              }),
+            }),
+          }
+        }
+
+        if (table === 'participants') {
+          return {
+            select: () => ({
+              ilike: () => ({
+                ilike: async () => ({ data: [] }),
+              }),
+            }),
+            insert: insertParticipant,
+          }
+        }
+
+        if (table === 'registrations') {
+          return {
+            insert: () => ({
+              select: () => ({
+                single: async () => ({
+                  data: { id: 'registration-1', form_data: {} },
+                  error: null,
+                }),
+              }),
+            }),
+          }
+        }
+
+        throw new Error(`Unexpected table ${table}`)
+      }),
+    })
+
+    const { POST } = await import('@/app/api/registrations/route')
+    const response = await POST(new Request('http://localhost/api/registrations', {
+      method: 'POST',
+      body: JSON.stringify({
+        eventId: 'event-1',
+        ownerName: 'Jan Kowalski',
+        ownerEmail: '  Jan.Kowalski@Example.COM  ',
+        dogName: 'Burek',
+      }),
+    }))
+
+    expect(response.status).toBe(201)
+    expect(insertParticipant).toHaveBeenCalledWith([
+      expect.objectContaining({ owner_email: 'jan.kowalski@example.com' }),
+    ])
+    expect(sendRegistrationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'jan.kowalski@example.com' })
+    )
   })
 })

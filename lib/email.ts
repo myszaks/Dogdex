@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import type { FormField } from '@/types'
 import { plForm } from '@/lib/utils'
+import { formatEmailDate, formatEmailDateTime } from '@/lib/emailDate'
 
 /**
  * Email notifications via Nodemailer + Gmail SMTP.
@@ -46,7 +47,7 @@ function formatFieldValue(field: FormField, val: unknown): string {
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => {
-        try { return escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d as string))) } catch { return escHtml(String(d)) }
+        return escHtml(formatEmailDate(String(d), { weekday: false }))
       }).join(', ')
     }
     return val.map(v => escHtml(formatFieldValue(field, v))).join(', ')
@@ -94,7 +95,7 @@ export async function sendRegistrationEmail(payload: RegistrationEmailPayload): 
       <p>${statusText}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
@@ -171,7 +172,7 @@ export async function sendEventChangeEmail(payload: EventChangeEmailPayload): Pr
 
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${escHtml(payload.newStartAt)}</td></tr>` : ''}
+        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.newStartAt))}</td></tr>` : ''}
         ${payload.newLocation ? `<tr><td style="padding:8px;color:#64748b">Nowa lokalizacja:</td><td style="padding:8px">${escHtml(payload.newLocation)}</td></tr>` : ''}
       </table>
 
@@ -220,11 +221,7 @@ interface ScheduleEmailPayload {
 }
 
 function formatSlotDate(date: string): string {
-  try {
-    return new Intl.DateTimeFormat('pl-PL', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    }).format(new Date(date))
-  } catch { return date }
+  return formatEmailDate(date, { weekday: true })
 }
 
 export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<void> {
@@ -353,7 +350,7 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
       <p>Uczestnik zrezygnował z udziału w Twoim wydarzeniu.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -407,8 +404,7 @@ export async function sendCancellationRequestEmailToOrganizer(
 
   const datesHtml = payload.cancelledDates
     ? payload.cancelledDates.map(d => {
-        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
-        catch { return `<li>${escHtml(d)}</li>` }
+        return `<li>${escHtml(formatEmailDate(d))}</li>`
       }).join('')
     : null
 
@@ -418,7 +414,7 @@ export async function sendCancellationRequestEmailToOrganizer(
       <p>Uczestnik złożył wniosek o rezygnację z Twojego wydarzenia i oczekuje na Twoją akceptację.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -476,8 +472,7 @@ export async function sendCancellationResultEmail(
 
   const datesHtml = payload.cancelledDates
     ? payload.cancelledDates.map(d => {
-        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
-        catch { return `<li>${escHtml(d)}</li>` }
+        return `<li>${escHtml(formatEmailDate(d))}</li>`
       }).join('')
     : null
 
@@ -498,7 +493,7 @@ export async function sendCancellationResultEmail(
       <p>${escHtml(bodyText)}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
       ${datesHtml
@@ -660,9 +655,7 @@ export async function sendReminderEmail(payload: ReminderEmailPayload): Promise<
   const datesHtml = payload.reminderDates?.length
     ? payload.reminderDates.map(d => {
         try {
-          const formatted = new Intl.DateTimeFormat('pl-PL', {
-            weekday: 'long', day: 'numeric', month: 'long',
-          }).format(new Date(d))
+          const formatted = formatEmailDate(d, { weekday: true, year: false })
           return `<li style="margin:4px 0">${escHtml(formatted)}</li>`
         } catch { return `<li style="margin:4px 0">${escHtml(d)}</li>` }
       }).join('')

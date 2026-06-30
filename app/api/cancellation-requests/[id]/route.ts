@@ -72,7 +72,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
     // Email participant
     if (participant?.owner_email) {
-      sendCancellationResultEmail({
+      await sendCancellationResultEmail({
         to: participant.owner_email,
         ownerName: participant.owner_name ?? '',
         dogName: participant.dog_name ?? '',
@@ -80,7 +80,7 @@ export async function PATCH(req: Request, { params }: Params) {
         eventDate: event?.start_at ? String(event.start_at) : null,
         cancelledDates: request.cancelled_dates ?? null,
         accepted: false,
-      }).catch(() => {})
+      })
     }
 
     return NextResponse.json({ ok: true, action: 'rejected' })
@@ -173,7 +173,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   // Email participant
   if (participant?.owner_email) {
-    sendCancellationResultEmail({
+    await sendCancellationResultEmail({
       to: participant.owner_email,
       ownerName: participant.owner_name ?? '',
       dogName: participant.dog_name ?? '',
@@ -181,7 +181,7 @@ export async function PATCH(req: Request, { params }: Params) {
       eventDate: event?.start_at ? String(event.start_at) : null,
       cancelledDates: cancelledDates,
       accepted: true,
-    }).catch(() => {})
+    })
   }
 
   return NextResponse.json({ ok: true, action: 'accepted', registrationCancelled: newRegistrationStatus === 'cancelled' })

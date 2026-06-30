@@ -9,6 +9,7 @@ import {
   getBookingDateTimeParts,
   resolveBookingDuration,
 } from '@/lib/trainingBooking'
+import { formatEmailDateTime } from '@/lib/emailDate'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -166,14 +167,7 @@ export async function POST(req: Request) {
 
   const userEmail = user.email || ''
   const userName = user.user_metadata?.full_name || 'Użytkownik'
-  const formatter = new Intl.DateTimeFormat('pl-PL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  const formattedDate = formatter.format(scheduledDate)
+  const formattedDate = formatEmailDateTime(scheduledDate.toISOString())
 
   await sendTrainingBookingConfirmation({
     to: userEmail,

@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       dog_name: dogName.trim(),
       dog_breed: dogBreed?.trim() || null,
       owner_name: ownerName.trim(),
-      owner_email: ownerEmail?.trim() || null,
+      owner_email: ownerEmailNorm,
       dog_id: dogId || null,
       extra: {},
     }])
@@ -159,10 +159,10 @@ export async function POST(req: Request) {
     )
   }
 
-  // Send email notification (fire-and-forget)
-  if (ownerEmail?.trim()) {
-    sendRegistrationEmail({
-      to: ownerEmail.trim(),
+  // Send email notification before returning so serverless runtimes do not stop it mid-flight.
+  if (ownerEmailNorm) {
+    await sendRegistrationEmail({
+      to: ownerEmailNorm,
       ownerName: ownerName.trim(),
       dogName: dogName.trim(),
       eventTitle: event.title,
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
       status: event.auto_confirm ? 'confirmed' : 'pending',
       formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
       formData: registration.form_data ?? {},
-    }).catch(() => {})
+    })
   }
 
   return NextResponse.json(registration, { status: 201 })

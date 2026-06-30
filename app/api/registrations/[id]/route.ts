@@ -133,7 +133,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const participant = (data as Record<string, unknown>).participants as Record<string, string> | null
     const event = (data as Record<string, unknown>).events as Record<string, string> | null
     if (participant?.owner_email) {
-      sendRegistrationEmail({
+      await sendRegistrationEmail({
         to: participant.owner_email,
         ownerName: participant.owner_name ?? '',
         dogName: participant.dog_name ?? '',
@@ -141,7 +141,7 @@ export async function PATCH(req: Request, { params }: Params) {
         eventDate: event?.start_at ?? null,
         eventLocation: event?.location ?? null,
         status: 'confirmed',
-      }).catch(() => {})
+      })
     }
   }
 
@@ -156,7 +156,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const { data: orgUser } = await adminClient.auth.admin.getUserById(createdBy)
       const organizerEmail = orgUser?.user?.email
       if (organizerEmail) {
-        sendCancellationEmailToOrganizer({
+        await sendCancellationEmailToOrganizer({
           to: organizerEmail,
           ownerName: participant?.owner_name ?? '',
           dogName: participant?.dog_name ?? '',
@@ -164,7 +164,7 @@ export async function PATCH(req: Request, { params }: Params) {
           eventDate: event?.start_at ? String(event.start_at) : null,
           eventLocation: event?.location ? String(event.location) : null,
           previousStatus: reg.status,
-        }).catch(() => {})
+        })
       }
     }
   }

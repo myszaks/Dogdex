@@ -97,6 +97,8 @@ export async function POST(req: Request, { params }: Params) {
     const reg = regMap.get(assignment.registration_id)
     const p = reg?.participants as { owner_email?: string; owner_name?: string; dog_name?: string } | null
     if (!p?.owner_email) continue
+    const email = p.owner_email.trim().toLowerCase()
+    if (!email) continue
 
     // Defensive check: skip if this slot date is no longer in the participant's form_data
     // (handles cases where a partial date cancellation wasn't fully cleaned up)
@@ -108,10 +110,10 @@ export async function POST(req: Request, { params }: Params) {
       if (!registeredDates.some(d => d.startsWith(slot.slot_date))) continue
     }
 
-    const key = p.owner_email
+    const key = email
     if (!emailGroups.has(key)) {
       emailGroups.set(key, {
-        email: p.owner_email,
+        email,
         ownerName: p.owner_name ?? '',
         dogNames: new Set(),
         slots: [],

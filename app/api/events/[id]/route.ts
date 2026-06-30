@@ -121,10 +121,10 @@ export async function PATCH(req: Request, { params }: Params) {
       const newStartAt = (body.start_at as string | null) ?? null
       const newLocation = (body.location as string | null) ?? null
 
-      for (const reg of registrations) {
+      await Promise.all(registrations.map(reg => {
         const p = (reg as Record<string, unknown>).participants as Record<string, string> | null
-        if (!p?.owner_email) continue
-        sendEventChangeEmail({
+        if (!p?.owner_email) return Promise.resolve()
+        return sendEventChangeEmail({
           to: p.owner_email,
           ownerName: p.owner_name ?? '',
           dogName: p.dog_name ?? '',
@@ -132,8 +132,8 @@ export async function PATCH(req: Request, { params }: Params) {
           changedFields,
           newStartAt,
           newLocation,
-        }).catch(() => {})
-      }
+        })
+      }))
     }
   }
 

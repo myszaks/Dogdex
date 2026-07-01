@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -35,20 +35,7 @@ export default async function PublicSchedulePage({ params }: Props) {
 
   if (!event) notFound()
 
-  // Check if the current user is registered for this event
   const { user } = await getServerUser()
-  let isRegistered = false
-
-  if (user?.email) {
-    const { data: userReg } = await supabase
-      .from('registrations')
-      .select('id, participants!inner(owner_email)')
-      .eq('event_id', event.id)
-      .eq('status', 'confirmed')
-      .ilike('participants.owner_email', user.email)
-      .maybeSingle()
-    isRegistered = !!userReg
-  }
 
   const { data: slots } = await supabase
     .from('time_slots')
@@ -60,9 +47,32 @@ export default async function PublicSchedulePage({ params }: Props) {
   // Fetch all confirmed registrations for this event
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, form_data, participants(dog_name, owner_name)')
+    .select('id, form_data, participants(dog_name, owner_name, owner_email, user_id, dog_id)')
     .eq('event_id', event.id)
     .eq('status', 'confirmed')
+
+  const authSupabase = user?.id ? await createAuthClient() : null
+  const { data: userDogs } = authSupabase && user?.id
+    ? await authSupabase.from('dogs').select('id').eq('user_id', user.id)
+    : { data: [] }
+
+  const userEmail = user?.email?.trim().toLowerCase() ?? null
+  const userDogIds = new Set((userDogs ?? []).map(d => d.id as string))
+
+  // A user can have multiple registrations for one event (for multiple dogs or dates).
+  // Treat any matching confirmed registration as access to the detailed public schedule.
+  const isRegistered = Boolean(user) && (registrations ?? []).some(r => {
+    const p = (r as Record<string, unknown>).participants as Record<string, string | null> | null
+    const participantEmail = typeof p?.owner_email === 'string'
+      ? p.owner_email.trim().toLowerCase()
+      : null
+
+    return (
+      (p?.user_id && p.user_id === user?.id) ||
+      (userEmail && participantEmail === userEmail) ||
+      (p?.dog_id && userDogIds.has(p.dog_id))
+    )
+  })
 
   const regIds = (registrations ?? []).map(r => r.id as string)
 

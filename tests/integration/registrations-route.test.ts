@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const createServerClient = vi.fn()
 const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
+const getServerUser = vi.fn()
 const sendRegistrationEmail = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
@@ -12,6 +13,7 @@ vi.mock('@/lib/supabaseServer', () => ({
 
 vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
+  getServerUser,
 }))
 
 vi.mock('@/lib/email', () => ({
@@ -22,6 +24,7 @@ describe('POST /api/registrations', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    getServerUser.mockResolvedValue({ user: null, role: null })
     sendRegistrationEmail.mockResolvedValue(undefined)
   })
 

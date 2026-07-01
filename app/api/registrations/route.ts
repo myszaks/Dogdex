@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 import { isEventRegistrationOpen } from '@/lib/eventStatus'
 
@@ -80,6 +80,34 @@ export async function POST(req: Request) {
   // Prevent duplicate registration: same owner_email + dog_name for the same event
   const ownerEmailNorm = ownerEmail?.trim().toLowerCase() || null
   const dogNameTrim = dogName.trim()
+  const dogIdNorm = typeof dogId === 'string' && dogId.trim() ? dogId.trim() : null
+  const { user } = await getServerUser()
+
+  if (dogIdNorm) {
+    if (!user) {
+      return NextResponse.json({ error: 'Brak uprawnień do użycia tego psa' }, { status: 401 })
+    }
+
+    const { data: ownedDog, error: dogError } = await supabase
+      .from('dogs')
+      .select('id')
+      .eq('id', dogIdNorm)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (dogError) return NextResponse.json({ error: dogError.message }, { status: 500 })
+    if (!ownedDog) {
+      return NextResponse.json({ error: 'Nieprawidłowy pies dla tego użytkownika' }, { status: 403 })
+    }
+  }
+
+  const participantUserId = user && (
+    dogIdNorm ||
+    (ownerEmailNorm && user.email?.trim().toLowerCase() === ownerEmailNorm)
+  )
+    ? user.id
+    : null
+
   if (ownerEmailNorm) {
     const { data: matchingParticipants } = await supabase
       .from('participants')
@@ -111,7 +139,8 @@ export async function POST(req: Request) {
       dog_breed: dogBreed?.trim() || null,
       owner_name: ownerName.trim(),
       owner_email: ownerEmailNorm,
-      dog_id: dogId || null,
+      user_id: participantUserId,
+      dog_id: dogIdNorm,
       extra: {},
     }])
     .select()

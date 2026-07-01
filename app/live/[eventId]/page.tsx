@@ -4,7 +4,7 @@ import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
 import SpeedwayLiveView from '@/components/SpeedwayLiveView'
 import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
-import { extractSizeClassFromFormData } from '@/lib/speedway'
+import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -55,7 +55,7 @@ export default async function LivePage({ params }: Props) {
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
       .eq('event_id', resolvedId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -79,7 +79,10 @@ export default async function LivePage({ params }: Props) {
     .map((r: any) => {
       const pid = r.participants?.id ?? r.id
       const existingResult = (results ?? []).find((res: any) => res.participant_id === pid)
-      const formClass = extractSizeClassFromFormData(r.form_data as Record<string, unknown>)
+      const dogHeightCm = Array.isArray(r.participants?.dogs)
+        ? r.participants.dogs[0]?.height_cm
+        : r.participants?.dogs?.height_cm
+      const formClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm)
       const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
         ? existingResult.size_class as import('@/lib/speedway').SizeClass
         : null

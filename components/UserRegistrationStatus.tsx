@@ -16,6 +16,8 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
   const [reg, setReg] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [cancelling, setCancelling] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [requestSent, setRequestSent] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
@@ -25,7 +27,10 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
     }
     fetch(`/api/registrations/my?eventId=${eventId}`)
       .then(r => (r.ok ? r.json() : null))
-      .then(data => setReg(data))
+      .then(data => {
+        setReg(data)
+        setRequestSent(Boolean(data?.pending_cancellation_request))
+      })
       .catch(() => setReg(null))
   }, [user?.email, eventId])
 
@@ -55,14 +60,22 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
 
   async function handleCancel() {
     setCancelling(true)
+    setCancelError(null)
     try {
-      const res = await fetch(`/api/registrations/${reg!.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/registrations/${reg!.id}/cancel-request`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({}),
       })
-      if (res.ok) setCancelled(true)
-    } catch {}
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCancelError(json.error ?? 'Nie udało się wysłać wniosku o rezygnację')
+      } else {
+        setRequestSent(true)
+      }
+    } catch {
+      setCancelError('Nie udało się wysłać wniosku o rezygnację')
+    }
     setCancelling(false)
   }
 
@@ -76,20 +89,30 @@ export default function UserRegistrationStatus({ eventId, eventTitle, formFields
           <span className="text-slate-400 ml-2">· {p.owner_name}</span>
         </p>
       )}
-      {status !== 'cancelled' && (
+      {requestSent && (
+        <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          Wniosek o rezygnację został wysłany i oczekuje na akceptację organizatora.
+        </p>
+      )}
+      {cancelError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {cancelError}
+        </p>
+      )}
+      {status !== 'cancelled' && !requestSent && (
         <button
           onClick={() => setConfirmOpen(true)}
           disabled={cancelling}
           className="w-full text-sm text-red-600 border border-red-200 bg-white hover:bg-red-50 rounded-lg py-1.5 transition-colors disabled:opacity-50"
         >
-          {cancelling ? 'Anulowanie...' : 'Zrezygnuj z udziału'}
+          {cancelling ? 'Wysyłanie...' : 'Zrezygnuj z udziału'}
         </button>
       )}
       <ConfirmModal
         open={confirmOpen}
         title="Zrezygnować z udziału?"
         message="Czy na pewno chcesz wycofać swój zapis na to wydarzenie?"
-        confirmLabel="Zrezygnuj"
+        confirmLabel="Wyślij wniosek"
         danger
         onConfirm={() => { setConfirmOpen(false); handleCancel() }}
         onCancel={() => setConfirmOpen(false)}

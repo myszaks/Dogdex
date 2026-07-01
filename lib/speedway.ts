@@ -104,3 +104,14 @@ export function extractSizeClassFromFormData(
 
   return null
 }
+
+export function extractSizeClassFromRegistration(
+  formData: Record<string, unknown> | null | undefined,
+  dogHeightCm: unknown,
+): SizeClass | null {
+  const fromForm = extractSizeClassFromFormData(formData)
+  if (fromForm) return fromForm
+
+  const height = parseHeightCm(dogHeightCm)
+  return height !== null ? getSizeClass(height) : null
+}

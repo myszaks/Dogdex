@@ -5,11 +5,12 @@ import { formatDate, statusColor, statusLabel, isRegistrationOpen, effectiveStat
 import RegisterModal from './RegisterModal'
 import type { DogEvent, FormField } from '@/types'
 import type { ReactNode } from 'react'
-import { MapPin, Clock, User, Radio, Lock } from 'lucide-react'
+import { MapPin, Clock, User, Radio, Lock, PawPrint } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface EventCardProps {
   event: DogEvent
+  registeredCount?: number | null
   extraActions?: ReactNode
   hidePublicActions?: boolean
 }
@@ -25,11 +26,14 @@ function statusBadgeClasses(status: string) {
   return map[status] ?? 'bg-secondary text-muted-foreground'
 }
 
-export default function EventCard({ event, extraActions, hidePublicActions }: EventCardProps) {
+export default function EventCard({ event, registeredCount, extraActions, hidePublicActions }: EventCardProps) {
   const dispStatus = effectiveStatus(event)
   const isOngoing = dispStatus === 'ongoing'
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
+  const maxParticipants = typeof event.max_participants === 'number' ? event.max_participants : null
+  const capacityKnown = typeof registeredCount === 'number'
+  const isFull = capacityKnown && maxParticipants !== null && maxParticipants > 0 && registeredCount >= maxParticipants
   const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
     ? `/archive/${event.slug}`
     : `/events/${event.slug}`
@@ -67,7 +71,7 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
       {/* Content */}
       <div className="p-5 flex flex-col flex-1">
         <div className="flex-1">
-          <h2 className="font-heading font-bold text-base text-foreground leading-tight mb-1">
+          <h2 className="font-heading font-bold text-base text-foreground leading-tight mb-1 wrap-anywhere">
             {event.title}
           </h2>
           {event.organizer_name && (
@@ -77,19 +81,28 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
             </p>
           )}
           {event.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{event.description}</p>
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-3 wrap-anywhere">{event.description}</p>
           )}
           <div className="flex flex-col gap-1">
             {event.start_at && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 shrink-0 text-accent" />
-                {formatDate(event.start_at)}
+                <span className="wrap-anywhere">
+                  {formatDate(event.start_at)}
+                  {event.end_at && <> - {formatDate(event.end_at)}</>}
+                </span>
               </p>
             )}
             {event.location && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 shrink-0 text-accent" />
-                {event.location}
+                <span className="wrap-anywhere">{event.location}</span>
+              </p>
+            )}
+            {maxParticipants !== null && capacityKnown && (
+              <p className={cn('text-xs flex items-center gap-1.5', isFull ? 'text-red-600 font-medium' : 'text-muted-foreground')}>
+                <PawPrint className="w-3.5 h-3.5 shrink-0" />
+                {isFull ? 'Brak wolnych miejsc' : `${registeredCount} / ${maxParticipants} miejsc`}
               </p>
             )}
             {event.registration_deadline && dispStatus === 'upcoming' && (
@@ -105,8 +118,13 @@ export default function EventCard({ event, extraActions, hidePublicActions }: Ev
         <div className="mt-4 flex flex-wrap gap-2">
           {!hidePublicActions && (
             <>
-              {dispStatus === 'upcoming' && regOpen && (
+              {dispStatus === 'upcoming' && regOpen && !isFull && (
                 <RegisterModal eventId={event.id} eventTitle={event.title} formFields={formFields} />
+              )}
+              {dispStatus === 'upcoming' && regOpen && isFull && (
+                <span className="btn btn-sm bg-secondary text-muted-foreground border border-border cursor-not-allowed">
+                  Brak miejsc
+                </span>
               )}
               {dispStatus === 'upcoming' && !regOpen && (
                 <span className="btn btn-sm bg-secondary text-muted-foreground border border-border cursor-not-allowed">

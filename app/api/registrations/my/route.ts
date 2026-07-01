@@ -37,5 +37,19 @@ export async function GET(req: Request) {
     .neq('status', 'cancelled')
     .maybeSingle()
 
+  if (reg) {
+    const { data: pendingCancellationRequest } = await supabase
+      .from('cancellation_requests')
+      .select('*')
+      .eq('registration_id', reg.id)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    return NextResponse.json({
+      ...reg,
+      pending_cancellation_request: pendingCancellationRequest ?? null,
+    })
+  }
+
   return NextResponse.json(reg ?? null)
 }

@@ -25,6 +25,14 @@ function escHtml(str: string | null | undefined): string {
     .replace(/'/g, '&#x27;')
 }
 
+const EMAIL_LABEL_CELL = 'padding:8px;color:#64748b;width:112px;min-width:112px;white-space:nowrap;vertical-align:top'
+const EMAIL_VALUE_CELL = 'padding:8px;overflow-wrap:anywhere;word-break:break-word;vertical-align:top'
+
+function infoRow(label: string, valueHtml: string, valueStyle = ''): string {
+  const style = valueStyle ? `${EMAIL_VALUE_CELL};${valueStyle}` : EMAIL_VALUE_CELL
+  return `<tr><td style="${EMAIL_LABEL_CELL}">${escHtml(label)}:</td><td style="${style}">${valueHtml}</td></tr>`
+}
+
 interface RegistrationEmailPayload {
   to: string
   ownerName: string
@@ -59,7 +67,7 @@ function buildFormDataRows(fields?: FormField[], data?: Record<string, unknown>)
   if (!fields?.length || !data || !Object.keys(data).length) return ''
   const rows = fields
     .filter(f => data[f.id] !== undefined && data[f.id] !== null && data[f.id] !== '')
-    .map(f => `<tr><td style="padding:8px;color:#64748b">${escHtml(f.label)}:</td><td style="padding:8px">${formatFieldValue(f, data[f.id])}</td></tr>`)
+    .map(f => infoRow(f.label, formatFieldValue(f, data[f.id])))
     .join('')
   if (!rows) return ''
   return `<p style="margin:16px 0 4px;font-weight:600;color:#0f172a">Dodatkowe informacje:</p>
@@ -94,10 +102,10 @@ export async function sendRegistrationEmail(payload: RegistrationEmailPayload): 
       <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
       <p>${statusText}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
-        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+        ${infoRow('Wydarzenie', escHtml(payload.eventTitle), 'font-weight:600')}
+        ${payload.eventDate ? infoRow('Data', escHtml(formatEmailDateTime(payload.eventDate))) : ''}
+        ${payload.eventLocation ? infoRow('Lokalizacja', escHtml(payload.eventLocation)) : ''}
+        ${infoRow('Pies', escHtml(payload.dogName))}
       </table>
       ${buildFormDataRows(payload.formFields, payload.formData)}
       ${payload.status === 'pending' ? '<p style="color:#92400e;background:#fef3c7;padding:12px;border-radius:8px">Poczekaj na potwierdzenie od organizatora.</p>' : ''}

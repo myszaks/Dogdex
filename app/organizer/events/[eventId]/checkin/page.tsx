@@ -1,6 +1,6 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
-import { extractSizeClassFromFormData } from '@/lib/speedway'
+import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 import CheckInClient from '@/components/CheckInClient'
 import type { Metadata } from 'next'
@@ -27,7 +27,7 @@ export default async function CheckInPage({ params }: Props) {
 
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, checked_in, form_data, participants(id, dog_name, owner_name)')
+    .select('id, checked_in, form_data, participants(id, dog_name, owner_name, dogs(height_cm))')
     .eq('event_id', eventId)
     .eq('status', 'confirmed')
     .order('order_index', { ascending: true, nullsFirst: false })
@@ -35,7 +35,10 @@ export default async function CheckInPage({ params }: Props) {
 
   const participants = (registrations ?? []).map((r: any) => {
     const pid = r.participants?.id ?? r.id
-    const sizeClass: SizeClass = extractSizeClassFromFormData(r.form_data as Record<string, unknown>) ?? 'M'
+    const dogHeightCm = Array.isArray(r.participants?.dogs)
+      ? r.participants.dogs[0]?.height_cm
+      : r.participants?.dogs?.height_cm
+    const sizeClass: SizeClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm) ?? 'M'
     return {
       registrationId: r.id as string,
       participantId: pid as string,

@@ -3,6 +3,8 @@ import { twMerge } from "tailwind-merge"
 import type { DogEvent } from "@/types"
 import { effectiveEventStatus, isEventRegistrationOpen } from "@/lib/eventStatus"
 
+export const DISPLAY_TIME_ZONE = 'Europe/Warsaw'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -36,6 +38,7 @@ export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
     return new Intl.DateTimeFormat('pl-PL', {
+      timeZone: DISPLAY_TIME_ZONE,
       year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     }).format(new Date(dateStr))
@@ -48,6 +51,7 @@ export function formatDateShort(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
     return new Intl.DateTimeFormat('pl-PL', {
+      timeZone: DISPLAY_TIME_ZONE,
       year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date(dateStr))
   } catch {

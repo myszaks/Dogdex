@@ -56,6 +56,24 @@ export default async function HomePage({ searchParams }: Props) {
   if (sp.organizator) query = query.ilike('organizer_name', `%${sp.organizator}%`)
 
   const { data: events, error } = await query
+  const allEvents: DogEvent[] = events ?? []
+  const eventIdsWithLimits = allEvents
+    .filter(event => typeof event.max_participants === 'number' && event.max_participants > 0)
+    .map(event => event.id)
+  const registrationCountMap = new Map<string, number>()
+
+  if (eventIdsWithLimits.length > 0) {
+    const { data: activeRegistrations } = await supabase
+      .from('registrations')
+      .select('event_id')
+      .in('event_id', eventIdsWithLimits)
+      .in('status', ['pending', 'confirmed'])
+
+    for (const registration of activeRegistrations ?? []) {
+      const eventId = registration.event_id as string
+      registrationCountMap.set(eventId, (registrationCountMap.get(eventId) ?? 0) + 1)
+    }
+  }
 
   const hasFilters = sp.lokalizacja || sp.szukaj || sp.organizator
 
@@ -68,7 +86,6 @@ export default async function HomePage({ searchParams }: Props) {
     .order('start_at', { ascending: true })
     .limit(5)
 
-  const allEvents: DogEvent[] = events ?? []
   const ongoingEvents = allEvents.filter(e => effectiveStatus(e) === 'ongoing')
   const upcomingEvents = allEvents.filter(e => effectiveStatus(e) === 'upcoming')
   const hasCancelled = (cancelledEvents?.length ?? 0) > 0
@@ -110,7 +127,11 @@ export default async function HomePage({ searchParams }: Props) {
               <SectionLabel icon={<Radio className="w-3.5 h-3.5 animate-pulse text-emerald-600" />} label="Trwające" accent="emerald" />
               <div className="grid gap-5 sm:grid-cols-2">
                 {ongoingEvents.map((event) => (
-                  <EventCard key={event.id} event={event} />
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    registeredCount={event.max_participants ? (registrationCountMap.get(event.id) ?? 0) : null}
+                  />
                 ))}
               </div>
             </section>
@@ -122,7 +143,11 @@ export default async function HomePage({ searchParams }: Props) {
               <SectionLabel icon={<CalendarDays className="w-3.5 h-3.5 text-blue-500" />} label="Nadchodzące" />
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {upcomingEvents.map((event) => (
-                  <EventCard key={event.id} event={event} />
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    registeredCount={event.max_participants ? (registrationCountMap.get(event.id) ?? 0) : null}
+                  />
                 ))}
               </div>
             </section>

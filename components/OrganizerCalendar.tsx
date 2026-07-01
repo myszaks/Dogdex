@@ -248,13 +248,13 @@ export default function OrganizerCalendar({ events }: Props) {
                 </p>
                 <div className="flex gap-1.5">
                   <Link
-                    href={`/organizer/events/${event.slug ?? event.id}/registrations`}
+                    href={`/organizer/events/${event.slug}/registrations`}
                     className="flex-1 text-center text-[11px] bg-primary/10 text-primary rounded-lg px-2 py-1 hover:bg-primary/20 transition-colors font-medium"
                   >
                     Zapisy
                   </Link>
                   <Link
-                    href={`/events/${event.slug ?? event.id}`}
+                    href={`/events/${event.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 text-center text-[11px] bg-muted text-muted-foreground rounded-lg px-2 py-1 hover:bg-muted/80 transition-colors"

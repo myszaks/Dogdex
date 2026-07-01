@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import Link from 'next/link'
+import { getSupabaseBrowserClient, requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 function checkPassword(pw: string) {
   return {
@@ -13,6 +14,7 @@ function checkPassword(pw: string) {
 }
 
 function ResetPasswordForm() {
+  const supabase = getSupabaseBrowserClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -25,6 +27,8 @@ function ResetPasswordForm() {
   const pwValid = Object.values(pwChecks).every(Boolean)
 
   useEffect(() => {
+    if (!supabase) return
+
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setSessionReady(true)
     })
@@ -33,9 +37,10 @@ function ResetPasswordForm() {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setSessionReady(true)
     })
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   async function handleSubmit(e: React.FormEvent) {
+    const supabase = requireSupabaseBrowserClient()
     e.preventDefault()
     setError(null)
 
@@ -154,6 +159,9 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <div className="max-w-md mx-auto py-10">
+      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Strona główna
+      </Link>
       <h1 className="page-title mb-6">🔐 Resetowanie hasła</h1>
       <Suspense fallback={<div className="card text-center py-8 text-slate-500">Ładowanie…</div>}>
         <ResetPasswordForm />

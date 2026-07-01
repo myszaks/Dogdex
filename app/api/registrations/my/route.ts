@@ -16,26 +16,70 @@ export async function GET(req: Request) {
 
   const supabase = await createAuthClient()
 
-  // Find all participants with this email
-  const { data: participants } = await supabase
-    .from('participants')
-    .select('id')
-    .ilike('owner_email', user.email)
+  const participantIds = new Set<string>()
 
-  if (!participants?.length) {
-    return NextResponse.json(null)
+  // Find participants linked directly to this user, old records matched by email,
+  // and records linked to one of the user's dogs.
+  const [{ data: participantsByUser }, { data: participantsByEmail }, { data: dogs }] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id')
+      .eq('user_id', user.id),
+    supabase
+      .from('participants')
+      .select('id')
+      .ilike('owner_email', user.email),
+    supabase
+      .from('dogs')
+      .select('id')
+      .eq('user_id', user.id),
+  ])
+
+  for (const participant of participantsByUser ?? []) participantIds.add(participant.id as string)
+  for (const participant of participantsByEmail ?? []) participantIds.add(participant.id as string)
+
+  const dogIds = (dogs ?? []).map(dog => dog.id as string)
+  if (dogIds.length > 0) {
+    const { data: participantsByDog } = await supabase
+      .from('participants')
+      .select('id')
+      .in('dog_id', dogIds)
+
+    for (const participant of participantsByDog ?? []) participantIds.add(participant.id as string)
   }
 
-  const participantIds = participants.map(p => p.id)
+  if (participantIds.size === 0) {
+    return NextResponse.json([])
+  }
 
-  // Find registration for this event (excluding cancelled)
-  const { data: reg } = await supabase
+  // Find all registrations for this event (excluding cancelled).
+  const { data: registrations } = await supabase
     .from('registrations')
     .select('*, participants(*)')
     .eq('event_id', eventId)
-    .in('participant_id', participantIds)
+    .in('participant_id', [...participantIds])
     .neq('status', 'cancelled')
-    .maybeSingle()
+    .order('created_at', { ascending: true })
 
-  return NextResponse.json(reg ?? null)
+  const registrationIds = (registrations ?? []).map(reg => reg.id as string)
+  if (registrationIds.length === 0) {
+    return NextResponse.json([])
+  }
+
+  const { data: pendingCancellationRequests } = await supabase
+    .from('cancellation_requests')
+    .select('*')
+    .in('registration_id', registrationIds)
+    .eq('status', 'pending')
+
+  const pendingByRegistrationId = new Map(
+    (pendingCancellationRequests ?? []).map(req => [req.registration_id as string, req])
+  )
+
+  return NextResponse.json(
+    (registrations ?? []).map(reg => ({
+      ...reg,
+      pending_cancellation_request: pendingByRegistrationId.get(reg.id as string) ?? null,
+    }))
+  )
 }

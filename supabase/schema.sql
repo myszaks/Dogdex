@@ -12,6 +12,7 @@ create extension if not exists "uuid-ossp";
 
 create table if not exists events (
   id          uuid primary key default gen_random_uuid(),
+  slug        text not null,
   title       text not null,
   description text,
   start_at    timestamptz,
@@ -70,6 +71,7 @@ create table if not exists results (
 
 create index if not exists idx_events_status   on events(status);
 create index if not exists idx_events_start_at on events(start_at);
+create unique index if not exists events_slug_key on events(slug);
 create index if not exists idx_registrations_event_id       on registrations(event_id);
 create index if not exists idx_registrations_participant_id on registrations(participant_id);
 create index if not exists idx_results_event_id on results(event_id);
@@ -108,9 +110,10 @@ create policy "registrations_public_insert" on registrations for insert with che
 -- Dane przykładowe (opcjonalne – usuń w produkcji)
 -- ============================================================
 
-insert into events (title, description, location, start_at, end_at, status)
+insert into events (slug, title, description, location, start_at, end_at, status)
 values
   (
+    'zawody-agility-lato-2026',
     'Zawody Agility – Lato 2026',
     'Otwarte zawody agility dla wszystkich ras. Kategorie startowe: A1, A2, A3, Open.',
     'Warszawa, Tor Psich Sportów, ul. Psia 15',
@@ -119,6 +122,7 @@ values
     'upcoming'
   ),
   (
+    'grupowy-spacer-psi-czerwiec',
     'Grupowy Spacer Psi – Czerwiec',
     'Miesięczny spacer integracyjny dla właścicieli psów. Trasa 5 km, mile dla rodzin.',
     'Kraków, Planty – przy fontannie',
@@ -127,6 +131,7 @@ values
     'upcoming'
   ),
   (
+    'zawody-flyball-wiosna-2025',
     'Zawody Flyball – Wiosna 2025',
     'Znakomita rywalizacja drużynowa! Pobity rekord toru.',
     'Wrocław, Centrum Kynologiczne',
@@ -147,6 +152,8 @@ create table if not exists profiles (
   role       text not null default 'user',
   full_name  text,
   company    text,
+  stripe_account_id text,
+  stripe_onboarded boolean default false,
   created_at timestamptz not null default now()
 );
 
@@ -330,4 +337,300 @@ create policy "templates_delete_own" on form_templates
 -- Service role + authenticated DML
 grant all on public.form_templates to service_role;
 grant select, insert, update, delete on public.form_templates to authenticated;
+
+-- ============================================================
+-- Treningi indywidualne (Individual Trainings)
+-- ============================================================
+
+-- Profil trenera (wizytówka)
+create table if not exists trainer_profiles (
+  id                 uuid primary key default gen_random_uuid(),
+  slug               text not null,
+  trainer_id         uuid not null unique references auth.users(id) on delete cascade,
+  is_active          boolean not null default false,
+  full_name          text not null,
+  bio                text,
+  profile_image_url  text,
+  location_city      text,
+  location_details   text,
+  price_per_hour     decimal(8, 2),
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+
+create index if not exists idx_trainer_profiles_is_active on trainer_profiles(is_active);
+create index if not exists idx_trainer_profiles_trainer_id on trainer_profiles(trainer_id);
+create unique index if not exists trainer_profiles_slug_key on trainer_profiles(slug);
+
+-- Rodzaje treningów oferowanych przez trenera
+create table if not exists training_types (
+  id             uuid primary key default gen_random_uuid(),
+  slug           text not null,
+  trainer_id     uuid not null references auth.users(id) on delete cascade,
+  name           text not null,  -- np. "Agility", "Behawiorystyka"
+  description    text,
+  price_per_hour decimal(8, 2),
+  duration_min   integer not null default 60,  -- domyślnie 60 minut
+  is_active      boolean not null default true,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists idx_training_types_trainer_id on training_types(trainer_id);
+create index if not exists idx_training_types_is_active on training_types(is_active);
+create unique index if not exists training_types_trainer_slug_key on training_types(trainer_id, slug);
+
+-- Dostępność trenera na poszczególne dni i godziny
+create table if not exists training_availability (
+  id             uuid primary key default gen_random_uuid(),
+  training_type_id uuid not null references training_types(id) on delete cascade,
+  day_of_week    integer not null,  -- 0 = niedziela, 6 = sobota (ISO 8601)
+  start_time     time not null,
+  end_time       time not null,
+  is_active      boolean not null default true,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists idx_training_availability_training_type on training_availability(training_type_id);
+create index if not exists idx_training_availability_active on training_availability(is_active);
+
+-- Rezerwacje treningów
+create table if not exists training_bookings (
+  id                    uuid primary key default gen_random_uuid(),
+  training_type_id      uuid not null references training_types(id) on delete cascade,
+  user_id               uuid not null references auth.users(id) on delete cascade,
+  dog_id                uuid,  -- opcjonalnie link do konkretnego psa
+  scheduled_at          timestamptz not null,  -- data i godzina treningu
+  duration_min          integer not null default 60,
+  status                text not null default 'pending'
+                        check (status in ('pending','confirmed','cancelled','completed')),
+  cancellation_reason   text,
+  cancellation_requested_by text,  -- 'user' lub 'trainer'
+  cancellation_approved_at timestamptz,
+  notes_user            text,
+  notes_trainer         text,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+create index if not exists idx_training_bookings_user_id on training_bookings(user_id);
+create index if not exists idx_training_bookings_training_type on training_bookings(training_type_id);
+create index if not exists idx_training_bookings_scheduled on training_bookings(scheduled_at);
+create index if not exists idx_training_bookings_status on training_bookings(status);
+
+-- Płatności za treningi
+create table if not exists training_payments (
+  id                       uuid primary key default gen_random_uuid(),
+  booking_id               uuid not null unique references training_bookings(id) on delete cascade,
+  amount                   decimal(10, 2) not null,
+  currency                 text not null default 'PLN',
+  stripe_session_id        text,
+  stripe_payment_intent_id text,
+  stripe_account_id        text,  -- connected account ID for the trainer
+  status                   text not null default 'pending'
+                          check (status in ('pending','completed','failed','refunded')),
+  payment_method_id        text,
+  created_at               timestamptz not null default now(),
+  updated_at               timestamptz not null default now()
+);
+
+create index if not exists idx_training_payments_booking on training_payments(booking_id);
+create index if not exists idx_training_payments_status on training_payments(status);
+
+-- Row Level Security
+alter table trainer_profiles enable row level security;
+alter table training_types enable row level security;
+alter table training_availability enable row level security;
+alter table training_bookings enable row level security;
+alter table training_payments enable row level security;
+
+-- trainer_profiles: trainers manage own, all can view active
+create policy "trainer_profiles_select_active" on trainer_profiles
+  for select using (is_active = true OR auth.uid() = trainer_id);
+create policy "trainer_profiles_insert_own" on trainer_profiles
+  for insert with check (auth.uid() = trainer_id);
+create policy "trainer_profiles_update_own" on trainer_profiles
+  for update using (auth.uid() = trainer_id);
+create policy "trainer_profiles_delete_own" on trainer_profiles
+  for delete using (auth.uid() = trainer_id);
+
+-- training_types: publicly visible if trainer is active; trainers manage own
+create policy "training_types_select_public" on training_types
+  for select using (
+    is_active = true 
+    or auth.uid() = trainer_id
+  );
+create policy "training_types_insert_own" on training_types
+  for insert with check (auth.uid() = trainer_id);
+create policy "training_types_update_own" on training_types
+  for update using (auth.uid() = trainer_id);
+create policy "training_types_delete_own" on training_types
+  for delete using (auth.uid() = trainer_id);
+
+-- training_availability: public for active trainers; trainers manage own
+create policy "training_availability_select_public" on training_availability
+  for select using (
+    is_active = true 
+    or auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+create policy "training_availability_insert_own" on training_availability
+  for insert with check (
+    auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+create policy "training_availability_update_own" on training_availability
+  for update using (
+    auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+create policy "training_availability_delete_own" on training_availability
+  for delete using (
+    auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+
+-- training_bookings: users see own; trainers see their type bookings
+create policy "training_bookings_select_own" on training_bookings
+  for select using (
+    auth.uid() = user_id 
+    or auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+create policy "training_bookings_insert_own" on training_bookings
+  for insert with check (auth.uid() = user_id);
+create policy "training_bookings_update_own" on training_bookings
+  for update using (
+    auth.uid() = user_id 
+    or auth.uid() = (select trainer_id from training_types where id = training_type_id)
+  );
+create policy "training_bookings_delete_own" on training_bookings
+  for delete using (auth.uid() = user_id);
+
+-- training_payments: users see own; trainers see their trainings' payments
+create policy "training_payments_select_own" on training_payments
+  for select using (
+    auth.uid() = (select user_id from training_bookings where id = booking_id)
+    or auth.uid() = (
+      select trainer_id from training_types 
+      where id = (select training_type_id from training_bookings where id = booking_id)
+    )
+  );
+create policy "training_payments_insert_own" on training_payments
+  for insert with check (
+    auth.uid() = (select user_id from training_bookings where id = booking_id)
+  );
+create policy "training_payments_update_own" on training_payments
+  for update using (
+    auth.uid() = (select user_id from training_bookings where id = booking_id)
+    or auth.uid() = (
+      select trainer_id from training_types 
+      where id = (select training_type_id from training_bookings where id = booking_id)
+    )
+  );
+
+-- Grant access to service role
+grant all on public.trainer_profiles to service_role;
+grant all on public.training_types to service_role;
+grant all on public.training_availability to service_role;
+grant all on public.training_bookings to service_role;
+grant all on public.training_payments to service_role;
+
+-- Grant access to authenticated users
+grant select, insert, update, delete on public.trainer_profiles to authenticated;
+grant select, insert, update, delete on public.training_types to authenticated;
+grant select, insert, update, delete on public.training_availability to authenticated;
+grant select, insert, update, delete on public.training_bookings to authenticated;
+grant select, insert, update, delete on public.training_payments to authenticated;
+
+-- ============================================================
+-- Dostępność trenera na konkretne daty (nowy system)
+-- ============================================================
+
+create table if not exists trainer_date_availability (
+  id           uuid primary key default gen_random_uuid(),
+  trainer_id   uuid not null references auth.users(id) on delete cascade,
+  available_date date not null,
+  start_time   time not null,
+  end_time     time not null,
+  is_active    boolean not null default true,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique(trainer_id, available_date)
+);
+
+create index if not exists idx_trainer_date_availability_trainer_id on trainer_date_availability(trainer_id);
+create index if not exists idx_trainer_date_availability_date on trainer_date_availability(available_date);
+create index if not exists idx_trainer_date_availability_active on trainer_date_availability(is_active);
+
+alter table trainer_date_availability enable row level security;
+
+-- Trainers can manage their own availability; public can view active
+create policy "trainer_date_availability_select_public" on trainer_date_availability
+  for select using (
+    is_active = true 
+    or auth.uid() = trainer_id
+  );
+create policy "trainer_date_availability_insert_own" on trainer_date_availability
+  for insert with check (auth.uid() = trainer_id);
+create policy "trainer_date_availability_update_own" on trainer_date_availability
+  for update using (auth.uid() = trainer_id);
+create policy "trainer_date_availability_delete_own" on trainer_date_availability
+  for delete using (auth.uid() = trainer_id);
+
+grant all on public.trainer_date_availability to service_role;
+grant select, insert, update, delete on public.trainer_date_availability to authenticated;
+
+-- ============================================================
+-- Reset hasla
+-- ============================================================
+
+create table if not exists password_reset_requests (
+  email         text primary key,
+  last_sent_at  timestamptz not null default now(),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create or replace function reserve_password_reset_link(
+  p_email text,
+  p_cooldown_seconds integer default 300
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_email text := lower(trim(coalesce(p_email, '')));
+  cooldown interval := make_interval(secs => greatest(1, coalesce(p_cooldown_seconds, 300)));
+  last_sent timestamptz;
+begin
+  if normalized_email = '' then
+    return jsonb_build_object('allowed', false, 'retry_after_seconds', 0);
+  end if;
+
+  insert into password_reset_requests (email, last_sent_at, created_at, updated_at)
+  values (normalized_email, now(), now(), now())
+  on conflict (email) do update
+    set last_sent_at = excluded.last_sent_at,
+        updated_at = excluded.updated_at
+    where password_reset_requests.last_sent_at <= now() - cooldown
+  returning last_sent_at into last_sent;
+
+  if found then
+    return jsonb_build_object('allowed', true, 'retry_after_seconds', 0);
+  end if;
+
+  select last_sent_at into last_sent
+  from password_reset_requests
+  where email = normalized_email;
+
+  return jsonb_build_object(
+    'allowed', false,
+    'retry_after_seconds', greatest(
+      1,
+      ceil(extract(epoch from (cooldown - (now() - last_sent))))::int
+    )
+  );
+end;
+$$;
+
+grant all on public.password_reset_requests to service_role;
 

@@ -4,9 +4,9 @@ import { toSlug } from '@/lib/utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 async function generateDogSlug(supabase: SupabaseClient, userId: string, name: string, excludeId: string): Promise<string> {
-  const base = toSlug(name)
+  const base = toSlug(name) || 'pies'
   let slug = base
-  let i = 1
+  let i = 2
   while (true) {
     const { data } = await supabase.from('dogs').select('id').eq('user_id', userId).eq('slug', slug).neq('id', excludeId).maybeSingle()
     if (!data) return slug

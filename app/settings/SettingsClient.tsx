@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabaseClient'
+import { requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 interface Props {
   email: string
@@ -33,6 +33,7 @@ export default function SettingsClient({ email, provider }: Props) {
   const pwValid = Object.values(pwChecks).every(Boolean)
 
   async function handleChangePassword(e: React.FormEvent) {
+    const supabase = requireSupabaseBrowserClient()
     e.preventDefault()
     setPwError(null)
     setPwSuccess(false)
@@ -67,6 +68,7 @@ export default function SettingsClient({ email, provider }: Props) {
   }
 
   async function handleSignOutAll() {
+    const supabase = requireSupabaseBrowserClient()
     await supabase.auth.signOut({ scope: 'global' })
     window.location.href = '/'
   }

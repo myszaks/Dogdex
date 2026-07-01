@@ -48,7 +48,7 @@ export default async function MyRegistrationsPage() {
 
   // Build flat list of specific dates from multidate form fields,
   // falling back to event start_at if no multidate selections found.
-  const eventDates: { date: string; id: string; slug: string | null; title: string }[] = []
+  const eventDates: { date: string; id: string; slug: string; title: string }[] = []
   const seen = new Set<string>()
 
   for (const reg of registrations as Array<Record<string, unknown>>) {
@@ -75,7 +75,7 @@ export default async function MyRegistrationsPage() {
       const key = `${ev.id as string}::${date}`
       if (seen.has(key)) continue
       seen.add(key)
-      eventDates.push({ date: date.slice(0, 10), id: ev.id as string, slug: (ev.slug as string | null) ?? null, title: ev.title as string })
+      eventDates.push({ date: date.slice(0, 10), id: ev.id as string, slug: ev.slug as string, title: ev.title as string })
     }
   }
 

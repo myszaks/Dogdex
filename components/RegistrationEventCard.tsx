@@ -16,13 +16,18 @@ const regStatusConfig: Record<string, { label: string; className: string; Icon: 
 }
 
 function formatFieldValue(field: FormField, val: unknown): string {
+  if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
+  if (field.type === 'checkbox' && typeof val === 'string') {
+    const normalized = val.trim().toLowerCase()
+    if (normalized === 'true') return 'Tak'
+    if (normalized === 'false') return 'Nie'
+  }
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => { try { return formatDateShort(d as string) } catch { return String(d) } }).join(', ')
     }
-    return val.join(', ')
+    return val.map(v => formatFieldValue(field, v)).join(', ')
   }
-  if (field.type === 'checkbox') return val ? 'Tak' : 'Nie'
   return String(val)
 }
 
@@ -69,8 +74,8 @@ export default function RegistrationEventCard({ event, registration, participant
 
   const dispStatus = effectiveStatus(event)
   const detailHref = dispStatus === 'finished' || dispStatus === 'cancelled'
-    ? `/archive/${event.slug ?? event.id}`
-    : `/events/${event.slug ?? event.id}`
+    ? `/archive/${event.slug}`
+    : `/events/${event.slug}`
 
   const canCancel =
     status !== 'cancelled' &&

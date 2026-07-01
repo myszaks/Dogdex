@@ -16,7 +16,7 @@ async function resolveArchiveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/archive/${byId.slug}` : null
+      const target = `/archive/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }

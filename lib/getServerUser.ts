@@ -35,9 +35,17 @@ export async function checkRoleForApi(
   const { user, role } = await getServerUser()
   if (!user) return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 }) }
   if (role !== 'admin' && (!role || !roles.includes(role))) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+    return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 }) }
   }
   return { user: user!, role: role! }
+}
+
+/**
+ * Helper: Check if user can manage a trainer resource (training types, availability, etc.)
+ * User can manage if they own it (userId === trainerId) OR they are admin
+ */
+export function canManageTrainerResource(userId: string, trainerId: string, userRole: string | null): boolean {
+  return userId === trainerId || userRole === 'admin'
 }
 
 

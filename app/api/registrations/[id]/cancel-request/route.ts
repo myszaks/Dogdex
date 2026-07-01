@@ -122,7 +122,7 @@ export async function POST(req: Request, { params }: Params) {
     const { data: orgUser } = await adminClient.auth.admin.getUserById(createdBy)
     const organizerEmail = orgUser?.user?.email
     if (organizerEmail) {
-      sendCancellationRequestEmailToOrganizer({
+      await sendCancellationRequestEmailToOrganizer({
         to: organizerEmail,
         ownerName: participant?.owner_name ?? '',
         dogName: participant?.dog_name ?? '',
@@ -130,7 +130,7 @@ export async function POST(req: Request, { params }: Params) {
         eventDate: event?.start_at ? String(event.start_at) : null,
         eventLocation: event?.location ? String(event.location) : null,
         cancelledDates: cancelledDates,
-      }).catch(() => {})
+      })
     }
   }
 

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 interface StartParticipant {
   registration_id: string
@@ -16,9 +16,12 @@ interface Props {
 }
 
 export default function LiveStartPanel({ eventId, initialStartIndex, participants }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const [startIndex, setStartIndex] = useState(initialStartIndex)
 
   useEffect(() => {
+    if (!supabase) return
+
     const channel = supabase
       .channel(`live-start-${eventId}`)
       .on(
@@ -32,7 +35,7 @@ export default function LiveStartPanel({ eventId, initialStartIndex, participant
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [eventId])
+  }, [eventId, supabase])
 
   if (participants.length === 0) return null
 

@@ -7,7 +7,7 @@ import NextStartButton from '@/components/NextStartButton'
 import PublishResultsButton from '@/components/PublishResultsButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { extractSizeClassFromFormData } from '@/lib/speedway'
+import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { effectiveStatus } from '@/lib/utils'
 
 interface Props {
@@ -30,7 +30,7 @@ export default async function ResultsPage({ params }: Props) {
   const [{ data: registrations }, { data: results }] = await Promise.all([
     supabase
       .from('registrations')
-      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -42,6 +42,9 @@ export default async function ResultsPage({ params }: Props) {
   if (!event.has_results) {
     return (
       <div>
+        <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+          ← Panel organizatora
+        </Link>
         <h1 className="page-title">🏆 Wyniki</h1>
         <div className="card text-center py-12 text-slate-500">
           <p className="text-4xl mb-3">⚙️</p>
@@ -49,7 +52,7 @@ export default async function ResultsPage({ params }: Props) {
           <p className="text-sm mt-1">
             Włącz opcję <strong>Wyniki i ranking</strong> w ustawieniach wydarzenia.
           </p>
-          <a href={`/organizer/events/${eventId}/edit`} className="btn btn-secondary btn-sm mt-4 inline-flex">
+          <a href={`/organizer/events/${event.slug}/edit`} className="btn btn-secondary btn-sm mt-4 inline-flex">
             ✏️ Edytuj wydarzenie
           </a>
         </div>
@@ -69,13 +72,16 @@ export default async function ResultsPage({ params }: Props) {
 
   const speedwayParticipants: SpeedwayLiveParticipant[] = (registrations ?? []).map((r: any) => {
     const existingResult = results?.find(res => res.participant_id === r.participant_id) ?? null
+    const dogHeightCm = Array.isArray(r.participants?.dogs)
+      ? r.participants.dogs[0]?.height_cm
+      : r.participants?.dogs?.height_cm
     return {
       participantId: r.participants?.id ?? r.participant_id,
       dogName: r.participants?.dog_name ?? '',
       ownerName: r.participants?.owner_name ?? '',
       breed: r.participants?.dog_breed ?? '',
-      heightCm: null,
-      formSizeClass: extractSizeClassFromFormData(r.form_data as Record<string, unknown>) ?? null,
+      heightCm: dogHeightCm ?? null,
+      formSizeClass: extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm) ?? null,
       checkedIn: Boolean(r.checked_in),
       result: existingResult ? {
         id: existingResult.id,
@@ -93,10 +99,13 @@ export default async function ResultsPage({ params }: Props) {
 
   return (
     <div>
+      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Panel organizatora
+      </Link>
       <h1 className="page-title">🏆 Wyniki</h1>
 
       {/* Live control panel – only for ongoing events with ordered participants */}
-      {effectiveStatus(event) === 'ongoing' && (registrations?.length ?? 0) > 0 && (
+      {effectiveStatus(event) === 'ongoing' && !isSpeedway && (registrations?.length ?? 0) > 0 && (
         <div className="space-y-3 mb-5">
           <NextStartButton
             eventId={eventId}
@@ -104,7 +113,7 @@ export default async function ResultsPage({ params }: Props) {
             totalCount={registrations?.length ?? 0}
           />
           <Link
-            href={`/organizer/events/${eventId}/live-entry`}
+            href={`/organizer/events/${event.slug}/live-entry`}
             className="btn btn-primary w-full"
           >
             ⚡ Szybkie wprowadzanie wyników
@@ -124,6 +133,7 @@ export default async function ResultsPage({ params }: Props) {
       {isSpeedway ? (
         <SpeedwayLiveEntry
           eventId={eventId}
+          eventSlug={event.slug}
           initialTrackDistanceM={event.track_distance_m ?? null}
           participants={speedwayParticipants}
         />

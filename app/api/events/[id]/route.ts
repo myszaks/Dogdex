@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendEventChangeEmail } from '@/lib/email'
+import {
+  buildEventDateReplacements,
+  syncMultidateFormData,
+  syncMultidateFormFields,
+} from '@/lib/eventDateSync'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -32,7 +37,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public')
+    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields')
     .eq('id', id)
     .single()
 
@@ -63,6 +68,16 @@ export async function PATCH(req: Request, { params }: Params) {
     if (field in body) update[field] = body[field]
   }
 
+  const dateReplacements = buildEventDateReplacements(existingEvent, {
+    start_at: 'start_at' in body ? body.start_at as string | null : existingEvent.start_at,
+    end_at: 'end_at' in body ? body.end_at as string | null : existingEvent.end_at,
+  })
+
+  if (dateReplacements.length > 0) {
+    const sourceFields = 'form_fields' in update ? update.form_fields : existingEvent.form_fields
+    update.form_fields = syncMultidateFormFields(sourceFields, dateReplacements)
+  }
+
   // Detect significant changes (date or location)
   const SIGNIFICANT_FIELDS = ['start_at', 'end_at', 'location'] as const
   const changedFields: string[] = []
@@ -87,6 +102,10 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (dateReplacements.length > 0) {
+    await syncDependentEventDates(supabase, id, data.form_fields, dateReplacements)
+  }
+
   // Send email notifications if date or location changed
   const significantChange = changedFields.some(f => ['start_at', 'end_at', 'location'].includes(f))
   if (significantChange && existingEvent.status !== 'cancelled') {
@@ -102,10 +121,10 @@ export async function PATCH(req: Request, { params }: Params) {
       const newStartAt = (body.start_at as string | null) ?? null
       const newLocation = (body.location as string | null) ?? null
 
-      for (const reg of registrations) {
+      await Promise.all(registrations.map(reg => {
         const p = (reg as Record<string, unknown>).participants as Record<string, string> | null
-        if (!p?.owner_email) continue
-        sendEventChangeEmail({
+        if (!p?.owner_email) return Promise.resolve()
+        return sendEventChangeEmail({
           to: p.owner_email,
           ownerName: p.owner_name ?? '',
           dogName: p.dog_name ?? '',
@@ -113,12 +132,76 @@ export async function PATCH(req: Request, { params }: Params) {
           changedFields,
           newStartAt,
           newLocation,
-        }).catch(() => {})
-      }
+        })
+      }))
     }
   }
 
   return NextResponse.json(data)
+}
+
+async function syncDependentEventDates(
+  supabase: Awaited<ReturnType<typeof createAuthClient>>,
+  eventId: string,
+  formFields: unknown,
+  dateReplacements: Array<{ from: string; to: string }>,
+) {
+  const multidateFieldIds = Array.isArray(formFields)
+    ? formFields
+        .filter((field: unknown): field is { id: string; type: string } =>
+          !!field &&
+          typeof field === 'object' &&
+          (field as { type?: unknown }).type === 'multidate' &&
+          typeof (field as { id?: unknown }).id === 'string'
+        )
+        .map(field => field.id)
+    : []
+
+  const { data: registrations } = multidateFieldIds.length > 0
+    ? await supabase
+        .from('registrations')
+        .select('id, form_data')
+        .eq('event_id', eventId)
+    : { data: [] }
+
+  for (const registration of registrations ?? []) {
+    const { data: syncedFormData, changed } = syncMultidateFormData(
+      (registration as { form_data?: Record<string, unknown> | null }).form_data,
+      multidateFieldIds,
+      dateReplacements,
+    )
+
+    if (!changed) continue
+
+    await supabase
+      .from('registrations')
+      .update({ form_data: syncedFormData })
+      .eq('id', (registration as { id: string }).id)
+  }
+
+  for (const replacement of dateReplacements) {
+    await supabase
+      .from('time_slots')
+      .update({ slot_date: replacement.to })
+      .eq('event_id', eventId)
+      .eq('slot_date', replacement.from)
+  }
+
+  const { data: eventRegistrations } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('event_id', eventId)
+
+  const registrationIds = (eventRegistrations ?? []).map((registration: { id: string }) => registration.id)
+  if (registrationIds.length === 0) return
+
+  for (const replacement of dateReplacements) {
+    await supabase
+      .from('schedule_assignments')
+      .update({ item_date: replacement.to })
+      .in('registration_id', registrationIds)
+      .eq('item_date', replacement.from)
+  }
 }
 
 export async function DELETE(_req: Request, { params }: Params) {

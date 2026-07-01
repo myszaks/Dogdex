@@ -4,13 +4,10 @@ on:
   pull_request:
     branches:
       - master
-      - main
   push:
     branches:
-      - master
       - develop
-      - dev
-      - main
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -43,15 +40,10 @@ jobs:
         run: npm ci
 
       - name: Run unit and integration tests
-        run: npm run test --if-present
+        run: npm test
 
       - name: Run TypeScript checks
-        run: |
-          if node -e "const p = require('./package.json'); process.exit(p.scripts?.typecheck ? 0 : 1)"; then
-            npm run typecheck
-          else
-            npx tsc --noEmit
-          fi
+        run: npm run typecheck
 
       - name: Run production build
         run: npm run build

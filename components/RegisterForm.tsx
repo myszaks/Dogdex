@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { formatDateShort } from '@/lib/utils'
 import type { FormField, Dog } from '@/types'
 import useUser from '@/hooks/useUser'
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
+import { getSizeClass, type SizeClass } from '@/lib/speedway'
 
 interface Props {
   eventId: string
@@ -52,17 +53,22 @@ const AGILITY_ALIASES: Record<string, string[]> = {
   competition:  ['competition', 'zawodnik', 'zawodowy'],
 }
 
-const SPEEDWAY_CLASS_OPTIONS = new Set(['xs', 's', 'm', 'l'])
+const SPEEDWAY_CLASS_OPTIONS = new Set(['xs', 's', 'm', 'l', 'xl'])
 
-function speedwayClassFromHeight(height: number): string {
-  if (height < 30) return 'XS'
-  if (height < 40) return 'S'
-  if (height < 50) return 'M'
-  return 'L'
+function optionSizeClass(option: string): SizeClass | null {
+  const match = option.trim().toUpperCase().match(/^(XS|XL|S|M|L)\b/)
+  return match ? match[1] as SizeClass : null
 }
 
 function isSpeedwayClassField(opts: string[]): boolean {
-  return opts.some(o => SPEEDWAY_CLASS_OPTIONS.has(o.toLowerCase().trim()))
+  return opts.some(o => {
+    const cls = optionSizeClass(o)
+    return cls !== null || SPEEDWAY_CLASS_OPTIONS.has(o.toLowerCase().trim())
+  })
+}
+
+function findSpeedwayClassMatch(options: string[], cls: SizeClass): string | null {
+  return options.find(option => optionSizeClass(option) === cls) ?? findSelectMatch(options, cls)
 }
 
 function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Record<string, string> {
@@ -96,8 +102,8 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
     }
     else if (/agility|poziom|klasa/i.test(lbl)) {
       if (isSel && isSpeedwayClassField(opts) && dog.height_cm != null) {
-        const cls = speedwayClassFromHeight(dog.height_cm)
-        const match = findSelectMatch(opts, cls)
+        const cls = getSizeClass(dog.height_cm)
+        const match = findSpeedwayClassMatch(opts, cls)
         if (match) filled[field.id] = match
       } else if (isSel && dog.agility_level) {
         const m = findAliasMatch(opts, AGILITY_ALIASES[dog.agility_level] ?? [])
@@ -113,6 +119,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 
 
 export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
+  const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
 
@@ -130,7 +137,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   const [profileName, setProfileName] = useState<string>('')
 
   useEffect(() => {
-    if (!isLoggedIn || !user) return
+    if (!isLoggedIn || !user || !supabase) return
 
     // Fetch user's full name from profile
     supabase
@@ -149,7 +156,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         if (Array.isArray(dogs)) setUserDogs(dogs)
       })
       .catch(() => {})
-  }, [isLoggedIn, user?.id])
+  }, [isLoggedIn, user?.id, supabase])
 
   function handleDogSelect(dogId: string) {
     setSelectedDogId(dogId)

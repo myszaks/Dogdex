@@ -32,6 +32,29 @@ export default function RegistrationsClientList({
   const [registrations, setRegistrations] = useState<Registration[]>(sorted)
   const [saving, setSaving] = useState(false)
 
+  function formatFormValue(value: unknown, field?: FormField): string {
+    if (typeof value === 'boolean') return value ? 'Tak' : 'Nie'
+    if (
+      (field?.type === 'checkbox' || field === undefined) &&
+      typeof value === 'string' &&
+      ['true', 'false'].includes(value.trim().toLowerCase())
+    ) {
+      return value.trim().toLowerCase() === 'true' ? 'Tak' : 'Nie'
+    }
+    if (Array.isArray(value)) {
+      if (field?.type === 'multidate') {
+        return value
+          .map(d => {
+            const asString = String(d)
+            try { return formatDateShort(asString) } catch { return asString }
+          })
+          .join(', ')
+      }
+      return value.map(item => formatFormValue(item, field)).join(', ')
+    }
+    return String(value)
+  }
+
   async function onDragEnd(result: DropResult) {
     if (!result.destination) return
     const { source, destination } = result
@@ -61,22 +84,14 @@ export default function RegistrationsClientList({
     for (const f of eventFormFields) {
       const val = reg.form_data?.[f.id]
       if (val === undefined || val === null || val === '') continue
-      let display: string
-      if (Array.isArray(val)) {
-        display = f.type === 'multidate'
-          ? val.map((d: string) => { try { return formatDateShort(d) } catch { return d } }).join(', ')
-          : (val as string[]).join(', ')
-      } else {
-        display = String(val)
-      }
-      chips.push({ label: f.label, value: display })
+      chips.push({ label: f.label, value: formatFormValue(val, f) })
     }
 
     // Unknown keys
     for (const [k, v] of Object.entries(reg.form_data as Record<string, unknown>)) {
       if (eventFormFields.some(f => f.id === k)) continue
       if (v === undefined || v === null || v === '') continue
-      chips.push({ label: k, value: Array.isArray(v) ? (v as string[]).join(', ') : String(v) })
+      chips.push({ label: k, value: formatFormValue(v) })
     }
 
     if (!chips.length) return null
@@ -157,12 +172,13 @@ export default function RegistrationsClientList({
   // --- Grouped view (no DnD) ---
   if (groupingField) {
     const groupMap = new Map<string, Registration[]>()
+    const field = eventFormFields.find(f => f.id === groupingField)
     for (const reg of registrations) {
       const val = (reg.form_data as Record<string, unknown>)?.[groupingField]
       const keys: string[] = Array.isArray(val)
-        ? (val as string[])
+        ? val.map(item => formatFormValue(item, field))
         : val != null && val !== ''
-          ? [String(val)]
+          ? [formatFormValue(val, field)]
           : ['— brak —']
       for (const k of keys) {
         if (!groupMap.has(k)) groupMap.set(k, [])

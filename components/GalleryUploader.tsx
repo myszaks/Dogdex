@@ -47,7 +47,7 @@ export default function GalleryUploader({ images, onImagesChange }: Props) {
           newUrls.push(url)
         } else {
           const { error: err } = await res.json()
-          setError(err ?? 'Błąd uploadu')
+          setError(err ?? 'Błąd przesyłania zdjęcia')
         }
       } catch {
         setError('Błąd połączenia')

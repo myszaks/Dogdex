@@ -1,6 +1,9 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { DogEvent } from "@/types"
+import { effectiveEventStatus, isEventRegistrationOpen } from "@/lib/eventStatus"
+
+export const DISPLAY_TIME_ZONE = 'Europe/Warsaw'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -12,6 +15,7 @@ export function toSlug(title: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/ł/g, 'l')
+    .replace(/Ł/g, 'l')
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
     .replace(/\s+/g, '-')
@@ -34,6 +38,7 @@ export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
     return new Intl.DateTimeFormat('pl-PL', {
+      timeZone: DISPLAY_TIME_ZONE,
       year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     }).format(new Date(dateStr))
@@ -46,6 +51,7 @@ export function formatDateShort(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
     return new Intl.DateTimeFormat('pl-PL', {
+      timeZone: DISPLAY_TIME_ZONE,
       year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date(dateStr))
   } catch {
@@ -93,24 +99,10 @@ export function statusBadgeClasses(status: string): string {
 }
 
 export function isRegistrationOpen(event: DogEvent): boolean {
-  if (effectiveStatus(event) !== 'upcoming') return false
-  if (event.registration_deadline) {
-    return new Date(event.registration_deadline) > new Date()
-  }
-  return true
+  return isEventRegistrationOpen(event)
 }
 
 export function effectiveStatus(event: DogEvent): string {
-  // Always trust explicit terminal states set by admin
-  if (event.status === 'cancelled') return 'cancelled'
-
-  // Derive ongoing/finished/upcoming from actual dates
-  const now = new Date()
-  const start = event.start_at ? new Date(event.start_at) : null
-  const end = event.end_at ? new Date(event.end_at) : null
-
-  if (end && now > end) return 'finished'
-  if (start && now >= start) return 'ongoing'
-  return 'upcoming'
+  return effectiveEventStatus(event)
 }
 

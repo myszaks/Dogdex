@@ -506,11 +506,6 @@ export default function ScheduleClient({
                     </div>
                   )}
                   {provided.placeholder}
-                  {/* Add New Participant placeholder */}
-                  <div className="border-2 border-dashed border-[#E2E8F0] rounded-2xl p-3 flex items-center gap-2 text-slate-300 mt-3">
-                    <Plus className="w-4 h-4 shrink-0" />
-                    <span className="text-xs">Dodaj nowego uczestnika</span>
-                  </div>
                 </div>
               )}
             </Droppable>
@@ -642,11 +637,11 @@ function TimelineItemCard({
               <p className="font-semibold text-slate-800 truncate text-sm">{item.dog_name ?? '—'}</p>
               {isConfirmed ? (
                 <span className="text-[10px] font-medium bg-[#10B981]/10 text-[#10B981] rounded-full px-2 py-0.5 shrink-0">
-                  Confirmed
+                  Wysłano
                 </span>
               ) : (
                 <span className="text-[10px] font-medium bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 shrink-0">
-                  Draft
+                  Robocze
                 </span>
               )}
             </div>
@@ -665,7 +660,6 @@ function TimelineItemCard({
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
               </span>
             )}
-            <Pencil className="w-3.5 h-3.5 text-slate-300" />
           </div>
         </div>
       )}

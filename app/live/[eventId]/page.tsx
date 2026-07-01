@@ -4,10 +4,12 @@ import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
 import SpeedwayLiveView from '@/components/SpeedwayLiveView'
 import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
-import { getSizeClass, extractSizeClassFromFormData } from '@/lib/speedway'
+import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+
+export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -18,7 +20,7 @@ async function resolveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/live/${byId.slug}` : null
+      const target = `/live/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }
@@ -53,7 +55,7 @@ export default async function LivePage({ params }: Props) {
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, order_index, form_data, participants(id, dog_name, owner_name, dog_breed)')
+      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
       .eq('event_id', resolvedId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -72,24 +74,32 @@ export default async function LivePage({ params }: Props) {
     dog_breed: r.participants?.dog_breed ?? null,
   }))
 
-  const speedwayParticipants: SpeedwayLiveParticipantInfo[] = (registrations ?? []).map((r: any) => {
-    const pid = r.participants?.id ?? r.id
-    const existingResult = (results ?? []).find((res: any) => res.participant_id === pid)
-    const formClass = extractSizeClassFromFormData(r.form_data as Record<string, unknown>)
-    const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
-      ? existingResult.size_class as import('@/lib/speedway').SizeClass
-      : null
-    const sizeClass: import('@/lib/speedway').SizeClass = formClass ?? existingClass ?? 'M'
-    return {
-      participantId: pid,
-      dogName: r.participants?.dog_name ?? null,
-      ownerName: r.participants?.owner_name ?? null,
-      sizeClass,
-    }
-  })
+  const speedwayParticipants: SpeedwayLiveParticipantInfo[] = (registrations ?? [])
+    .filter((r: any) => Boolean(r.checked_in))
+    .map((r: any) => {
+      const pid = r.participants?.id ?? r.id
+      const existingResult = (results ?? []).find((res: any) => res.participant_id === pid)
+      const dogHeightCm = Array.isArray(r.participants?.dogs)
+        ? r.participants.dogs[0]?.height_cm
+        : r.participants?.dogs?.height_cm
+      const formClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm)
+      const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
+        ? existingResult.size_class as import('@/lib/speedway').SizeClass
+        : null
+      const sizeClass: import('@/lib/speedway').SizeClass = formClass ?? existingClass ?? 'M'
+      return {
+        participantId: pid,
+        dogName: r.participants?.dog_name ?? null,
+        ownerName: r.participants?.owner_name ?? null,
+        sizeClass,
+      }
+    })
 
   return (
     <div>
+      <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Powrót do wydarzenia
+      </Link>
       <div className="flex items-center gap-2 mb-2">
         <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse inline-block" />
         <span className="text-red-600 font-semibold text-sm uppercase tracking-wide">

@@ -44,9 +44,113 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Możesz tylko anulować własny zapis' }, { status: 403 })
   }
 
+  if (isOwner && !isOrganizerOrAdmin && body.status === 'cancelled') {
+    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+    const startAt = event?.start_at as string | null
+    const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    if (startAt && new Date(startAt) <= cutoff) {
+      return NextResponse.json(
+        { error: 'Nie można anulować zgłoszenia - pozostało mniej niż 24 godziny do wydarzenia' },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: 'Rezygnacja wymaga wysłania wniosku do organizatora' },
+      { status: 409 }
+    )
+  }
+
   const allowedStatuses = ['pending', 'confirmed', 'cancelled']
   if (body.status && !allowedStatuses.includes(body.status as string)) {
     return NextResponse.json({ error: 'Nieprawidłowy status' }, { status: 400 })
+  }
+
+  const targetStatus = typeof body.status === 'string' ? body.status : null
+  const targetIsActive = targetStatus === 'pending' || targetStatus === 'confirmed'
+
+  if (isOrganizerOrAdmin && targetIsActive) {
+    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+    const participant = (reg as Record<string, unknown>).participants as Record<string, unknown> | null
+    const activeStatuses = ['pending', 'confirmed']
+    const matchingParticipantIds = new Set<string>()
+
+    const dogId = typeof participant?.dog_id === 'string' ? participant.dog_id : null
+    if (dogId) {
+      const { data: dogParticipants, error: dogParticipantsError } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('dog_id', dogId)
+
+      if (dogParticipantsError) {
+        return NextResponse.json({ error: dogParticipantsError.message }, { status: 500 })
+      }
+      for (const p of dogParticipants ?? []) matchingParticipantIds.add(p.id)
+    }
+
+    const ownerEmail = typeof participant?.owner_email === 'string'
+      ? participant.owner_email.trim().toLowerCase()
+      : null
+    const dogName = typeof participant?.dog_name === 'string'
+      ? participant.dog_name.trim()
+      : null
+
+    if (ownerEmail && dogName) {
+      const { data: namedParticipants, error: namedParticipantsError } = await supabase
+        .from('participants')
+        .select('id')
+        .ilike('owner_email', ownerEmail)
+        .ilike('dog_name', dogName)
+
+      if (namedParticipantsError) {
+        return NextResponse.json({ error: namedParticipantsError.message }, { status: 500 })
+      }
+      for (const p of namedParticipants ?? []) matchingParticipantIds.add(p.id)
+    }
+
+    if (matchingParticipantIds.size > 0) {
+      const { data: duplicateRegs, error: duplicateRegsError } = await supabase
+        .from('registrations')
+        .select('id')
+        .eq('event_id', reg.event_id)
+        .in('participant_id', [...matchingParticipantIds])
+        .in('status', activeStatuses)
+        .neq('id', id)
+        .limit(1)
+
+      if (duplicateRegsError) {
+        return NextResponse.json({ error: duplicateRegsError.message }, { status: 500 })
+      }
+
+      if ((duplicateRegs ?? []).length > 0) {
+        return NextResponse.json(
+          { error: 'Ten pies ma już aktywny zapis na to wydarzenie' },
+          { status: 409 }
+        )
+      }
+    }
+
+    const maxParticipants = typeof event?.max_participants === 'number'
+      ? event.max_participants
+      : null
+    if (maxParticipants !== null && maxParticipants > 0) {
+      const { count, error: countError } = await supabase
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', reg.event_id)
+        .in('status', activeStatuses)
+        .neq('id', id)
+
+      if (countError) {
+        return NextResponse.json({ error: countError.message }, { status: 500 })
+      }
+
+      if ((count ?? 0) >= maxParticipants) {
+        return NextResponse.json(
+          { error: 'Brak wolnych miejsc na to wydarzenie' },
+          { status: 409 }
+        )
+      }
+    }
   }
 
   // Organizer partial date cancellation: cancelledDates = string[] → remove dates, null → cancel all
@@ -83,6 +187,26 @@ export async function PATCH(req: Request, { params }: Params) {
         .single()
 
       if (errPartial) return NextResponse.json({ error: errPartial.message }, { status: 500 })
+
+      // Remove schedule_assignments for the cancelled dates
+      const eventId = event?.id as string | undefined
+      if (eventId) {
+        const serviceClient = createServerClient()
+        const { data: cancelledSlots } = await serviceClient
+          .from('time_slots')
+          .select('id')
+          .eq('event_id', eventId)
+          .in('slot_date', cancelledDates)
+
+        if (cancelledSlots?.length) {
+          await serviceClient
+            .from('schedule_assignments')
+            .delete()
+            .eq('registration_id', id)
+            .in('time_slot_id', cancelledSlots.map(s => s.id))
+        }
+      }
+
       return NextResponse.json(dataPartial)
     }
   }
@@ -113,7 +237,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const participant = (data as Record<string, unknown>).participants as Record<string, string> | null
     const event = (data as Record<string, unknown>).events as Record<string, string> | null
     if (participant?.owner_email) {
-      sendRegistrationEmail({
+      await sendRegistrationEmail({
         to: participant.owner_email,
         ownerName: participant.owner_name ?? '',
         dogName: participant.dog_name ?? '',
@@ -121,7 +245,7 @@ export async function PATCH(req: Request, { params }: Params) {
         eventDate: event?.start_at ?? null,
         eventLocation: event?.location ?? null,
         status: 'confirmed',
-      }).catch(() => {})
+      })
     }
   }
 
@@ -136,7 +260,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const { data: orgUser } = await adminClient.auth.admin.getUserById(createdBy)
       const organizerEmail = orgUser?.user?.email
       if (organizerEmail) {
-        sendCancellationEmailToOrganizer({
+        await sendCancellationEmailToOrganizer({
           to: organizerEmail,
           ownerName: participant?.owner_name ?? '',
           dogName: participant?.dog_name ?? '',
@@ -144,7 +268,7 @@ export async function PATCH(req: Request, { params }: Params) {
           eventDate: event?.start_at ? String(event.start_at) : null,
           eventLocation: event?.location ? String(event.location) : null,
           previousStatus: reg.status,
-        }).catch(() => {})
+        })
       }
     }
   }

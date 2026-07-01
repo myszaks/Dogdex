@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
+import { isEventRegistrationOpen } from '@/lib/eventStatus'
 
 export async function GET(req: Request) {
   const auth = await checkRoleForApi(['organizer', 'admin'])
@@ -55,12 +56,12 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, status, auto_confirm, max_participants, title, start_at, location, form_fields')
+    .select('id, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline')
     .eq('id', eventId)
     .single()
 
   if (!event) return NextResponse.json({ error: 'Wydarzenie nie istnieje' }, { status: 404 })
-  if (event.status !== 'upcoming') {
+  if (!isEventRegistrationOpen(event)) {
     return NextResponse.json({ error: 'Zapisy na to wydarzenie są zamknięte' }, { status: 409 })
   }
 
@@ -79,6 +80,34 @@ export async function POST(req: Request) {
   // Prevent duplicate registration: same owner_email + dog_name for the same event
   const ownerEmailNorm = ownerEmail?.trim().toLowerCase() || null
   const dogNameTrim = dogName.trim()
+  const dogIdNorm = typeof dogId === 'string' && dogId.trim() ? dogId.trim() : null
+  const { user } = await getServerUser()
+
+  if (dogIdNorm) {
+    if (!user) {
+      return NextResponse.json({ error: 'Brak uprawnień do użycia tego psa' }, { status: 401 })
+    }
+
+    const { data: ownedDog, error: dogError } = await supabase
+      .from('dogs')
+      .select('id')
+      .eq('id', dogIdNorm)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (dogError) return NextResponse.json({ error: dogError.message }, { status: 500 })
+    if (!ownedDog) {
+      return NextResponse.json({ error: 'Nieprawidłowy pies dla tego użytkownika' }, { status: 403 })
+    }
+  }
+
+  const participantUserId = user && (
+    dogIdNorm ||
+    (ownerEmailNorm && user.email?.trim().toLowerCase() === ownerEmailNorm)
+  )
+    ? user.id
+    : null
+
   if (ownerEmailNorm) {
     const { data: matchingParticipants } = await supabase
       .from('participants')
@@ -110,7 +139,8 @@ export async function POST(req: Request) {
       dog_breed: dogBreed?.trim() || null,
       owner_name: ownerName.trim(),
       owner_email: ownerEmailNorm,
-      dog_id: dogId || null,
+      user_id: participantUserId,
+      dog_id: dogIdNorm,
       extra: {},
     }])
     .select()
@@ -148,16 +178,20 @@ export async function POST(req: Request) {
     .single()
 
   if (rError || !registration) {
+    await supabase
+      .from('participants')
+      .delete()
+      .eq('id', participant.id)
     return NextResponse.json(
       { error: rError?.message ?? 'Błąd tworzenia zapisu' },
       { status: 500 }
     )
   }
 
-  // Send email notification (fire-and-forget)
-  if (ownerEmail?.trim()) {
-    sendRegistrationEmail({
-      to: ownerEmail.trim(),
+  // Send email notification before returning so serverless runtimes do not stop it mid-flight.
+  if (ownerEmailNorm) {
+    await sendRegistrationEmail({
+      to: ownerEmailNorm,
       ownerName: ownerName.trim(),
       dogName: dogName.trim(),
       eventTitle: event.title,
@@ -166,7 +200,7 @@ export async function POST(req: Request) {
       status: event.auto_confirm ? 'confirmed' : 'pending',
       formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
       formData: registration.form_data ?? {},
-    }).catch(() => {})
+    })
   }
 
   return NextResponse.json(registration, { status: 201 })

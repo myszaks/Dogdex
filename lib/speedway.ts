@@ -21,12 +21,14 @@ export function getSizeClass(heightCm: number): SizeClass {
 
 /** Prędkość w km/h na podstawie najlepszego czasu i długości toru */
 export function computeSpeedKmh(bestMs: number, distanceM: number): number {
+  if (bestMs <= 0 || distanceM <= 0) return 0
   const seconds = bestMs / 1000
   return Math.round(((distanceM / seconds) * 3.6) * 100) / 100
 }
 
 /** Formatuje ms → "4.57 s" */
 export function formatRunTime(ms: number): string {
+  if (ms <= 0) return '—'
   return (ms / 1000).toFixed(2) + ' s'
 }
 
@@ -35,6 +37,27 @@ export function parseRunMs(s: string): number | null {
   const v = parseFloat(s.replace(',', '.'))
   if (isNaN(v) || v <= 0) return null
   return Math.round(v * 1000)
+}
+
+function parseHeightCm(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = parseFloat(String(value).replace(',', '.'))
+  return Number.isNaN(n) ? null : n
+}
+
+function isHeightFieldKey(key: string): boolean {
+  const normalized = key
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  return (
+    normalized === 'height_cm' ||
+    normalized.startsWith('height_cm_') ||
+    normalized.includes('wzrost') ||
+    normalized.includes('wysokosc') ||
+    normalized.includes('height')
+  )
 }
 
 /** Wyznacza najlepszy czas (null jeśli oba brak) */
@@ -65,10 +88,10 @@ export function extractSizeClassFromFormData(
   if (!formData) return null
 
   // 1. height_cm → przelicz wzrost na klasę
-  const heightRaw = formData.height_cm
-  if (heightRaw !== null && heightRaw !== undefined && heightRaw !== '') {
-    const n = parseFloat(String(heightRaw))
-    if (!isNaN(n)) return getSizeClass(n)
+  for (const [key, value] of Object.entries(formData)) {
+    if (!isHeightFieldKey(key)) continue
+    const height = parseHeightCm(value)
+    if (height !== null) return getSizeClass(height)
   }
 
   // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana
@@ -80,4 +103,15 @@ export function extractSizeClassFromFormData(
   }
 
   return null
+}
+
+export function extractSizeClassFromRegistration(
+  formData: Record<string, unknown> | null | undefined,
+  dogHeightCm: unknown,
+): SizeClass | null {
+  const fromForm = extractSizeClassFromFormData(formData)
+  if (fromForm) return fromForm
+
+  const height = parseHeightCm(dogHeightCm)
+  return height !== null ? getSizeClass(height) : null
 }

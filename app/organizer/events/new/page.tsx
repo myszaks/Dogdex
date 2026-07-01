@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
@@ -117,6 +118,9 @@ export default function NewEventPage() {
 
   return (
     <div>
+      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Panel organizatora
+      </Link>
       <h1 className="page-title">➕ Nowe wydarzenie</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card space-y-4">

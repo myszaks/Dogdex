@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import type { FormField } from '@/types'
 import { plForm } from '@/lib/utils'
+import { formatEmailDate, formatEmailDateTime } from '@/lib/emailDate'
 
 /**
  * Email notifications via Nodemailer + Gmail SMTP.
@@ -24,6 +25,14 @@ function escHtml(str: string | null | undefined): string {
     .replace(/'/g, '&#x27;')
 }
 
+const EMAIL_LABEL_CELL = 'padding:8px;color:#64748b;width:112px;min-width:112px;white-space:nowrap;vertical-align:top'
+const EMAIL_VALUE_CELL = 'padding:8px;overflow-wrap:anywhere;word-break:break-word;vertical-align:top'
+
+function infoRow(label: string, valueHtml: string, valueStyle = ''): string {
+  const style = valueStyle ? `${EMAIL_VALUE_CELL};${valueStyle}` : EMAIL_VALUE_CELL
+  return `<tr><td style="${EMAIL_LABEL_CELL}">${escHtml(label)}:</td><td style="${style}">${valueHtml}</td></tr>`
+}
+
 interface RegistrationEmailPayload {
   to: string
   ownerName: string
@@ -37,15 +46,20 @@ interface RegistrationEmailPayload {
 }
 
 function formatFieldValue(field: FormField, val: unknown): string {
+  if (typeof val === 'boolean') return val ? 'Tak' : 'Nie'
+  if (field.type === 'checkbox' && typeof val === 'string') {
+    const normalized = val.trim().toLowerCase()
+    if (normalized === 'true') return 'Tak'
+    if (normalized === 'false') return 'Nie'
+  }
   if (Array.isArray(val)) {
     if (field.type === 'multidate') {
       return val.map(d => {
-        try { return escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d as string))) } catch { return escHtml(String(d)) }
+        return escHtml(formatEmailDate(String(d), { weekday: false }))
       }).join(', ')
     }
-    return val.map(v => escHtml(String(v))).join(', ')
+    return val.map(v => escHtml(formatFieldValue(field, v))).join(', ')
   }
-  if (field.type === 'checkbox') return val ? 'Tak' : 'Nie'
   return escHtml(String(val))
 }
 
@@ -53,7 +67,7 @@ function buildFormDataRows(fields?: FormField[], data?: Record<string, unknown>)
   if (!fields?.length || !data || !Object.keys(data).length) return ''
   const rows = fields
     .filter(f => data[f.id] !== undefined && data[f.id] !== null && data[f.id] !== '')
-    .map(f => `<tr><td style="padding:8px;color:#64748b">${escHtml(f.label)}:</td><td style="padding:8px">${formatFieldValue(f, data[f.id])}</td></tr>`)
+    .map(f => infoRow(f.label, formatFieldValue(f, data[f.id])))
     .join('')
   if (!rows) return ''
   return `<p style="margin:16px 0 4px;font-weight:600;color:#0f172a">Dodatkowe informacje:</p>
@@ -88,10 +102,10 @@ export async function sendRegistrationEmail(payload: RegistrationEmailPayload): 
       <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
       <p>${statusText}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
-        ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
-        <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
+        ${infoRow('Wydarzenie', escHtml(payload.eventTitle), 'font-weight:600')}
+        ${payload.eventDate ? infoRow('Data', escHtml(formatEmailDateTime(payload.eventDate))) : ''}
+        ${payload.eventLocation ? infoRow('Lokalizacja', escHtml(payload.eventLocation)) : ''}
+        ${infoRow('Pies', escHtml(payload.dogName))}
       </table>
       ${buildFormDataRows(payload.formFields, payload.formData)}
       ${payload.status === 'pending' ? '<p style="color:#92400e;background:#fef3c7;padding:12px;border-radius:8px">Poczekaj na potwierdzenie od organizatora.</p>' : ''}
@@ -166,7 +180,7 @@ export async function sendEventChangeEmail(payload: EventChangeEmailPayload): Pr
 
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${escHtml(payload.newStartAt)}</td></tr>` : ''}
+        ${payload.newStartAt ? `<tr><td style="padding:8px;color:#64748b">Nowa data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.newStartAt))}</td></tr>` : ''}
         ${payload.newLocation ? `<tr><td style="padding:8px;color:#64748b">Nowa lokalizacja:</td><td style="padding:8px">${escHtml(payload.newLocation)}</td></tr>` : ''}
       </table>
 
@@ -215,11 +229,7 @@ interface ScheduleEmailPayload {
 }
 
 function formatSlotDate(date: string): string {
-  try {
-    return new Intl.DateTimeFormat('pl-PL', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    }).format(new Date(date))
-  } catch { return date }
+  return formatEmailDate(date, { weekday: true })
 }
 
 export async function sendScheduleEmail(payload: ScheduleEmailPayload): Promise<void> {
@@ -348,7 +358,7 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
       <p>Uczestnik zrezygnował z udziału w Twoim wydarzeniu.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -402,8 +412,7 @@ export async function sendCancellationRequestEmailToOrganizer(
 
   const datesHtml = payload.cancelledDates
     ? payload.cancelledDates.map(d => {
-        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
-        catch { return `<li>${escHtml(d)}</li>` }
+        return `<li>${escHtml(formatEmailDate(d))}</li>`
       }).join('')
     : null
 
@@ -413,7 +422,7 @@ export async function sendCancellationRequestEmailToOrganizer(
       <p>Uczestnik złożył wniosek o rezygnację z Twojego wydarzenia i oczekuje na Twoją akceptację.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -471,8 +480,7 @@ export async function sendCancellationResultEmail(
 
   const datesHtml = payload.cancelledDates
     ? payload.cancelledDates.map(d => {
-        try { return `<li>${escHtml(new Intl.DateTimeFormat('pl-PL').format(new Date(d)))}</li>` }
-        catch { return `<li>${escHtml(d)}</li>` }
+        return `<li>${escHtml(formatEmailDate(d))}</li>`
       }).join('')
     : null
 
@@ -493,7 +501,7 @@ export async function sendCancellationResultEmail(
       <p>${escHtml(bodyText)}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(payload.eventDate)}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
       ${datesHtml
@@ -554,7 +562,7 @@ export async function sendContactEmail(payload: ContactEmailPayload): Promise<vo
           <td style="padding:10px 14px;font-weight:600">${escHtml(payload.name)}</td>
         </tr>
         <tr>
-          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">Email:</td>
+          <td style="padding:10px 14px;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0">E-mail:</td>
           <td style="padding:10px 14px;border-top:1px solid #e2e8f0">
             <a href="mailto:${escHtml(payload.email)}" style="color:#0369a1">${escHtml(payload.email)}</a>
           </td>
@@ -655,9 +663,7 @@ export async function sendReminderEmail(payload: ReminderEmailPayload): Promise<
   const datesHtml = payload.reminderDates?.length
     ? payload.reminderDates.map(d => {
         try {
-          const formatted = new Intl.DateTimeFormat('pl-PL', {
-            weekday: 'long', day: 'numeric', month: 'long',
-          }).format(new Date(d))
+          const formatted = formatEmailDate(d, { weekday: true, year: false })
           return `<li style="margin:4px 0">${escHtml(formatted)}</li>`
         } catch { return `<li style="margin:4px 0">${escHtml(d)}</li>` }
       }).join('')
@@ -699,6 +705,307 @@ export async function sendReminderEmail(payload: ReminderEmailPayload): Promise<
   } catch (err) {
     if (process.env.NODE_ENV === 'development') {
       console.error('[Email] Błąd wysyłki przypomnienia:', err)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Training notifications (Phase 2)
+// ---------------------------------------------------------------------------
+
+interface TrainingBookingEmailPayload {
+  to: string
+  userName: string
+  trainerName: string
+  trainingType: string
+  trainingDate: string  // formatted: "18 czerwca 2026, 14:30"
+  duration: number  // minutes
+  location?: string
+  price?: number
+  notes?: string
+}
+
+export async function sendTrainingBookingConfirmation(
+  payload: TrainingBookingEmailPayload
+): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Email] SMTP not configured — skipping training booking to', payload.to)
+    }
+    return
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#059669">🐾 Dogdex – Rezerwacja treningu</h2>
+      <p>Cześć, <strong>${escHtml(payload.userName)}</strong>!</p>
+      <p>✅ Twoja rezerwacja treningu została przyjęta!</p>
+
+      <div style="background:#f0fdf4;border-left:4px solid #059669;padding:16px;margin:20px 0;border-radius:8px">
+        <table style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Trener:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainerName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Typ treningu:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainingType)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Data i czas:</td>
+            <td style="padding:8px">${escHtml(payload.trainingDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Czas trwania:</td>
+            <td style="padding:8px">${payload.duration} minut</td>
+          </tr>
+          ${payload.location ? `<tr><td style="padding:8px;color:#64748b;font-size:13px">Miejsce:</td><td style="padding:8px">${escHtml(payload.location)}</td></tr>` : ''}
+          ${payload.price ? `<tr><td style="padding:8px;color:#64748b;font-size:13px">Kwota:</td><td style="padding:8px;font-weight:600;color:#059669">${payload.price} PLN</td></tr>` : ''}
+        </table>
+        ${payload.notes ? `<p style="margin:12px 0 0;padding-top:12px;border-top:1px solid #d1fae5"><strong>Uwagi:</strong><br>${escHtml(payload.notes)}</p>` : ''}
+      </div>
+
+      <p style="color:#334155">Trener otrzymał powiadomienie o Twojej rezerwacji. Przygotuj się i do zobaczenia!</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      subject: `✅ Rezerwacja treningu – ${payload.trainingType}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki rezerwacji treningu:', err)
+    }
+  }
+}
+
+interface TrainingNotificationToTrainerPayload {
+  to: string
+  trainerName: string
+  userName: string
+  trainingType: string
+  trainingDate: string
+  duration: number
+  userNotes?: string
+  bookingId?: string
+}
+
+export async function sendTrainingBookingToTrainer(
+  payload: TrainingNotificationToTrainerPayload
+): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const bookingsUrl = `${appUrl}/trainer/bookings`
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex – Nowa rezerwacja treningu</h2>
+      <p>Cześć, <strong>${escHtml(payload.trainerName)}</strong>!</p>
+      <p>Nowy trening został zarezerwowany!</p>
+
+      <div style="background:#f0f9ff;border-left:4px solid #0369a1;padding:16px;margin:20px 0;border-radius:8px">
+        <table style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Użytkownik:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.userName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Typ treningu:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainingType)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Data i czas:</td>
+            <td style="padding:8px">${escHtml(payload.trainingDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Czas trwania:</td>
+            <td style="padding:8px">${payload.duration} minut</td>
+          </tr>
+        </table>
+        ${payload.userNotes ? `<p style="margin:12px 0 0;padding-top:12px;border-top:1px solid #bfdbfe"><strong>Uwagi użytkownika:</strong><br>${escHtml(payload.userNotes)}</p>` : ''}
+      </div>
+
+      <div style="text-align:center;margin:20px 0">
+        <a href="${bookingsUrl}" style="display:inline-block;background:#0369a1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+          Przejdź do rezerwacji
+        </a>
+      </div>
+
+      <p style="color:#334155;font-size:14px">W panelu trenera możesz potwierdzić lub odrzucić rezerwację. Decyzja zostanie natychmiast wysłana do użytkownika.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      subject: `🔔 Nowa rezerwacja – ${payload.trainingType}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki do trenera:', err)
+    }
+  }
+}
+
+interface TrainingReminderPayload {
+  to: string
+  userName: string
+  trainerName: string
+  trainingType: string
+  trainingDate: string
+  duration: number
+}
+
+export async function sendTrainingReminder(
+  payload: TrainingReminderPayload
+): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex – Przypomnienie o treningu</h2>
+      <p>Cześć, <strong>${escHtml(payload.userName)}</strong>!</p>
+      <p>⏰ Jutro masz zaplanowany trening!</p>
+
+      <div style="background:#fef9c3;border-left:4px solid #eab308;padding:16px;margin:20px 0;border-radius:8px">
+        <table style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Trener:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainerName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Typ:</td>
+            <td style="padding:8px">${escHtml(payload.trainingType)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Data i czas:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainingDate)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Czas trwania:</td>
+            <td style="padding:8px">${payload.duration} minut</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="color:#334155">Pamiętaj przygotować swoje rzeczy. Do zobaczenia jutro! 🐕</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      subject: `⏰ Jutro: ${payload.trainingType} o ${payload.trainingDate}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki przypomnienia treningu:', err)
+    }
+  }
+}
+
+interface TrainingCancellationPayload {
+  to: string
+  recipientName: string
+  trainingType: string
+  trainingDate: string
+  cancelledBy: 'user' | 'trainer'
+  reason?: string
+}
+
+export async function sendTrainingCancellationEmail(
+  payload: TrainingCancellationPayload
+): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) return
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+
+  const cancelledByText =
+    payload.cancelledBy === 'user'
+      ? 'Użytkownik anulował rezerwację'
+      : 'Trener anulował rezerwację'
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#dc2626">🐾 Dogdex – Anulacja rezerwacji</h2>
+      <p>Cześć, <strong>${escHtml(payload.recipientName)}</strong>!</p>
+      <p>❌ ${cancelledByText}.</p>
+
+      <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:16px;margin:20px 0;border-radius:8px">
+        <table style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Typ treningu:</td>
+            <td style="padding:8px;font-weight:600">${escHtml(payload.trainingType)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;color:#64748b;font-size:13px">Data i czas:</td>
+            <td style="padding:8px">${escHtml(payload.trainingDate)}</td>
+          </tr>
+          ${payload.reason ? `<tr><td style="padding:8px;color:#64748b;font-size:13px">Powód:</td><td style="padding:8px">${escHtml(payload.reason)}</td></tr>` : ''}
+        </table>
+      </div>
+
+      <p style="color:#334155">Jeśli masz pytania, skontaktuj się bezpośrednio.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">Wiadomość wysłana automatycznie przez Dogdex.</p>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      subject: `❌ Anulacja rezerwacji – ${payload.trainingType}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[Email] Błąd wysyłki anulacji:', err)
     }
   }
 }

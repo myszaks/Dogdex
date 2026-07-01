@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -29,26 +29,13 @@ export default async function PublicSchedulePage({ params }: Props) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, start_at, location, slug')
+    .select('id, title, start_at, location, slug, form_fields')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .maybeSingle()
 
   if (!event) notFound()
 
-  // Check if the current user is registered for this event
   const { user } = await getServerUser()
-  let isRegistered = false
-
-  if (user?.email) {
-    const { data: userReg } = await supabase
-      .from('registrations')
-      .select('id, participants!inner(owner_email)')
-      .eq('event_id', event.id)
-      .eq('status', 'confirmed')
-      .ilike('participants.owner_email', user.email)
-      .maybeSingle()
-    isRegistered = !!userReg
-  }
 
   const { data: slots } = await supabase
     .from('time_slots')
@@ -60,11 +47,50 @@ export default async function PublicSchedulePage({ params }: Props) {
   // Fetch all confirmed registrations for this event
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, participants(dog_name, owner_name)')
+    .select('id, form_data, participants(dog_name, owner_name, owner_email, user_id, dog_id)')
     .eq('event_id', event.id)
     .eq('status', 'confirmed')
 
+  const authSupabase = user?.id ? await createAuthClient() : null
+  const { data: userDogs } = authSupabase && user?.id
+    ? await authSupabase.from('dogs').select('id').eq('user_id', user.id)
+    : { data: [] }
+
+  const userEmail = user?.email?.trim().toLowerCase() ?? null
+  const userDogIds = new Set((userDogs ?? []).map(d => d.id as string))
+
+  // A user can have multiple registrations for one event (for multiple dogs or dates).
+  // Treat any matching confirmed registration as access to the detailed public schedule.
+  const isRegistered = Boolean(user) && (registrations ?? []).some(r => {
+    const p = (r as Record<string, unknown>).participants as Record<string, string | null> | null
+    const participantEmail = typeof p?.owner_email === 'string'
+      ? p.owner_email.trim().toLowerCase()
+      : null
+
+    return (
+      (p?.user_id && p.user_id === user?.id) ||
+      (userEmail && participantEmail === userEmail) ||
+      (p?.dog_id && userDogIds.has(p.dog_id))
+    )
+  })
+
   const regIds = (registrations ?? []).map(r => r.id as string)
+
+  const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown>).form_fields)
+    ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)
+        .filter(field => field.type === 'multidate')
+        .map(field => field.id)
+    : []
+
+  const regDatesById = new Map(
+    (registrations ?? []).map(r => {
+      const formData = (r as Record<string, unknown>).form_data as Record<string, unknown> | null
+      const selectedDates = multiDateFieldIds.flatMap(fieldId =>
+        Array.isArray(formData?.[fieldId]) ? (formData?.[fieldId] as string[]) : []
+      )
+      return [r.id as string, new Set(selectedDates)]
+    })
+  )
 
   // Fetch schedule_assignments to know which slot each registration is in
   const { data: assignments } = regIds.length
@@ -85,16 +111,23 @@ export default async function PublicSchedulePage({ params }: Props) {
   const participantsBySlot = new Map<string, ParticipantEntry[]>()
   for (const a of assignments ?? []) {
     if (!a.time_slot_id) continue
-    if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])
     const entry = regById.get(a.registration_id)
-    if (entry) participantsBySlot.get(a.time_slot_id)!.push(entry)
+    if (!entry) continue
+
+    const selectedDates = regDatesById.get(a.registration_id)
+    if (selectedDates && selectedDates.size > 0) {
+      if (!a.item_date || !selectedDates.has(a.item_date)) continue
+    }
+
+    if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])
+    participantsBySlot.get(a.time_slot_id)!.push(entry)
   }
 
   // Only show slots that have at least one participant assigned
   const filledSlots = (slots ?? []).filter(s => (participantsBySlot.get(s.id)?.length ?? 0) > 0)
 
   const backLink = (
-    <Link href={`/events/${event.slug ?? event.id}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
+    <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors">
       ← Powrót do wydarzenia
     </Link>
   )

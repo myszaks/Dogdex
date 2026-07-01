@@ -4,6 +4,8 @@ import Navigation from '@/components/Navigation'
 import { AuthProvider } from '@/context/AuthProvider'
 import AuthGate from '@/components/AuthGate'
 import { Inter, Playfair_Display } from 'next/font/google'
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({
   subsets: ['latin', 'latin-ext'],
@@ -56,6 +58,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </AuthGate>
         </AuthProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

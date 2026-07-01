@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 
 interface HistoryEntry {
   regId: string
-  eventId: string
+  eventSlug: string
   eventTitle: string
   eventDate: string | null
   status: string
@@ -320,7 +320,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                         <tr key={h.regId} className="hover:bg-secondary/30 transition-colors">
                           <td className="px-6 py-4">
                             <Link
-                              href={`/events/${h.eventId}`}
+                              href={`/events/${h.eventSlug}`}
                               className="font-semibold text-foreground hover:text-accent transition-colors line-clamp-1"
                             >
                               {h.eventTitle}

@@ -12,7 +12,7 @@ import Link from 'next/link'
 interface EventDate {
   date: string       // ISO date string YYYY-MM-DD
   id: string
-  slug: string | null
+  slug: string
   title: string
 }
 
@@ -94,7 +94,7 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
                   {evs.map(ev => (
                     <Link
                       key={`${ev.id}-${ev.date}`}
-                      href={`/events/${ev.slug ?? ev.id}`}
+                      href={`/events/${ev.slug}`}
                       className="block bg-popover border border-border rounded-lg shadow-lg px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
                     >
                       <span className="font-medium">{ev.title}</span>

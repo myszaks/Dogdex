@@ -25,7 +25,7 @@ async function resolveEvent(param: string) {
   if (UUID_RE.test(param)) {
     const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
     if (byId) {
-      const target = byId.slug ? `/events/${byId.slug}` : null
+      const target = `/events/${byId.slug}`
       return { event: byId, redirectTo: target }
     }
   }
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!event) return { title: 'Wydarzenie' }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dogdex.pl'
-  const canonicalUrl = `${baseUrl}/events/${event.slug ?? event.id}`
+  const canonicalUrl = `${baseUrl}/events/${event.slug}`
   const description = event.description
     ? event.description.slice(0, 200).replace(/\s+/g, ' ').trim()
     : `Wydarzenie psie: ${event.title}${event.location ? ` – ${event.location}` : ''}`
@@ -107,6 +107,7 @@ export default async function EventDetailPage({ params }: Props) {
 
   const registeredCount = regCount ?? 0
   const maxParticipants = event.max_participants
+  const isFull = typeof maxParticipants === 'number' && maxParticipants > 0 && registeredCount >= maxParticipants
   const fillPct = maxParticipants && maxParticipants > 0
     ? Math.min(100, Math.round((registeredCount / maxParticipants) * 100))
     : null
@@ -149,21 +150,23 @@ export default async function EventDetailPage({ params }: Props) {
         {/* Bottom: title + meta + CTA */}
         <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-heading font-bold text-white leading-tight drop-shadow mb-2">
+            <h1 className="text-2xl sm:text-3xl font-heading font-bold text-white leading-tight drop-shadow mb-2 wrap-anywhere">
               {event.title}
             </h1>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-white/80 text-sm">
               {event.start_at && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 min-w-0">
                   <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-                  {formatDate(event.start_at)}
-                  {event.end_at && <> – {formatDate(event.end_at)}</>}
+                  <span className="wrap-anywhere">
+                    {formatDate(event.start_at)}
+                    {event.end_at && <> - {formatDate(event.end_at)}</>}
+                  </span>
                 </span>
               )}
               {event.location && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 min-w-0">
                   <MapPin className="w-3.5 h-3.5 shrink-0" />
-                  {event.location}
+                  <span className="wrap-anywhere">{event.location}</span>
                 </span>
               )}
               {event.organizer_name && (
@@ -176,7 +179,7 @@ export default async function EventDetailPage({ params }: Props) {
           </div>
 
           {/* Hero CTA */}
-          {dispStatus === 'upcoming' && regOpen && (
+          {dispStatus === 'upcoming' && regOpen && !isFull && (
             <div className="shrink-0">
               <RegisterModal
                 eventId={event.id}
@@ -188,7 +191,7 @@ export default async function EventDetailPage({ params }: Props) {
             </div>
           )}
           {dispStatus === 'ongoing' && event.has_results && event.results_public && (
-            <Link href={`/live/${event.id}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
+            <Link href={`/live/${event.slug}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
               <Radio className="w-4 h-4 animate-pulse" />
               Wyniki live
             </Link>
@@ -206,7 +209,7 @@ export default async function EventDetailPage({ params }: Props) {
           {event.description && (
             <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
               <h2 className="font-heading font-semibold text-lg text-foreground mb-4">O wydarzeniu</h2>
-              <p className="text-foreground/80 leading-relaxed whitespace-pre-line">{event.description}</p>
+              <p className="text-foreground/80 leading-relaxed whitespace-pre-line wrap-anywhere">{event.description}</p>
             </div>
           )}
 
@@ -216,7 +219,7 @@ export default async function EventDetailPage({ params }: Props) {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-heading font-semibold text-lg text-foreground">Harmonogram</h2>
                 <Link
-                  href={`/events/${event.slug ?? event.id}/schedule`}
+                  href={`/events/${event.slug}/schedule`}
                   className="text-sm text-accent font-medium hover:underline flex items-center gap-1"
                 >
                   Zobacz pełny <ChevronRight className="w-4 h-4" />
@@ -280,7 +283,7 @@ export default async function EventDetailPage({ params }: Props) {
                 </div>
                 <div className="h-2 bg-secondary rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-accent rounded-full transition-all duration-500"
+                    className={`h-full rounded-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-accent'}`}
                     style={{ width: `${fillPct ?? 0}%` }}
                   />
                 </div>
@@ -324,7 +327,7 @@ export default async function EventDetailPage({ params }: Props) {
             />
 
             {/* CTA */}
-            {dispStatus === 'upcoming' && regOpen && (
+            {dispStatus === 'upcoming' && regOpen && !isFull && (
               <RegisterModal
                 eventId={event.id}
                 eventTitle={event.title}
@@ -332,6 +335,12 @@ export default async function EventDetailPage({ params }: Props) {
                 triggerClassName="btn btn-primary w-full py-2.5"
                 triggerLabel="Zapisz się"
               />
+            )}
+            {dispStatus === 'upcoming' && regOpen && isFull && (
+              <div className="flex items-start gap-2 text-sm text-red-600 font-medium bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                Brak wolnych miejsc na to wydarzenie
+              </div>
             )}
             {dispStatus === 'upcoming' && !regOpen && (
               <div className="flex items-center gap-2 text-sm text-orange-600 font-medium bg-orange-50 rounded-xl px-3 py-2.5">
@@ -345,13 +354,13 @@ export default async function EventDetailPage({ params }: Props) {
               </p>
             )}
             {dispStatus === 'finished' && event.has_results && (
-              <Link href={`/archive/${event.slug ?? event.id}`} className="btn btn-secondary w-full py-2.5">
+              <Link href={`/archive/${event.slug}`} className="btn btn-secondary w-full py-2.5">
                 <Trophy className="w-4 h-4" />
                 Zobacz wyniki
               </Link>
             )}
             {dispStatus === 'ongoing' && event.has_results && event.results_public && (
-              <Link href={`/live/${event.id}`} className="btn btn-primary w-full py-2.5">
+              <Link href={`/live/${event.slug}`} className="btn btn-primary w-full py-2.5">
                 <Radio className="w-4 h-4 animate-pulse" />
                 Wyniki live
               </Link>
@@ -384,7 +393,7 @@ export default async function EventDetailPage({ params }: Props) {
                 {event.location && (
                   <p className="text-sm text-muted-foreground flex items-start gap-1.5">
                     <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                    {event.location}
+                    <span className="wrap-anywhere">{event.location}</span>
                   </p>
                 )}
                 {mapsQuery && (

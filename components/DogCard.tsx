@@ -46,7 +46,7 @@ export default function DogCard({ dog, onDelete }: Props) {
       <div className="p-5 flex flex-col flex-1">
         <div className="mb-3">
           <Link
-            href={`/moje-psy/${dog.slug ?? dog.id}`}
+            href={`/moje-psy/${dog.slug}`}
             className="font-heading font-bold text-lg text-foreground hover:text-primary transition-colors leading-tight block"
           >
             {dog.name}
@@ -94,11 +94,11 @@ export default function DogCard({ dog, onDelete }: Props) {
 
         {/* Actions */}
         <div className="mt-auto flex gap-2">
-          <Link href={`/moje-psy/${dog.slug ?? dog.id}`} className="btn btn-secondary btn-sm flex-1 text-center">
+          <Link href={`/moje-psy/${dog.slug}`} className="btn btn-secondary btn-sm flex-1 text-center">
             Profil
           </Link>
           <Link
-            href={`/moje-psy/${dog.slug ?? dog.id}?edit=1`}
+            href={`/moje-psy/${dog.slug}?edit=1`}
             className="btn btn-sm bg-secondary text-foreground hover:bg-border border border-border"
           >
             <Pencil className="w-3.5 h-3.5" />

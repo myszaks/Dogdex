@@ -1,5 +1,6 @@
 ﻿'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   SIZE_CLASSES,
   SIZE_CLASS_LABELS,
@@ -35,6 +36,7 @@ export interface SpeedwayLiveParticipant {
 
 interface Props {
   eventId: string
+  eventSlug: string
   initialTrackDistanceM: number | null
   participants: SpeedwayLiveParticipant[]
 }
@@ -79,14 +81,18 @@ function timeDisplay(ms: number | null, status: RunStatus): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, participants }: Props) {
+export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDistanceM, participants }: Props) {
+  const router = useRouter()
+
   // ── Track distance ────────────────────────────────────────────────────────
   const [trackDistance, setTrackDistance] = useState(
     initialTrackDistanceM !== null ? String(initialTrackDistanceM) : ''
   )
   const [distanceSaved, setDistanceSaved] = useState(initialTrackDistanceM !== null)
   const [savingDistance, setSavingDistance] = useState(false)
+  const [distanceError, setDistanceError] = useState<string | null>(null)
   const distanceM = parseFloat(trackDistance) || null
+  const canEnterResults = distanceSaved && distanceM !== null
 
   // ── Per-participant result state ──────────────────────────────────────────
   const [rows, setRows] = useState<Record<string, RowResult>>(() => {
@@ -158,10 +164,22 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
     run2_ms?: number | null
     run1_status?: RunStatus
     run2_status?: RunStatus
-  }) {
-    if (!currentParticipant) return
+  }): Promise<boolean> {
+    if (!currentParticipant) return false
     const pid = currentParticipant.participantId
     const row = rows[pid]
+
+    if (!canEnterResults) {
+      setRows(prev => ({
+        ...prev,
+        [pid]: {
+          ...prev[pid],
+          saving: false,
+          error: 'Najpierw wpisz i zapisz długość toru',
+        },
+      }))
+      return false
+    }
 
     // Compute merged values upfront — used in payload AND to update local state on success.
     // Using json.field ?? prev is WRONG when clearing to null, because null ?? x returns x.
@@ -203,11 +221,13 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
           run2_status: merged_s2,
         },
       }))
+      return true
     } catch (err) {
       setRows(prev => ({
         ...prev,
         [pid]: { ...prev[pid], saving: false, error: err instanceof Error ? err.message : 'Błąd' },
       }))
+      return false
     }
   }
 
@@ -260,12 +280,25 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
     const update = currentRun === 1
       ? { run1_ms: null as number | null, run1_status: status as RunStatus }
       : { run2_ms: null as number | null, run2_status: status as RunStatus }
-    saveCurrentDog(update).then(() => advance())
+    saveCurrentDog(update).then(saved => { if (saved) advance() })
   }
 
   // ── handleAdvance: save current input (if changed) then advance ─────────────────
   async function handleAdvance() {
     if (!currentParticipant) { advance(); return }
+    if (!canEnterResults) {
+      const pid = currentParticipant.participantId
+      setRows(prev => ({
+        ...prev,
+        [pid]: {
+          ...prev[pid],
+          saving: false,
+          error: 'Najpierw wpisz i zapisz długość toru',
+        },
+      }))
+      return
+    }
+
     const row = rows[currentParticipant.participantId]
     const ms = parseRunMs(inputVal)
     const prevMs = currentRun === 1 ? row?.run1_ms : row?.run2_ms
@@ -275,7 +308,8 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
       const update = currentRun === 1
         ? { run1_ms: ms, run1_status: null as RunStatus }
         : { run2_ms: ms, run2_status: null as RunStatus }
-      await saveCurrentDog(update)
+      const saved = await saveCurrentDog(update)
+      if (!saved) return
     }
     advance()
   }
@@ -294,10 +328,14 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
     return idx
   }
 
-  const isFirstNavRender = useRef(true)
   useEffect(() => {
-    if (isFirstNavRender.current) { isFirstNavRender.current = false; return }
-    if (classResultsView !== null || !currentParticipant) return
+    const completedAll =
+      activeSizeClasses.length > 0 &&
+      classIdx === activeSizeClasses.length - 1 &&
+      currentRun === 2 &&
+      dogIdx >= classParticipants.length
+
+    if (classResultsView !== null || (!currentParticipant && !completedAll)) return
     const globalIdx = computeGlobalIndex(classIdx, currentRun, dogIdx)
     fetch(`/api/events/${eventId}/start-index`, {
       method: 'PATCH',
@@ -312,13 +350,20 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
     const val = parseFloat(trackDistance)
     if (isNaN(val) || val <= 0) return
     setSavingDistance(true)
+    setDistanceError(null)
     try {
-      await fetch(`/api/events/${eventId}`, {
+      const res = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ track_distance_m: val }),
       })
+      if (!res.ok) throw new Error('Nie udało się zapisać długości toru.')
+      setTrackDistance(String(val))
       setDistanceSaved(true)
+      router.refresh()
+    } catch {
+      setDistanceSaved(false)
+      setDistanceError('Nie udało się zapisać długości toru.')
     } finally {
       setSavingDistance(false)
     }
@@ -417,7 +462,7 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
         <p className="font-semibold text-slate-700">Brak psów po odprawie</p>
         <p className="text-sm mt-1">
           Przejdź do{' '}
-          <a href={`/organizer/events/${eventId}/checkin`} className="text-sky-600 underline">
+          <a href={`/organizer/events/${eventSlug}/checkin`} className="text-sky-600 underline">
             Odprawa
           </a>
           , aby zatwierdzić uczestników.
@@ -441,13 +486,19 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
         <div className="card bg-amber-50 border-amber-200 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-amber-700">🏁 Długość toru:</span>
           <input type="number" min={1} max={500} step={0.5} value={trackDistance}
-            onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false) }}
+            onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false); setDistanceError(null) }}
             className="form-input w-24 text-center font-mono py-1" />
           <span className="text-sm text-slate-600">m</span>
           <button onClick={saveDistance} disabled={savingDistance || !trackDistance}
             className="btn btn-primary btn-sm">
             {savingDistance ? '...' : distanceSaved ? '✅' : 'Zapisz'}
           </button>
+          {!canEnterResults && (
+            <span className="text-xs text-amber-700">
+              Zapisz długość toru, aby odblokować wpisywanie wyników.
+            </span>
+          )}
+          {distanceError && <span className="text-xs text-red-600">{distanceError}</span>}
         </div>
 
         {activeSizeClasses.map(cls => {
@@ -571,7 +622,7 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
         <span className="text-slate-500">🏁 Tor:</span>
         <input
           type="number" min={1} max={500} step={0.5} value={trackDistance}
-          onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false) }}
+          onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false); setDistanceError(null) }}
           className="form-input w-20 text-center font-mono py-1 text-sm"
         />
         <span className="text-slate-400">m</span>
@@ -581,6 +632,12 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
           </button>
         )}
         {distanceSaved && <span className="text-green-600 text-xs">✓ zapisano</span>}
+        {!canEnterResults && (
+          <span className="text-amber-600 text-xs">
+            Zapisz tor, aby wpisywać wyniki
+          </span>
+        )}
+        {distanceError && <span className="text-red-600 text-xs">{distanceError}</span>}
       </div>
 
       {/* Class finished — intermediate results screen */}
@@ -707,6 +764,7 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
                         setTimeout(() => inputRef.current?.focus(), 50)
                       })
                     }}
+                    disabled={!canEnterResults}
                     className="btn btn-secondary btn-sm"
                   >
                     ✏️ Koryguj
@@ -722,7 +780,8 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
                   value={inputVal}
                   onChange={e => setInputVal(e.target.value)}
                   placeholder="np. 4.57"
-                  className="form-input font-mono text-2xl text-center w-full py-4"
+                  disabled={!canEnterResults}
+                  className="form-input font-mono text-2xl text-center w-full py-4 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               )}
             </div>
@@ -732,14 +791,16 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
               <div className="grid grid-cols-2 gap-3 mb-2">
                 <button
                   onClick={() => handleStatus('DNS')}
-                  className="btn btn-secondary py-4 text-orange-600 hover:bg-orange-50 hover:border-orange-300 font-semibold"
+                  disabled={!canEnterResults}
+                  className="btn btn-secondary py-4 text-orange-600 hover:bg-orange-50 hover:border-orange-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   DNS
                   <span className="block text-xs font-normal text-slate-400">nie startował</span>
                 </button>
                 <button
                   onClick={() => handleStatus('DNF')}
-                  className="btn btn-secondary py-4 text-red-600 hover:bg-red-50 hover:border-red-300 font-semibold"
+                  disabled={!canEnterResults}
+                  className="btn btn-secondary py-4 text-red-600 hover:bg-red-50 hover:border-red-300 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   DNF
                   <span className="block text-xs font-normal text-slate-400">nie ukończył</span>
@@ -778,6 +839,7 @@ export default function SpeedwayLiveEntry({ eventId, initialTrackDistanceM, part
             </button>
             <button
               onClick={handleAdvance}
+              disabled={!canEnterResults}
               className="btn btn-primary flex-1"
             >
               {isLastDogInClass && currentRun === 1

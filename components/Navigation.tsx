@@ -18,6 +18,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { INDIVIDUAL_TRAININGS_ENABLED } from '@/lib/features'
 
 function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
@@ -48,8 +49,8 @@ export default function Navigation() {
   ]
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
   if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
-  if (user) navLinks.push({ href: '/trainings', label: 'Treningi indywidualne', Icon: PawPrint })
-  if (isOrganizer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
+  if (INDIVIDUAL_TRAININGS_ENABLED && user) navLinks.push({ href: '/trainings', label: 'Treningi indywidualne', Icon: PawPrint })
+  if (INDIVIDUAL_TRAININGS_ENABLED && isOrganizer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
   if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', Icon: Settings2 })
 
   function isActive(href: string) {

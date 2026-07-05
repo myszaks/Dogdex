@@ -255,8 +255,6 @@ export default function OrganizerCalendar({ events }: Props) {
                   </Link>
                   <Link
                     href={`/events/${event.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="flex-1 text-center text-[11px] bg-muted text-muted-foreground rounded-lg px-2 py-1 hover:bg-muted/80 transition-colors"
                   >
                     Podgląd

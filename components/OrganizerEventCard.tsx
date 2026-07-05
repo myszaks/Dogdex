@@ -7,13 +7,20 @@ import type { DogEvent } from '@/types'
 import { Users, Calendar, Trophy, Radio, Pencil, Eye, ClipboardCheck } from 'lucide-react'
 import { effectiveStatus } from '@/lib/utils'
 
-export default function OrganizerEventCard({ event }: { event: DogEvent }) {
+export default function OrganizerEventCard({
+  event,
+  registeredCount,
+}: {
+  event: DogEvent
+  registeredCount?: number | null
+}) {
   const dispStatus = effectiveStatus(event)
   const eid = event.slug
   const editDisabled = dispStatus === 'ongoing' || dispStatus === 'finished'
   return (
     <EventCard
       event={event}
+      registeredCount={registeredCount}
       hidePublicActions
       extraActions={
         <>

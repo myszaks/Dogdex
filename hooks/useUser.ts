@@ -1,9 +1,11 @@
 "use client"
 import { useAuthContext } from '@/context/AuthProvider'
+import { isOrganizerRole, isTrainerRole } from '@/lib/roles'
 
 export default function useUser() {
   const ctx = useAuthContext()
-  const isOrganizer = ctx.role === 'organizer' || ctx.role === 'admin'
+  const isOrganizer = isOrganizerRole(ctx.role)
+  const isTrainer = isTrainerRole(ctx.role)
   const isAdmin = ctx.role === 'admin'
-  return { ...ctx, isOrganizer, isAdmin }
+  return { ...ctx, isOrganizer, isTrainer, isAdmin }
 }

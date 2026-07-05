@@ -5,9 +5,11 @@ import {
   SIZE_CLASSES,
   SIZE_CLASS_LABELS,
   getSizeClass,
-  computeSpeedKmh,
   formatRunTime,
+  isValidTrackDistanceM,
   parseRunMs,
+  TRACK_DISTANCE_MAX_M,
+  TRACK_DISTANCE_MIN_M,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
@@ -37,6 +39,8 @@ export interface SpeedwayLiveParticipant {
 interface Props {
   eventId: string
   eventSlug: string
+  initialEventStatus: string
+  initialLivePhase: string | null
   initialTrackDistanceM: number | null
   participants: SpeedwayLiveParticipant[]
 }
@@ -81,8 +85,18 @@ function timeDisplay(ms: number | null, status: RunStatus): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDistanceM, participants }: Props) {
+export default function SpeedwayLiveEntry({
+  eventId,
+  eventSlug,
+  initialEventStatus,
+  initialLivePhase,
+  initialTrackDistanceM,
+  participants,
+}: Props) {
   const router = useRouter()
+  const [eventClosed, setEventClosed] = useState(
+    initialEventStatus === 'finished' || initialEventStatus === 'cancelled'
+  )
 
   // ── Track distance ────────────────────────────────────────────────────────
   const [trackDistance, setTrackDistance] = useState(
@@ -92,7 +106,10 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
   const [savingDistance, setSavingDistance] = useState(false)
   const [distanceError, setDistanceError] = useState<string | null>(null)
   const distanceM = parseFloat(trackDistance) || null
-  const canEnterResults = distanceSaved && distanceM !== null
+  const distanceValid = isValidTrackDistanceM(trackDistance)
+  const canEditDistance = !eventClosed && (!distanceSaved || !distanceValid)
+  const canEnterResults = !eventClosed && distanceSaved && distanceM !== null && distanceValid
+  const distanceRangeLabel = `${TRACK_DISTANCE_MIN_M}-${TRACK_DISTANCE_MAX_M} m`
 
   // ── Per-participant result state ──────────────────────────────────────────
   const [rows, setRows] = useState<Record<string, RowResult>>(() => {
@@ -169,6 +186,18 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
     const pid = currentParticipant.participantId
     const row = rows[pid]
 
+    if (eventClosed) {
+      setRows(prev => ({
+        ...prev,
+        [pid]: {
+          ...prev[pid],
+          saving: false,
+          error: 'Zawody są zakończone. Edycja wyników jest zablokowana.',
+        },
+      }))
+      return false
+    }
+
     if (!canEnterResults) {
       setRows(prev => ({
         ...prev,
@@ -221,6 +250,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
           run2_status: merged_s2,
         },
       }))
+      recalculateRanks({ silent: true }).catch(() => {})
       return true
     } catch (err) {
       setRows(prev => ({
@@ -275,7 +305,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
 
   // ── DNS / DNF (save immediately + advance) ──────────────────────────────
   function handleStatus(status: 'DNS' | 'DNF') {
-    if (!currentParticipant) return
+    if (!currentParticipant || eventClosed) return
     setInputVal('')
     const update = currentRun === 1
       ? { run1_ms: null as number | null, run1_status: status as RunStatus }
@@ -286,6 +316,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
   // ── handleAdvance: save current input (if changed) then advance ─────────────────
   async function handleAdvance() {
     if (!currentParticipant) { advance(); return }
+    if (eventClosed) return
     if (!canEnterResults) {
       const pid = currentParticipant.participantId
       setRows(prev => ({
@@ -329,6 +360,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
   }
 
   useEffect(() => {
+    if (eventClosed) return
     const completedAll =
       activeSizeClasses.length > 0 &&
       classIdx === activeSizeClasses.length - 1 &&
@@ -347,8 +379,13 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
 
   // ── Track distance save ───────────────────────────────────────────────────
   async function saveDistance() {
+    if (!canEditDistance) return
     const val = parseFloat(trackDistance)
-    if (isNaN(val) || val <= 0) return
+    if (!isValidTrackDistanceM(val)) {
+      setDistanceSaved(false)
+      setDistanceError(`Długość toru musi być w zakresie ${distanceRangeLabel}.`)
+      return
+    }
     setSavingDistance(true)
     setDistanceError(null)
     try {
@@ -370,28 +407,35 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
   }
 
   // ── Recalculate ranks ─────────────────────────────────────────────────────
-  async function recalculateRanks() {
-    setRecalculating(true)
-    setRecalcMsg(null)
+  async function recalculateRanks(opts: { silent?: boolean } = {}) {
+    if (eventClosed) return
+    if (!opts.silent) {
+      setRecalculating(true)
+      setRecalcMsg(null)
+    }
     try {
       const res = await fetch(`/api/events/${eventId}/recalculate-ranks`, { method: 'POST' })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Błąd')
-      setRecalcMsg(`✅ Przeliczono miejsca (${json.updated} wyników)`)
+      if (!opts.silent) setRecalcMsg(`✅ Przeliczono miejsca (${json.updated} wyników)`)
     } catch (err) {
-      setRecalcMsg(`❌ ${err instanceof Error ? err.message : 'Błąd'}`)
+      if (!opts.silent) setRecalcMsg(`❌ ${err instanceof Error ? err.message : 'Błąd'}`)
     } finally {
-      setRecalculating(false)
+      if (!opts.silent) setRecalculating(false)
     }
   }
 
   // ── Podium announce ───────────────────────────────────────────────────────
-  const [podiumAnnounced, setPodiumAnnounced] = useState(false)
+  const [podiumAnnounced, setPodiumAnnounced] = useState(initialLivePhase === 'podium')
   const [podiumSaving, setPodiumSaving] = useState(false)
+  const [finishConfirm, setFinishConfirm] = useState(false)
+  const [finishSaving, setFinishSaving] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
 
   async function announcePodium() {
     setPodiumSaving(true)
     try {
+      await recalculateRanks({ silent: true })
       await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -400,6 +444,37 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
       setPodiumAnnounced(true)
     } finally {
       setPodiumSaving(false)
+    }
+  }
+
+  async function finishEvent() {
+    if (!finishConfirm) {
+      setFinishConfirm(true)
+      setTimeout(() => setFinishConfirm(false), 4000)
+      return
+    }
+
+    setFinishSaving(true)
+    setFinishError(null)
+    try {
+      await recalculateRanks({ silent: true })
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'finished', live_phase: 'podium' }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Nie udało się zakończyć zawodów.')
+      }
+      setEventClosed(true)
+      setPodiumAnnounced(true)
+      setFinishConfirm(false)
+      router.refresh()
+    } catch (err) {
+      setFinishError(err instanceof Error ? err.message : 'Nie udało się zakończyć zawodów.')
+    } finally {
+      setFinishSaving(false)
     }
   }
 
@@ -485,17 +560,36 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
         {/* Track distance */}
         <div className="card bg-amber-50 border-amber-200 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-amber-700">🏁 Długość toru:</span>
-          <input type="number" min={1} max={500} step={0.5} value={trackDistance}
-            onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false); setDistanceError(null) }}
-            className="form-input w-24 text-center font-mono py-1" />
+          <input
+            type="number"
+            min={TRACK_DISTANCE_MIN_M}
+            max={TRACK_DISTANCE_MAX_M}
+            step={0.5}
+            value={trackDistance}
+            onChange={e => {
+              if (!canEditDistance) return
+              setTrackDistance(e.target.value)
+              setDistanceSaved(false)
+              setDistanceError(null)
+            }}
+            disabled={!canEditDistance}
+            className="form-input w-24 text-center font-mono py-1 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed" />
           <span className="text-sm text-slate-600">m</span>
-          <button onClick={saveDistance} disabled={savingDistance || !trackDistance}
-            className="btn btn-primary btn-sm">
-            {savingDistance ? '...' : distanceSaved ? '✅' : 'Zapisz'}
-          </button>
+          {canEditDistance ? (
+            <button onClick={saveDistance} disabled={savingDistance || !trackDistance || !distanceValid}
+              className="btn btn-primary btn-sm">
+              {savingDistance ? '...' : 'Zapisz'}
+            </button>
+          ) : distanceSaved ? (
+            <span className="text-xs text-green-700">✓ zapisano i zablokowano</span>
+          ) : null}
           {!canEnterResults && (
             <span className="text-xs text-amber-700">
-              Zapisz długość toru, aby odblokować wpisywanie wyników.
+              {eventClosed
+                ? 'Zawody zakończone. Edycja wyników jest zablokowana.'
+                : !distanceValid && trackDistance
+                  ? `Popraw długość toru (${distanceRangeLabel}).`
+                  : 'Zapisz długość toru, aby odblokować wpisywanie wyników.'}
             </span>
           )}
           {distanceError && <span className="text-xs text-red-600">{distanceError}</span>}
@@ -526,12 +620,14 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
                       <button
                         key={p.participantId}
                         onClick={() => {
+                          if (eventClosed) return
                           setClassIdx(idx)
                           setCurrentRun(goRun)
                           setDogIdx(i)
                           setListView(false)
                         }}
-                        className="w-full grid grid-cols-[1fr_auto_auto] items-center px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                        disabled={eventClosed}
+                        className="w-full grid grid-cols-[1fr_auto_auto] items-center px-4 py-3 text-left hover:bg-slate-50 transition-colors disabled:cursor-default disabled:hover:bg-white"
                       >
                         <div className="min-w-0 pr-2">
                           <p className="font-medium text-slate-800 text-sm truncate">{p.dogName || '—'}</p>
@@ -564,15 +660,11 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
           )
         })}
 
-        {/* Recalculate */}
-        <div className="card bg-sky-50 border-sky-200">
-          <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={recalculateRanks} disabled={recalculating} className="btn btn-primary btn-sm">
-              {recalculating ? 'Przeliczanie...' : '🏆 Przelicz rankingi klas'}
-            </button>
-            {recalcMsg && <span className="text-sm">{recalcMsg}</span>}
+        {eventClosed && (
+          <div className="card bg-slate-50 border-slate-200 text-sm text-slate-600">
+            Zawody są zakończone. Lista jest tylko do podglądu.
           </div>
-        </div>
+        )}
       </div>
     )
   }
@@ -621,27 +713,59 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
       <div className="flex items-center gap-2 flex-wrap text-sm">
         <span className="text-slate-500">🏁 Tor:</span>
         <input
-          type="number" min={1} max={500} step={0.5} value={trackDistance}
-          onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false); setDistanceError(null) }}
-          className="form-input w-20 text-center font-mono py-1 text-sm"
+          type="number"
+          min={TRACK_DISTANCE_MIN_M}
+          max={TRACK_DISTANCE_MAX_M}
+          step={0.5}
+          value={trackDistance}
+          onChange={e => {
+            if (!canEditDistance) return
+            setTrackDistance(e.target.value)
+            setDistanceSaved(false)
+            setDistanceError(null)
+          }}
+          disabled={!canEditDistance}
+          className="form-input w-20 text-center font-mono py-1 text-sm disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
         />
         <span className="text-slate-400">m</span>
-        {!distanceSaved && trackDistance && (
-          <button onClick={saveDistance} disabled={savingDistance} className="btn btn-primary btn-sm">
+        {canEditDistance && trackDistance && (
+          <button onClick={saveDistance} disabled={savingDistance || !distanceValid} className="btn btn-primary btn-sm">
             {savingDistance ? '...' : 'Zapisz'}
           </button>
         )}
-        {distanceSaved && <span className="text-green-600 text-xs">✓ zapisano</span>}
+        {distanceSaved && !canEditDistance && <span className="text-green-600 text-xs">✓ zapisano i zablokowano</span>}
         {!canEnterResults && (
           <span className="text-amber-600 text-xs">
-            Zapisz tor, aby wpisywać wyniki
+            {eventClosed
+              ? 'Edycja wyników jest zablokowana'
+              : !distanceValid && trackDistance
+                ? `Popraw długość toru (${distanceRangeLabel})`
+                : 'Zapisz tor, aby wpisywać wyniki'}
           </span>
         )}
         {distanceError && <span className="text-red-600 text-xs">{distanceError}</span>}
       </div>
 
+      {eventClosed && (
+        <div className="card text-center py-10 bg-slate-50 border-slate-200">
+          <p className="text-4xl mb-3">🏁</p>
+          <p className="font-bold text-slate-800 text-lg">Zawody zakończone</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Edycja wyników i przesuwanie kolejki startowej są zablokowane.
+          </p>
+          <div className="flex flex-col items-center gap-3 mt-4">
+            <button onClick={() => setListView(true)} className="btn btn-secondary">
+              ≡ Lista wyników
+            </button>
+            <a href={`/live/${eventSlug}`} className="btn btn-primary">
+              🏆 Podium live
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Class finished — intermediate results screen */}
-      {classResultsView ? (
+      {!eventClosed && classResultsView ? (
         <div className="space-y-4">
           <div className="card bg-green-50 border-green-300">
             <div className="flex items-start justify-between gap-2">
@@ -651,6 +775,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
               </div>
               {recalculating && <span className="text-xs text-slate-400 shrink-0">Przeliczam ranking...</span>}
             </div>
+            {recalcMsg && <p className="text-xs text-green-700 mt-2">{recalcMsg}</p>}
           </div>
 
           <div className="card p-0 overflow-hidden">
@@ -697,7 +822,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
             className="btn btn-primary w-full py-4 text-base"
           >
             {isLastClass
-              ? '🏁 Zakończ zawody'
+              ? '🏁 Przejdź do podsumowania'
               : `Następna klasa: ${activeSizeClasses[classIdx + 1]} ▶`}
           </button>
           <button onClick={() => setListView(true)} className="btn btn-secondary w-full">
@@ -705,7 +830,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
           </button>
         </div>
 
-      ) : trulyDone ? (
+      ) : !eventClosed && trulyDone ? (
         <div className="card text-center py-10 bg-green-50 border-green-200">
           <p className="text-4xl mb-3">🏁</p>
           <p className="font-bold text-green-800 text-lg">Wszystkie klasy ukończone!</p>
@@ -724,9 +849,25 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
                 {podiumSaving ? '...' : '🏆 Ogłoś podium na żywo'}
               </button>
             )}
+            <button
+              onClick={finishEvent}
+              disabled={finishSaving}
+              className={`btn py-3 px-6 text-base ${
+                finishConfirm
+                  ? 'bg-green-700 text-white border-green-700 hover:bg-green-800'
+                  : 'btn-secondary'
+              }`}
+            >
+              {finishSaving
+                ? 'Zamykanie...'
+                : finishConfirm
+                  ? 'Potwierdź zakończenie zawodów'
+                  : 'Zakończ i zablokuj edycję'}
+            </button>
+            {finishError && <p className="text-red-600 text-xs">{finishError}</p>}
           </div>
         </div>
-      ) : currentParticipant ? (
+      ) : !eventClosed && currentParticipant ? (
         <>
           {/* Dog card */}
           <div className="card border-2 border-sky-300 bg-sky-50">
@@ -850,18 +991,43 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
             </button>
           </div>
 
-          {/* Next dogs (small footer hint) */}
-          {nextDogs.length > 0 && (
-            <p className="text-xs text-slate-400 text-center">
-              Następne: {nextDogs.map(p => p.dogName || '—').join(' · ')}
-            </p>
-          )}
-          {nextRound2Dogs.length > 0 && (
-            <p className="text-xs text-slate-400 text-center">
-              Następne{' '}
-              <span className="font-semibold text-sky-500">(R2)</span>:{' '}
-              {nextRound2Dogs.map(p => p.dogName || '—').join(' · ')}
-            </p>
+          {/* Upcoming dogs */}
+          {(nextDogs.length > 0 || nextRound2Dogs.length > 0) && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                Przygotuj kolejne psy
+              </p>
+              <div className="space-y-2">
+                {nextDogs.map((p, idx) => (
+                  <div key={`${p.participantId}-${currentRun}-${idx}`} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                      {dogIdx + idx + 2}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-800">{p.dogName || '—'}</p>
+                      <p className="truncate text-xs text-slate-400">{p.ownerName || '—'}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700">
+                      R{currentRun}
+                    </span>
+                  </div>
+                ))}
+                {nextRound2Dogs.map((p, idx) => (
+                  <div key={`${p.participantId}-r2-${idx}`} className="flex items-center gap-3 rounded-xl bg-sky-50 px-3 py-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-sky-600 ring-1 ring-sky-200">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-800">{p.dogName || '—'}</p>
+                      <p className="truncate text-xs text-slate-400">{p.ownerName || '—'}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-sky-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      R2
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </>
       ) : null}

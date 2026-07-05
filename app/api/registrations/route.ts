@@ -88,14 +88,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Brak uprawnień do użycia tego psa' }, { status: 401 })
     }
 
-    const { data: ownedDog, error: dogError } = await supabase
+    const authSupabase = await createAuthClient()
+    const { data: ownedDog, error: dogError } = await authSupabase
       .from('dogs')
       .select('id')
       .eq('id', dogIdNorm)
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (dogError) return NextResponse.json({ error: dogError.message }, { status: 500 })
+    if (dogError) {
+      return NextResponse.json(
+        { error: 'Nie udało się potwierdzić psa z profilu. Spróbuj ponownie.' },
+        { status: 500 },
+      )
+    }
     if (!ownedDog) {
       return NextResponse.json({ error: 'Nieprawidłowy pies dla tego użytkownika' }, { status: 403 })
     }

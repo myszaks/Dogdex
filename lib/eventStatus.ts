@@ -9,6 +9,7 @@ type EventStatusLike = {
 
 export function effectiveEventStatus(event: EventStatusLike, now = new Date()): string {
   if (event.status === 'cancelled') return 'cancelled'
+  if (event.status === 'finished') return 'finished'
 
   const start = event.start_at ? new Date(event.start_at) : null
   const end = event.end_at ? new Date(event.end_at) : null

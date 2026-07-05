@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import useUser from '@/hooks/useUser'
-import { User, Settings, Shield, LogOut, ChevronDown } from 'lucide-react'
+import { ClipboardCheck, User, Settings, Shield, LogOut, ChevronDown } from 'lucide-react'
+import { ROLE_LABELS, isAppRole } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -29,6 +30,7 @@ export default function UserMenu({ sidebar = false }: Props) {
   const initials = parts.length >= 2
     ? (parts[0][0] + parts[parts.length - 1][0])
     : name.slice(0, 2)
+  const roleLabel = isAppRole(role) ? ROLE_LABELS[role] : 'Nieznana rola'
 
   if (sidebar) {
     return (
@@ -45,7 +47,7 @@ export default function UserMenu({ sidebar = false }: Props) {
             <p className="text-sm font-medium text-white truncate leading-tight">
               {user.user_metadata?.full_name || user.email?.split('@')[0]}
             </p>
-            <p className="text-xs text-white/50 leading-none mt-0.5">{{ user: 'Użytkownik', organizer: 'Organizator', admin: 'Administrator' }[role ?? ''] ?? 'Nieznana rola'}</p>
+            <p className="text-xs text-white/50 leading-none mt-0.5">{roleLabel}</p>
           </div>
           <ChevronDown className={cn('w-4 h-4 text-white/40 transition-transform', open && 'rotate-180')} />
         </button>
@@ -58,7 +60,10 @@ export default function UserMenu({ sidebar = false }: Props) {
             <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
             <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
             {isAdmin && (
-              <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
+              <>
+                <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
+                <DropdownItem href="/admin/role-requests" icon={<ClipboardCheck className="w-4 h-4" />} label="Wnioski o role" onClose={() => setOpen(false)} accent />
+              </>
             )}
             <hr className="my-1 border-border" />
             <button
@@ -92,7 +97,10 @@ export default function UserMenu({ sidebar = false }: Props) {
           <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
           <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
           {isAdmin && (
-            <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
+            <>
+              <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
+              <DropdownItem href="/admin/role-requests" icon={<ClipboardCheck className="w-4 h-4" />} label="Wnioski o role" onClose={() => setOpen(false)} accent />
+            </>
           )}
           <hr className="my-1 border-border" />
           <button

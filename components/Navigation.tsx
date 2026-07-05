@@ -40,7 +40,7 @@ export default function Navigation() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
-  const { isOrganizer, user } = useUser()
+  const { isOrganizer, isTrainer, user } = useUser()
 
   const navLinks = [
     { href: '/', label: 'Główna', Icon: Home },
@@ -49,7 +49,7 @@ export default function Navigation() {
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
   if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
   if (user) navLinks.push({ href: '/trainings', label: 'Treningi indywidualne', Icon: PawPrint })
-  if (isOrganizer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
+  if (isTrainer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
   if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', Icon: Settings2 })
 
   function isActive(href: string) {

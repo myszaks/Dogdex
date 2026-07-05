@@ -11,6 +11,15 @@ describe('eventStatus', () => {
     })).toBe('cancelled')
   })
 
+  it('returns finished for explicitly finished events even before end time', () => {
+    expect(effectiveEventStatus({
+      status: 'finished',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: '2026-07-01T18:00:00.000Z',
+      registration_deadline: null,
+    }, new Date('2026-07-01T12:00:00.000Z'))).toBe('finished')
+  })
+
   it('returns finished after event end', () => {
     expect(effectiveEventStatus({
       status: 'upcoming',

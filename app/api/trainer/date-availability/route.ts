@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
+import { isTrainerRole } from '@/lib/roles'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,9 +10,13 @@ const supabase = createClient(
 
 export async function GET(request: NextRequest) {
   try {
-    const { user } = await getServerUser()
+    const { user, role } = await getServerUser()
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+    }
+
+    if (!isTrainerRole(role)) {
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
     }
 
     // Fetch trainer's date availability slots
@@ -37,9 +42,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user } = await getServerUser()
+    const { user, role } = await getServerUser()
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+    }
+
+    if (!isTrainerRole(role)) {
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -94,9 +103,13 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { user } = await getServerUser()
+    const { user, role } = await getServerUser()
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+    }
+
+    if (!isTrainerRole(role)) {
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -155,9 +168,13 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { user } = await getServerUser()
+    const { user, role } = await getServerUser()
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+    }
+
+    if (!isTrainerRole(role)) {
+      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
     }
 
     const body = await request.json()

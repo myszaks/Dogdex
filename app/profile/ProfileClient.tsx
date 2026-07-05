@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { User, Shield, Settings2, ClipboardList, CalendarDays, Check } from 'lucide-react'
+import { BadgeCheck, User, Shield, Settings2, ClipboardList, CalendarDays, Check } from 'lucide-react'
+import { ROLE_LABELS, isAppRole } from '@/lib/roles'
 
 interface Props {
   email: string
@@ -13,10 +14,12 @@ interface Props {
   registrationCount: number
 }
 
-const ROLE_CONFIG: Record<string, { label: string; className: string; Icon: React.ElementType }> = {
-  admin:     { label: 'Administrator', className: 'bg-red-100 text-red-700',     Icon: Shield },
-  organizer: { label: 'Organizator',   className: 'bg-blue-100 text-blue-700',   Icon: Settings2 },
-  user:      { label: 'Użytkownik',    className: 'bg-secondary text-foreground', Icon: User },
+const ROLE_CONFIG: Record<string, { className: string; Icon: React.ElementType }> = {
+  admin: { className: 'bg-red-100 text-red-700', Icon: Shield },
+  organizer: { className: 'bg-blue-100 text-blue-700', Icon: Settings2 },
+  trainer: { className: 'bg-emerald-100 text-emerald-700', Icon: BadgeCheck },
+  organizer_trainer: { className: 'bg-orange-100 text-orange-700', Icon: BadgeCheck },
+  user: { className: 'bg-secondary text-foreground', Icon: User },
 }
 
 export default function ProfileClient({ email, fullName, company, role, createdAt, registrationCount }: Props) {
@@ -68,6 +71,13 @@ export default function ProfileClient({ email, fullName, company, role, createdA
 
   const roleCfg = ROLE_CONFIG[role] ?? ROLE_CONFIG.user
   const RoleIcon = roleCfg.Icon
+  const roleLabel = isAppRole(role) ? ROLE_LABELS[role] : ROLE_LABELS.user
+  const canRequestMoreAccess = role !== 'admin' && role !== 'organizer_trainer'
+  const roleRequestTitle = role === 'organizer'
+    ? 'Dodaj rolę trenera'
+    : role === 'trainer'
+      ? 'Dodaj rolę organizatora'
+      : 'Zostań organizatorem lub trenerem'
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
@@ -86,7 +96,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
           <p className="text-sm text-muted-foreground truncate">{email}</p>
           <span className={`inline-flex items-center gap-1 mt-1.5 text-xs rounded-full px-2.5 py-0.5 font-semibold ${roleCfg.className}`}>
             <RoleIcon className="w-3 h-3" />
-            {roleCfg.label}
+            {roleLabel}
           </span>
         </div>
       </div>
@@ -111,6 +121,21 @@ export default function ProfileClient({ email, fullName, company, role, createdA
           <p className="text-muted-foreground text-sm mt-1">{memberSince}</p>
         </div>
       </div>
+
+      {canRequestMoreAccess && (
+        <Link
+          href="/profile/role-request"
+          className="bg-card rounded-3xl border border-border p-5 shadow-sm flex items-center justify-between gap-4 hover:border-accent/50 hover:shadow-md transition-all"
+        >
+          <div className="min-w-0">
+            <p className="font-heading font-semibold text-foreground">{roleRequestTitle}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Wypełnij krótki wniosek weryfikacyjny. Po akceptacji administratora odblokujemy odpowiedni panel.
+            </p>
+          </div>
+          <BadgeCheck className="w-6 h-6 text-accent shrink-0" />
+        </Link>
+      )}
 
       {/* Edit form */}
       <form onSubmit={handleSave} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">

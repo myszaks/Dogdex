@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import RegisterForm from './RegisterForm'
 import type { FormField } from '@/types'
 import { X } from 'lucide-react'
@@ -16,6 +17,7 @@ interface Props {
 
 export default function RegisterModal({ eventId, eventTitle, formFields, triggerClassName, triggerLabel }: Props) {
   const [open, setOpen] = useState(false)
+  const router = useRouter()
 
   return (
     <>
@@ -47,7 +49,10 @@ export default function RegisterModal({ eventId, eventTitle, formFields, trigger
               <RegisterForm
                 eventId={eventId}
                 formFields={formFields}
-                onSuccess={() => setTimeout(() => setOpen(false), 2500)}
+                onSuccess={() => {
+                  router.refresh()
+                  setTimeout(() => setOpen(false), 2500)
+                }}
               />
             </div>
           </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendCancellationRequestEmailToOrganizer } from '@/lib/email'
+import { effectiveEventStatus } from '@/lib/eventStatus'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -46,6 +47,18 @@ export async function POST(req: Request, { params }: Params) {
   // Registration must be active
   if (reg.status === 'cancelled') {
     return NextResponse.json({ error: 'Zgłoszenie jest już anulowane' }, { status: 400 })
+  }
+
+  if (event && effectiveEventStatus({
+    status: String(event.status ?? 'upcoming'),
+    start_at: event.start_at as string | null,
+    end_at: event.end_at as string | null,
+    registration_deadline: event.registration_deadline as string | null,
+  }) !== 'upcoming') {
+    return NextResponse.json(
+      { error: 'Nie można zrezygnować po rozpoczęciu lub zakończeniu wydarzenia.' },
+      { status: 409 },
+    )
   }
 
   // Parse body

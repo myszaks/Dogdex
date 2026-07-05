@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { isTrainerRole } from '@/lib/roles'
 
 export async function POST(req: NextRequest) {
-  const { user } = await getServerUser()
+  const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!isTrainerRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   const formData = await req.formData()
   const file = formData.get('file') as File | null
@@ -55,8 +57,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { user } = await getServerUser()
+  const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!isTrainerRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'Brak URL' }, { status: 400 })

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DragDropContext,
   Droppable,
@@ -24,13 +24,17 @@ export default function RegistrationsClientList({
   eventFormFields,
   groupingField,
 }: Props) {
-  const sorted = [...initialRegistrations].sort((a, b) => {
+  const sorted = useMemo(() => [...initialRegistrations].sort((a, b) => {
     if (a.order_index != null && b.order_index != null) return a.order_index - b.order_index
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  })
+  }), [initialRegistrations])
 
   const [registrations, setRegistrations] = useState<Registration[]>(sorted)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setRegistrations(sorted)
+  }, [sorted])
 
   function formatFormValue(value: unknown, field?: FormField): string {
     if (typeof value === 'boolean') return value ? 'Tak' : 'Nie'

@@ -55,7 +55,7 @@ export default async function LivePage({ params }: Props) {
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
+      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
       .eq('event_id', resolvedId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -66,6 +66,7 @@ export default async function LivePage({ params }: Props) {
 
   const isPublic = event.results_public ?? true
   const isSpeedway = event.event_type_id === 'speedway'
+  const showLiveContent = isPublic || (isSpeedway && event.live_phase === 'podium')
 
   const startParticipants = (registrations ?? []).map((r: any) => ({
     registration_id: r.id as string,
@@ -77,12 +78,9 @@ export default async function LivePage({ params }: Props) {
   const speedwayParticipants: SpeedwayLiveParticipantInfo[] = (registrations ?? [])
     .filter((r: any) => Boolean(r.checked_in))
     .map((r: any) => {
-      const pid = r.participants?.id ?? r.id
+      const pid = r.participants?.id ?? r.participant_id ?? r.id
       const existingResult = (results ?? []).find((res: any) => res.participant_id === pid)
-      const dogHeightCm = Array.isArray(r.participants?.dogs)
-        ? r.participants.dogs[0]?.height_cm
-        : r.participants?.dogs?.height_cm
-      const formClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm)
+      const formClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, null)
       const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
         ? existingResult.size_class as import('@/lib/speedway').SizeClass
         : null
@@ -94,6 +92,10 @@ export default async function LivePage({ params }: Props) {
         sizeClass,
       }
     })
+  const speedwayParticipantIds = new Set(speedwayParticipants.map(p => p.participantId))
+  const speedwayResults = (results ?? []).filter((res: any) =>
+    speedwayParticipantIds.has(res.participant_id as string)
+  )
 
   return (
     <div>
@@ -111,7 +113,7 @@ export default async function LivePage({ params }: Props) {
         <p className="text-slate-500 text-sm mb-5">📅 {formatDate(event.start_at)}</p>
       )}
 
-      {isPublic ? (
+      {showLiveContent ? (
         <>
           {isSpeedway ? (
             <SpeedwayLiveView
@@ -119,7 +121,7 @@ export default async function LivePage({ params }: Props) {
               initialStartIndex={event.current_start_index ?? 0}
               initialLivePhase={event.live_phase ?? null}
               participants={speedwayParticipants}
-              initialResults={results ?? []}
+              initialResults={speedwayResults}
             />
           ) : (
             <>

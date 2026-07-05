@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime } from '@/lib/speedway'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, extractSizeClassFromRegistration } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -24,6 +24,15 @@ interface SpeedwayResult {
   speed_kmh: number | null
   size_class: string | null
   class_rank: number | null
+  participants?: {
+    dog_name: string | null
+    owner_name: string | null
+    dog_breed?: string | null
+  } | {
+    dog_name: string | null
+    owner_name: string | null
+    dog_breed?: string | null
+  }[] | null
 }
 
 interface Props {
@@ -43,11 +52,36 @@ function timeDisplay(ms: number | null, status: string | null): string {
   return '—'
 }
 
+function resultParticipant(result: SpeedwayResult) {
+  const participant = result.participants
+  return Array.isArray(participant) ? participant[0] ?? null : participant ?? null
+}
+
 interface DecodedPosition {
   cls: SizeClass
   run: 1 | 2
   dogInClass: number
   participant: SpeedwayLiveParticipantInfo
+}
+
+function normalizeLiveParticipants(registrations: any[], results: SpeedwayResult[]): SpeedwayLiveParticipantInfo[] {
+  return registrations
+    .filter((r: any) => Boolean(r.checked_in))
+    .map((r: any) => {
+      const pid = r.participants?.id ?? r.participant_id ?? r.id
+      const existingResult = results.find(res => res.participant_id === pid)
+      const existingClass = existingResult?.size_class && SIZE_CLASSES.includes(existingResult.size_class as SizeClass)
+        ? existingResult.size_class as SizeClass
+        : null
+      const sizeClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, null) ?? existingClass ?? 'M'
+
+      return {
+        participantId: pid,
+        dogName: r.participants?.dog_name ?? null,
+        ownerName: r.participants?.owner_name ?? null,
+        sizeClass,
+      }
+    })
 }
 
 function decodeGlobalIndex(
@@ -79,14 +113,24 @@ export default function SpeedwayLiveView({
   eventId,
   initialStartIndex,
   initialLivePhase,
-  participants,
+  participants: initialParticipants,
   initialResults,
 }: Props) {
   const supabase = getSupabaseBrowserClient()
   const [startIndex, setStartIndex] = useState(initialStartIndex)
   const [livePhase, setLivePhase] = useState(initialLivePhase)
+  const [participants, setParticipants] = useState<SpeedwayLiveParticipantInfo[]>(initialParticipants)
   const [results, setResults] = useState<SpeedwayResult[]>(initialResults)
   const [connected, setConnected] = useState(false)
+  const resultsRef = useRef(initialResults)
+
+  useEffect(() => {
+    setParticipants(initialParticipants)
+  }, [initialParticipants])
+
+  useEffect(() => {
+    resultsRef.current = results
+  }, [results])
 
   // Pre-compute sequence structures (stable — participants don't change)
   const activeSizeClasses = SIZE_CLASSES.filter(cls =>
@@ -95,6 +139,8 @@ export default function SpeedwayLiveView({
   const byCls = Object.fromEntries(
     SIZE_CLASSES.map(cls => [cls, participants.filter(p => p.sizeClass === cls)])
   ) as Record<SizeClass, SpeedwayLiveParticipantInfo[]>
+  const participantIds = new Set(participants.map(p => p.participantId))
+  const visibleResults = results.filter(r => participantIds.has(r.participant_id))
 
   // Participants map for quick lookup when rendering results
   const participantsMap = Object.fromEntries(
@@ -106,16 +152,29 @@ export default function SpeedwayLiveView({
 
   // Classes that actually have stored results (authoritative grouping for results table)
   const activeResultClasses = SIZE_CLASSES.filter(cls =>
-    results.some(r => r.size_class === cls)
+    visibleResults.some(r => r.size_class === cls)
   )
 
   const fetchResults = useCallback(async () => {
     if (!supabase) return
     const { data } = await supabase
       .from('results')
-      .select('id, participant_id, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank')
+      .select('id, participant_id, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank, participants(dog_name, owner_name, dog_breed)')
       .eq('event_id', eventId)
     if (data) setResults(data as SpeedwayResult[])
+  }, [eventId, supabase])
+
+  const fetchParticipants = useCallback(async () => {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('registrations')
+      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed)')
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .eq('checked_in', true)
+      .order('order_index', { ascending: true, nullsFirst: false })
+
+    if (data) setParticipants(normalizeLiveParticipants(data as any[], resultsRef.current))
   }, [eventId, supabase])
 
   const fetchEventState = useCallback(async () => {
@@ -136,14 +195,30 @@ export default function SpeedwayLiveView({
   useEffect(() => {
     if (!supabase) return
 
+    fetchEventState()
+    fetchResults()
+    fetchParticipants()
+
     const resultsChannel = supabase
       .channel(`sw-results-${eventId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'results', filter: `event_id=eq.${eventId}` },
-        () => { fetchResults() }
+        () => {
+          fetchResults()
+          fetchParticipants()
+        }
       )
       .subscribe(status => setConnected(status === 'SUBSCRIBED'))
+
+    const registrationsChannel = supabase
+      .channel(`sw-registrations-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'registrations', filter: `event_id=eq.${eventId}` },
+        () => { fetchParticipants() }
+      )
+      .subscribe()
 
     const eventChannel = supabase
       .channel(`sw-event-${eventId}`)
@@ -162,11 +237,13 @@ export default function SpeedwayLiveView({
     const interval = window.setInterval(() => {
       fetchEventState()
       fetchResults()
+      fetchParticipants()
     }, 5000)
 
     const refresh = () => {
       fetchEventState()
       fetchResults()
+      fetchParticipants()
     }
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', refresh)
@@ -176,9 +253,10 @@ export default function SpeedwayLiveView({
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', refresh)
       supabase.removeChannel(resultsChannel)
+      supabase.removeChannel(registrationsChannel)
       supabase.removeChannel(eventChannel)
     }
-  }, [eventId, fetchEventState, fetchResults, supabase])
+  }, [eventId, fetchEventState, fetchParticipants, fetchResults, supabase])
 
   // Decode current + upcoming positions using the same sequence as organizer entry.
   const current = decodeGlobalIndex(startIndex, activeSizeClasses, byCls)
@@ -186,16 +264,12 @@ export default function SpeedwayLiveView({
     decodeGlobalIndex(startIndex + i + 1, activeSizeClasses, byCls)
   ).filter((position): position is DecodedPosition => position !== null)
 
-  // Results map by participant_id
-  const resultsMap: Record<string, SpeedwayResult> = {}
-  for (const r of results) resultsMap[r.participant_id] = r
-
-  if (participants.length === 0) return null
+  const podiumResults = visibleResults.length > 0 ? visibleResults : results
 
   // ── PODIUM SCREEN ─────────────────────────────────────────────────────────
   if (livePhase === 'podium') {
     const podiumClasses = SIZE_CLASSES.filter(cls =>
-      results.some(r => r.size_class === cls && r.class_rank !== null)
+      podiumResults.some(r => r.size_class === cls && r.class_rank !== null)
     )
     return (
       <div className="space-y-8">
@@ -209,7 +283,7 @@ export default function SpeedwayLiveView({
           <h2 className="text-2xl font-bold text-slate-800">Podium</h2>
         </div>
         {podiumClasses.map(cls => {
-          const top3 = results
+          const top3 = podiumResults
             .filter(r => r.size_class === cls && r.class_rank !== null)
             .sort((a, b) => (a.class_rank ?? 99) - (b.class_rank ?? 99))
             .slice(0, 3)
@@ -222,6 +296,7 @@ export default function SpeedwayLiveView({
               <div className="flex flex-col gap-3">
                 {top3.map((r, i) => {
                   const p = participantsMap[r.participant_id]
+                  const rp = resultParticipant(r)
                   const medals = ['🥇', '🥈', '🥉']
                   const bgColors = ['bg-yellow-50 border-yellow-300', 'bg-slate-50 border-slate-200', 'bg-orange-50 border-orange-200']
                   const textSizes = ['text-3xl', 'text-2xl', 'text-xl']
@@ -230,9 +305,9 @@ export default function SpeedwayLiveView({
                       <span className="text-5xl shrink-0">{medals[i]}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`font-bold text-slate-800 ${textSizes[i]} truncate`}>
-                          {p?.dogName ?? '—'}
+                          {p?.dogName ?? rp?.dog_name ?? '—'}
                         </p>
-                        <p className="text-sm text-slate-500">{p?.ownerName ?? '—'}</p>
+                        <p className="text-sm text-slate-500">{p?.ownerName ?? rp?.owner_name ?? '—'}</p>
                       </div>
                       {r.best_ms !== null && (
                         <div className="text-right shrink-0">
@@ -250,6 +325,18 @@ export default function SpeedwayLiveView({
         {podiumClasses.length === 0 && (
           <p className="text-center text-slate-400">Trwa obliczanie wyników...</p>
         )}
+      </div>
+    )
+  }
+
+  if (participants.length === 0) {
+    return (
+      <div className="card text-center py-12 text-slate-500">
+        <p className="text-4xl mb-3">🏁</p>
+        <p className="font-semibold text-slate-700">Brak odprawionych zawodników</p>
+        <p className="text-sm mt-1">
+          Lista startowa i wyniki live pojawią się po odprawieniu psów przez organizatora.
+        </p>
       </div>
     )
   }
@@ -338,7 +425,7 @@ export default function SpeedwayLiveView({
 
       {/* Live results per class — grouped by stored result.size_class */}
       {activeResultClasses.map(cls => {
-        const clsResults = results
+        const clsResults = visibleResults
           .filter(r => r.size_class === cls && (
             r.run1_ms !== null || r.run1_status !== null ||
             r.run2_ms !== null || r.run2_status !== null

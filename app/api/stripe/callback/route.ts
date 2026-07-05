@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { isTrainerRole } from '@/lib/roles'
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
@@ -15,6 +17,13 @@ export async function GET(req: Request) {
   }
 
   try {
+    const { user, role } = await getServerUser()
+    if (!user || user.id !== state || !isTrainerRole(role)) {
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/trainer/profile?error=Brak_autoryzacji`
+      )
+    }
+
     // Exchange code for stripe account ID
     const response = await stripe.oauth.token({
       grant_type: 'authorization_code',

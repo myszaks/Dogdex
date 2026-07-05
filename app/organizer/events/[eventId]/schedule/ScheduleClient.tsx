@@ -111,12 +111,6 @@ export default function ScheduleClient({
   const [addingSlot, setAddingSlot] = useState(false)
   const [unassignedOpen, setUnassignedOpen] = useState(true)
 
-  const timeOptions: string[] = []
-  for (let h = 6; h <= 22; h++) {
-    timeOptions.push(`${String(h).padStart(2, '0')}:00`)
-    if (h < 22) timeOptions.push(`${String(h).padStart(2, '0')}:30`)
-  }
-
   const slotMap = new Map(slots.map(s => [s.id, s]))
 
   const itemsInSlot = (slotId: string) => items.filter(i => i.slotId === slotId)
@@ -531,10 +525,12 @@ export default function ScheduleClient({
           </div>
           <div>
             <label className="form-label">Godzina *</label>
-            <select value={newTime} onChange={e => setNewTime(e.target.value)} className="form-input">
-              <option value="">— wybierz —</option>
-              {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <input
+              type="time"
+              value={newTime}
+              onChange={e => setNewTime(e.target.value)}
+              className="form-input"
+            />
           </div>
           <div>
             <label className="form-label">Etykieta <span className="text-slate-400 font-normal">(opcjonalna)</span></label>

@@ -1,5 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { APP_ROLES, ROLE_LABELS } from '@/lib/roles'
+import type { AppRole } from '@/lib/roles'
 
 type Profile = {
   id: string
@@ -7,13 +9,6 @@ type Profile = {
   full_name: string | null
   company: string | null
   created_at: string
-}
-
-const ALL_ROLES = ['user', 'organizer', 'admin']
-const ROLE_LABELS: Record<string, string> = {
-  user: 'Użytkownik',
-  organizer: 'Organizator',
-  admin: 'Administrator',
 }
 
 export default function AdminUsersClient() {
@@ -29,7 +24,7 @@ export default function AdminUsersClient() {
       .catch(() => { setError('Błąd pobierania użytkowników'); setLoading(false) })
   }, [])
 
-  async function changeRole(id: string, role: string) {
+  async function changeRole(id: string, role: AppRole) {
     setSaving(id)
     setError(null)
     const res = await fetch('/api/admin/users', {
@@ -80,10 +75,10 @@ export default function AdminUsersClient() {
                     <select
                       value={p.role}
                       disabled={saving === p.id}
-                      onChange={e => changeRole(p.id, e.target.value)}
+                      onChange={e => changeRole(p.id, e.target.value as AppRole)}
                       className="form-input w-36 py-1"
                     >
-                      {ALL_ROLES.map(r => (
+                      {APP_ROLES.map(r => (
                         <option key={r} value={r}>{ROLE_LABELS[r] ?? 'Nieznana rola'}</option>
                       ))}
                     </select>

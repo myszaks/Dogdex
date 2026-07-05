@@ -3,6 +3,7 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import type { Dog } from '@/types'
 import DogProfileClient from './DogProfileClient'
+import { effectiveEventStatus } from '@/lib/eventStatus'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,30 +80,54 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
     // Krok 3: rejestracje dla tych uczestników
     const { data: regs } = await supabase
       .from('registrations')
-      .select('id, status, participant_id, events(id, slug, title, start_at)')
+      .select('id, status, participant_id, events(id, slug, title, start_at, end_at, status, event_type_id)')
       .in('participant_id', allParticipantIds)
 
-    // Krok 4: wyniki – dopasowanie po participant_id (nie event_id)
+    // Krok 4: wyniki – dopasowanie po konkretnym starcie (event_id + participant_id)
     const { data: results } = await supabase
       .from('results')
-      .select('participant_id, rank, time_ms, notes, event_id')
+      .select('participant_id, rank, time_ms, notes, event_id, class_rank, best_ms, size_class')
       .in('participant_id', allParticipantIds)
 
     const resultsMap = new Map<string, any>()
     for (const res of results ?? []) {
-      resultsMap.set(res.participant_id, res)
+      resultsMap.set(`${res.event_id}:${res.participant_id}`, res)
     }
 
     history = (regs ?? []).map((r: any) => {
-      const result = resultsMap.get(r.participant_id) ?? null
+      const event = r.events
+      const result = event?.id
+        ? resultsMap.get(`${event.id}:${r.participant_id}`) ?? null
+        : null
+      const rank = typeof result?.rank === 'number'
+        ? result.rank
+        : typeof result?.class_rank === 'number'
+          ? result.class_rank
+          : null
+      const rankSource = typeof result?.rank === 'number'
+        ? 'overall'
+        : typeof result?.class_rank === 'number'
+          ? 'class'
+          : null
+      const eventStatus = event
+        ? effectiveEventStatus({
+          status: event.status,
+          start_at: event.start_at,
+          end_at: event.end_at,
+        })
+        : null
       return {
         regId: r.id,
-        eventSlug: (r.events?.slug as string) || '',
-        eventTitle: r.events?.title ?? 'Wydarzenie',
-        eventDate: r.events?.start_at ?? null,
+        eventSlug: (event?.slug as string) || '',
+        eventTitle: event?.title ?? 'Wydarzenie',
+        eventDate: event?.start_at ?? null,
+        eventStatus,
         status: r.status,
-        rank: result?.rank ?? null,
-        time_ms: result?.time_ms ?? null,
+        rank,
+        rankSource,
+        sizeClass: result?.size_class ?? null,
+        hasResult: result !== null,
+        time_ms: result?.time_ms ?? result?.best_ms ?? null,
         notes: result?.notes ?? null,
       }
     }).sort((a: any, b: any) => (b.eventDate ?? '').localeCompare(a.eventDate ?? ''))

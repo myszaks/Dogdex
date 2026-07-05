@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
-import { bestMs as computeBestMs, computeSpeedKmh } from '@/lib/speedway'
+import {
+  bestMs as computeBestMs,
+  computeStoredSpeedKmh,
+  isValidTrackDistanceM,
+  parseTrackDistanceM,
+} from '@/lib/speedway'
 
 export async function GET(req: Request) {
   const supabase = await createAuthClient()
@@ -17,6 +22,33 @@ export async function GET(req: Request) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (eventId) {
+    const { data: event } = await supabase
+      .from('events')
+      .select('event_type_id')
+      .eq('id', eventId)
+      .maybeSingle()
+
+    if (event?.event_type_id === 'speedway') {
+      const { data: checkedInRegistrations, error: checkedInError } = await supabase
+        .from('registrations')
+        .select('participant_id')
+        .eq('event_id', eventId)
+        .eq('status', 'confirmed')
+        .eq('checked_in', true)
+
+      if (checkedInError) return NextResponse.json({ error: checkedInError.message }, { status: 500 })
+
+      const checkedInParticipantIds = new Set(
+        (checkedInRegistrations ?? []).map(reg => reg.participant_id as string)
+      )
+      return NextResponse.json((data ?? []).filter((row: any) =>
+        checkedInParticipantIds.has(row.participant_id as string)
+      ))
+    }
+  }
+
   return NextResponse.json(data)
 }
 
@@ -43,14 +75,66 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Wymagane: eventId, participantId' }, { status: 400 })
   }
 
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select('created_by, status, track_distance_m, event_type_id')
+    .eq('id', eventId as string)
+    .single()
+
+  if (eventError || !event) {
+    return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  }
+
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień do edycji tego wydarzenia' }, { status: 403 })
+  }
+
+  if (event.status === 'finished' || event.status === 'cancelled') {
+    return NextResponse.json(
+      { error: 'Zawody są zakończone. Edycja wyników jest zablokowana.' },
+      { status: 409 },
+    )
+  }
+
+  const { data: registration, error: registrationError } = await supabase
+    .from('registrations')
+    .select('id, status, checked_in')
+    .eq('event_id', eventId as string)
+    .eq('participant_id', participantId as string)
+    .maybeSingle()
+
+  if (registrationError) {
+    return NextResponse.json({ error: registrationError.message }, { status: 500 })
+  }
+
+  if (!registration || registration.status !== 'confirmed') {
+    return NextResponse.json(
+      { error: 'Wyniki można zapisywać tylko dla potwierdzonych uczestników tego wydarzenia.' },
+      { status: 409 },
+    )
+  }
+
+  if (event.event_type_id === 'speedway' && !registration.checked_in) {
+    return NextResponse.json(
+      { error: 'Najpierw odpraw psa. Nieodprawione psy nie trafiają na listę startową ani wynikową.' },
+      { status: 409 },
+    )
+  }
+
   // Compute speedway derived fields
   const r1 = typeof run1_ms === 'number' ? run1_ms : null
   const r2 = typeof run2_ms === 'number' ? run2_ms : null
   const s1 = run1_status === 'DNS' || run1_status === 'DNF' ? run1_status : null
   const s2 = run2_status === 'DNS' || run2_status === 'DNF' ? run2_status : null
   const best = computeBestMs(r1, r2)
-  const distM = typeof track_distance_m === 'number' ? track_distance_m : null
-  const speed = best !== null && distM !== null ? computeSpeedKmh(best, distM) : null
+  const eventDistanceM = parseTrackDistanceM(event.track_distance_m)
+  const payloadDistanceM = parseTrackDistanceM(track_distance_m)
+  const distM = isValidTrackDistanceM(eventDistanceM)
+    ? eventDistanceM
+    : isValidTrackDistanceM(payloadDistanceM)
+      ? payloadDistanceM
+      : null
+  const speed = best !== null && distM !== null ? computeStoredSpeedKmh(best, distM) : null
 
   // For speedway, time_ms = best_ms (backward compat with public display)
   const effectiveTimeMs = best !== null ? best : (typeof time_ms === 'number' ? time_ms : null)
@@ -75,6 +159,8 @@ export async function POST(req: Request) {
       .from('results')
       .update(fields)
       .eq('id', resultId as string)
+      .eq('event_id', eventId as string)
+      .eq('participant_id', participantId as string)
       .select()
       .single())
   } else {

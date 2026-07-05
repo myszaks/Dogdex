@@ -8,6 +8,7 @@ interface Props {
   eventId: string
   eventTitle: string
   formFields: FormField[]
+  eventStatus: string
 }
 
 type RegistrationWithParticipant = Record<string, unknown> & {
@@ -17,7 +18,7 @@ type RegistrationWithParticipant = Record<string, unknown> & {
   pending_cancellation_request?: unknown
 }
 
-export default function UserRegistrationStatus({ eventId }: Props) {
+export default function UserRegistrationStatus({ eventId, eventStatus }: Props) {
   const { user } = useUser()
   // undefined = loading, [] = not found
   const [registrations, setRegistrations] = useState<RegistrationWithParticipant[] | undefined>(undefined)
@@ -108,6 +109,7 @@ export default function UserRegistrationStatus({ eventId }: Props) {
         const p = reg.participants
         const requestSent = requestSentIds.has(reg.id)
         const cancelError = cancelErrors[reg.id]
+        const canRequestCancel = eventStatus === 'upcoming' && status !== 'cancelled' && !requestSent
 
         return (
           <div key={reg.id} className={`border rounded-xl p-4 space-y-3 ${statusStyles[status] ?? 'bg-slate-50 border-slate-200'}`}>
@@ -129,7 +131,7 @@ export default function UserRegistrationStatus({ eventId }: Props) {
                 {cancelError}
               </p>
             )}
-            {status !== 'cancelled' && !requestSent && (
+            {canRequestCancel && (
               <button
                 onClick={() => setConfirmRegistrationId(reg.id)}
                 disabled={cancellingId === reg.id}

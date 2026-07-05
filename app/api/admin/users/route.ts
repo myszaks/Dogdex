@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
+import { isAppRole } from '@/lib/roles'
 
 // GET /api/admin/users — list all profiles (admin only)
 export async function GET() {
@@ -32,6 +33,9 @@ export async function PATCH(req: Request) {
   const { id, role } = body
   if (!id || !role || typeof id !== 'string' || typeof role !== 'string') {
     return NextResponse.json({ error: 'Wymagane pola: id, role' }, { status: 400 })
+  }
+  if (!isAppRole(role)) {
+    return NextResponse.json({ error: 'Nieprawidłowa rola' }, { status: 400 })
   }
 
   // Prevent removing last admin

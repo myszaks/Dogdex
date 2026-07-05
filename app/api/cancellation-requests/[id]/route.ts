@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendCancellationResultEmail } from '@/lib/email'
+import { isOrganizerRole } from '@/lib/roles'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -25,7 +26,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
 
   const { user, role } = await getServerUser()
-  if (!user || (role !== 'organizer' && role !== 'admin')) {
+  if (!user || !isOrganizerRole(role)) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 

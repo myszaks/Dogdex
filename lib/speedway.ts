@@ -2,6 +2,9 @@
 
 export const SIZE_CLASSES = ['XS', 'S', 'M', 'L', 'XL'] as const
 export type SizeClass = (typeof SIZE_CLASSES)[number]
+export const TRACK_DISTANCE_MIN_M = 1
+export const TRACK_DISTANCE_MAX_M = 500
+export const MAX_STORED_SPEED_KMH = 999.99
 
 export const SIZE_CLASS_LABELS: Record<SizeClass, string> = {
   XS: 'XS  (< 30 cm)',
@@ -24,6 +27,22 @@ export function computeSpeedKmh(bestMs: number, distanceM: number): number {
   if (bestMs <= 0 || distanceM <= 0) return 0
   const seconds = bestMs / 1000
   return Math.round(((distanceM / seconds) * 3.6) * 100) / 100
+}
+
+export function parseTrackDistanceM(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
+export function isValidTrackDistanceM(value: unknown): boolean {
+  const n = parseTrackDistanceM(value)
+  return n !== null && n >= TRACK_DISTANCE_MIN_M && n <= TRACK_DISTANCE_MAX_M
+}
+
+export function computeStoredSpeedKmh(bestMs: number, distanceM: number): number | null {
+  const speed = computeSpeedKmh(bestMs, distanceM)
+  return speed > MAX_STORED_SPEED_KMH ? null : speed
 }
 
 /** Formatuje ms → "4.57 s" */

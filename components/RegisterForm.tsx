@@ -202,6 +202,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         if (isEmpty) {
           setError(`Pole „${field.label}" jest wymagane.`)
           setLoading(false)
+          submittingRef.current = false
           return
         }
       }

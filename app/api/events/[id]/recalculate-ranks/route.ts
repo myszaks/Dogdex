@@ -24,7 +24,7 @@ export async function POST(_req: Request, { params }: Params) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('created_by')
+    .select('created_by, status, event_type_id')
     .eq('id', eventId)
     .single()
 
@@ -32,15 +32,46 @@ export async function POST(_req: Request, { params }: Params) {
   if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
+  if (event.status === 'finished' || event.status === 'cancelled') {
+    return NextResponse.json(
+      { error: 'Zawody są zakończone. Rankingi są zablokowane.' },
+      { status: 409 },
+    )
+  }
 
   // Pobierz wszystkie wyniki dla tego wydarzenia
-  const { data: results, error } = await supabase
+  const { data: allResults, error } = await supabase
     .from('results')
-    .select('id, size_class, best_ms')
+    .select('id, participant_id, size_class, best_ms')
     .eq('event_id', eventId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!results?.length) return NextResponse.json([])
+  if (!allResults?.length) return NextResponse.json([])
+
+  let results = allResults
+  const inactiveUpdates: { id: string }[] = []
+
+  if (event.event_type_id === 'speedway') {
+    const { data: checkedInRegistrations, error: checkedInError } = await supabase
+      .from('registrations')
+      .select('participant_id')
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .eq('checked_in', true)
+
+    if (checkedInError) return NextResponse.json({ error: checkedInError.message }, { status: 500 })
+
+    const checkedInParticipantIds = new Set(
+      (checkedInRegistrations ?? []).map(reg => reg.participant_id as string)
+    )
+
+    results = allResults.filter(r => checkedInParticipantIds.has(r.participant_id as string))
+    inactiveUpdates.push(
+      ...allResults
+        .filter(r => !checkedInParticipantIds.has(r.participant_id as string))
+        .map(r => ({ id: r.id as string }))
+    )
+  }
 
   // Grupuj po klasie i sortuj po best_ms
   const updates: { id: string; class_rank: number }[] = []
@@ -60,12 +91,20 @@ export async function POST(_req: Request, { params }: Params) {
   }
 
   // Batch update — równolegle
-  const updatePromises = updates.map(({ id, class_rank }) =>
-    supabase
-      .from('results')
-      .update({ class_rank: class_rank === 0 ? null : class_rank })
-      .eq('id', id)
-  )
+  const updatePromises = [
+    ...updates.map(({ id, class_rank }) =>
+      supabase
+        .from('results')
+        .update({ class_rank: class_rank === 0 ? null : class_rank })
+        .eq('id', id)
+    ),
+    ...inactiveUpdates.map(({ id }) =>
+      supabase
+        .from('results')
+        .update({ class_rank: null })
+        .eq('id', id)
+    ),
+  ]
 
   await Promise.all(updatePromises)
 

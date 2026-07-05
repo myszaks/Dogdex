@@ -23,7 +23,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('created_by, current_start_index')
+    .select('created_by, current_start_index, status')
     .eq('id', id)
     .single()
 
@@ -31,6 +31,12 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+  if (event.status === 'finished' || event.status === 'cancelled') {
+    return NextResponse.json(
+      { error: 'Zawody są zakończone. Kolejka startowa jest zablokowana.' },
+      { status: 409 },
+    )
   }
 
   const current = event.current_start_index ?? 0

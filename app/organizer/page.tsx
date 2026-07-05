@@ -25,6 +25,22 @@ export default async function OrganizerPage() {
     ? await query
     : await query.eq('created_by', user.id)
 
+  const eventIds = (events ?? []).map(event => event.id)
+  const registrationCountMap: Record<string, number> = {}
+
+  if (eventIds.length > 0) {
+    const { data: activeRegistrations } = await supabase
+      .from('registrations')
+      .select('event_id')
+      .in('event_id', eventIds)
+      .in('status', ['pending', 'confirmed'])
+
+    for (const registration of activeRegistrations ?? []) {
+      const eventId = registration.event_id as string
+      registrationCountMap[eventId] = (registrationCountMap[eventId] ?? 0) + 1
+    }
+  }
+
   const total = events?.length ?? 0
   const upcoming = events?.filter(e => effectiveStatus(e) === 'upcoming').length ?? 0
   const ongoing = events?.filter(e => effectiveStatus(e) === 'ongoing').length ?? 0
@@ -84,7 +100,10 @@ export default async function OrganizerPage() {
               </Link>
             </div>
           ) : (
-            <OrganizerEventGroups events={events as DogEvent[]} />
+            <OrganizerEventGroups
+              events={events as DogEvent[]}
+              registrationCountMap={registrationCountMap}
+            />
           )}
         </div>
 

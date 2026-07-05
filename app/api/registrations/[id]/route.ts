@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail, sendCancellationEmailToOrganizer } from '@/lib/email'
+import { isOrganizerRole } from '@/lib/roles'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -14,7 +15,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const isOrganizerOrAdmin = role === 'organizer' || role === 'admin'
+  const isOrganizerOrAdmin = isOrganizerRole(role)
 
   let body: Record<string, unknown>
   try {
@@ -212,6 +213,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const update: Record<string, unknown> = {}
+  const registrationEvent = (reg as Record<string, unknown>).events as Record<string, unknown> | null
   if ('status' in body) update.status = body.status
   // Organizer/admin can also update time_slot_id for schedule management
   if ('time_slot_id' in body && isOrganizerOrAdmin) {
@@ -219,6 +221,12 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   // Organizer/admin can toggle check-in
   if ('checked_in' in body && isOrganizerOrAdmin) {
+    if (registrationEvent?.status === 'finished' || registrationEvent?.status === 'cancelled') {
+      return NextResponse.json(
+        { error: 'Zawody są zakończone. Odprawa jest zablokowana.' },
+        { status: 409 },
+      )
+    }
     update.checked_in = Boolean(body.checked_in)
     update.checked_in_at = body.checked_in ? new Date().toISOString() : null
   }

@@ -60,6 +60,18 @@ export default async function ResultsPage({ params }: Props) {
     )
   }
 
+  const isSpeedway = event.event_type_id === 'speedway'
+  const checkedInSpeedwayParticipantIds = new Set(
+    isSpeedway
+      ? (registrations ?? [])
+          .filter((r: any) => Boolean(r.checked_in))
+          .map((r: any) => r.participant_id as string)
+      : []
+  )
+  const speedwayResults = isSpeedway
+    ? (results ?? []).filter((res: any) => checkedInSpeedwayParticipantIds.has(res.participant_id as string))
+    : (results ?? [])
+
   const participantsWithResults = (registrations ?? []).map((r: any) => ({
     id: r.participants?.id ?? r.participant_id,
     dog_name: r.participants?.dog_name ?? null,
@@ -68,10 +80,8 @@ export default async function ResultsPage({ params }: Props) {
     result: results?.find(res => res.participant_id === r.participant_id) ?? null,
   }))
 
-  const isSpeedway = event.event_type_id === 'speedway'
-
   const speedwayParticipants: SpeedwayLiveParticipant[] = (registrations ?? []).map((r: any) => {
-    const existingResult = results?.find(res => res.participant_id === r.participant_id) ?? null
+    const existingResult = speedwayResults.find(res => res.participant_id === r.participant_id) ?? null
     const dogHeightCm = Array.isArray(r.participants?.dogs)
       ? r.participants.dogs[0]?.height_cm
       : r.participants?.dogs?.height_cm
@@ -134,6 +144,8 @@ export default async function ResultsPage({ params }: Props) {
         <SpeedwayLiveEntry
           eventId={eventId}
           eventSlug={event.slug}
+          initialEventStatus={event.status}
+          initialLivePhase={event.live_phase ?? null}
           initialTrackDistanceM={event.track_distance_m ?? null}
           participants={speedwayParticipants}
         />

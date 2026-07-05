@@ -75,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 export default async function EventDetailPage({ params }: Props) {
   const { eventId } = await params
@@ -86,7 +86,7 @@ export default async function EventDetailPage({ params }: Props) {
   const supabase = createServerClient()
   const [{ count: slotCount }, { count: regCount }] = await Promise.all([
     supabase.from('time_slots').select('id', { count: 'exact', head: true }).eq('event_id', event.id),
-    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', event.id).neq('status', 'cancelled'),
+    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', event.id).in('status', ['pending', 'confirmed']),
   ])
 
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
@@ -324,6 +324,7 @@ export default async function EventDetailPage({ params }: Props) {
               eventId={event.id}
               eventTitle={event.title}
               formFields={formFields}
+              eventStatus={dispStatus}
             />
 
             {/* CTA */}

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
+import { isTrainerRole } from '@/lib/roles'
 
 export async function GET() {
-  const { user } = await getServerUser()
+  const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!isTrainerRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   const clientId = process.env.STRIPE_CLIENT_ID
   const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/callback`

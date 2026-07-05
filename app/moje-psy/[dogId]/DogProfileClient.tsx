@@ -17,8 +17,12 @@ interface HistoryEntry {
   eventSlug: string
   eventTitle: string
   eventDate: string | null
+  eventStatus: string | null
   status: string
   rank: number | null
+  rankSource: 'overall' | 'class' | null
+  sizeClass: string | null
+  hasResult: boolean
   time_ms: number | null
   notes: string | null
 }
@@ -46,6 +50,20 @@ function formatEventDate(d: string | null) {
   return new Date(d).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function eventHref(h: HistoryEntry) {
+  if (!h.eventSlug) return '#'
+  return h.eventStatus === 'finished' || h.eventStatus === 'cancelled'
+    ? `/archive/${h.eventSlug}`
+    : `/events/${h.eventSlug}`
+}
+
+function placementContext(h: HistoryEntry) {
+  if (h.rankSource === 'class') {
+    return h.sizeClass ? `Klasa ${h.sizeClass}` : 'Miejsce w klasie'
+  }
+  return null
+}
+
 type Tab = 'history' | 'trophy'
 
 export default function DogProfileClient({ dog, history, isEditMode }: Props) {
@@ -54,8 +72,10 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
   const [editing, setEditing] = useState(isEditMode)
 
   const today = new Date()
-  const podium = history.filter(h => h.rank !== null && h.rank! >= 1 && h.rank! <= 3)
-  const firstPlaces = history.filter(h => h.rank === 1).length
+  const finishedStarts = history.filter(h => h.status === 'confirmed' && h.eventStatus === 'finished')
+  const finishedResults = history.filter(h => h.status === 'confirmed' && h.hasResult && h.eventStatus === 'finished')
+  const podium = finishedResults.filter(h => h.rank !== null && h.rank! >= 1 && h.rank! <= 3)
+  const firstPlaces = podium.filter(h => h.rank === 1).length
   const gender = dog.gender ? GENDER_LABELS[dog.gender] : null
   const agility = AGILITY_LEVELS.find(l => l.value === dog.agility_level)?.label
   const vaccineExpiry = dog.rabies_vaccine_expiry ? new Date(dog.rabies_vaccine_expiry) : null
@@ -240,7 +260,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                   <p className="text-xs text-muted-foreground mt-1">Podium</p>
                 </div>
                 <div>
-                  <p className="font-heading font-bold text-3xl text-foreground leading-none">{history.length}</p>
+                  <p className="font-heading font-bold text-3xl text-foreground leading-none">{finishedStarts.length}</p>
                   <p className="text-xs text-muted-foreground mt-1">Starty</p>
                 </div>
               </div>
@@ -316,11 +336,12 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                     {history.map(h => {
                       const statusCfg = STATUS_CONFIG[h.status] ?? { label: h.status, className: 'bg-secondary text-foreground' }
                       const medalCfg = h.rank ? MEDAL_CONFIG[h.rank] : null
+                      const placeContext = placementContext(h)
                       return (
                         <tr key={h.regId} className="hover:bg-secondary/30 transition-colors">
                           <td className="px-6 py-4">
                             <Link
-                              href={`/events/${h.eventSlug}`}
+                              href={eventHref(h)}
                               className="font-semibold text-foreground hover:text-accent transition-colors line-clamp-1"
                             >
                               {h.eventTitle}
@@ -339,11 +360,21 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                           </td>
                           <td className="px-3 py-4 text-center">
                             {medalCfg ? (
-                              <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border', medalCfg.className)}>
-                                {medalCfg.emoji} {h.rank}
-                              </span>
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <span className={cn('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border', medalCfg.className)}>
+                                  {medalCfg.emoji} {h.rank}
+                                </span>
+                                {placeContext && (
+                                  <span className="text-[10px] font-medium text-muted-foreground">{placeContext}</span>
+                                )}
+                              </div>
                             ) : h.rank ? (
-                              <span className="text-muted-foreground">{h.rank}.</span>
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <span className="text-muted-foreground">{h.rank}.</span>
+                                {placeContext && (
+                                  <span className="text-[10px] font-medium text-muted-foreground">{placeContext}</span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -379,6 +410,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {podium.map(h => {
                   const mc = MEDAL_CONFIG[h.rank!]
+                  const placeContext = placementContext(h)
                   return (
                     <div key={h.regId} className="bg-card rounded-3xl border border-border p-6 text-center shadow-sm hover:shadow-md transition-shadow">
                       <div className="text-5xl mb-3">{mc.emoji}</div>
@@ -394,6 +426,9 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                       <span className={cn('inline-flex items-center gap-1 mt-3 px-3 py-1 rounded-full text-xs font-semibold border', mc.className)}>
                         <Medal className="w-3 h-3" />{mc.label}
                       </span>
+                      {placeContext && (
+                        <p className="text-xs font-medium text-muted-foreground mt-2">{placeContext}</p>
+                      )}
                     </div>
                   )
                 })}

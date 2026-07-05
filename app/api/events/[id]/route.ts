@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { sendEventChangeEmail } from '@/lib/email'
@@ -7,6 +8,12 @@ import {
   syncMultidateFormData,
   syncMultidateFormFields,
 } from '@/lib/eventDateSync'
+import {
+  isValidTrackDistanceM,
+  parseTrackDistanceM,
+  TRACK_DISTANCE_MAX_M,
+  TRACK_DISTANCE_MIN_M,
+} from '@/lib/speedway'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -37,7 +44,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields')
+    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, track_distance_m, slug')
     .eq('id', id)
     .single()
 
@@ -66,6 +73,29 @@ export async function PATCH(req: Request, { params }: Params) {
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+
+  if ('track_distance_m' in update) {
+    const nextDistance = parseTrackDistanceM(update.track_distance_m)
+    if (!isValidTrackDistanceM(nextDistance)) {
+      return NextResponse.json(
+        { error: `Długość toru musi być liczbą od ${TRACK_DISTANCE_MIN_M} do ${TRACK_DISTANCE_MAX_M} m.` },
+        { status: 400 },
+      )
+    }
+
+    const currentDistance = parseTrackDistanceM(existingEvent.track_distance_m)
+    if (isValidTrackDistanceM(currentDistance) && nextDistance !== currentDistance) {
+      return NextResponse.json(
+        { error: 'Długość toru została już zapisana i nie może być edytowana.' },
+        { status: 409 },
+      )
+    }
+    if (isValidTrackDistanceM(currentDistance) && nextDistance === currentDistance) {
+      delete update.track_distance_m
+    } else {
+      update.track_distance_m = nextDistance
+    }
   }
 
   const dateReplacements = buildEventDateReplacements(existingEvent, {
@@ -105,6 +135,20 @@ export async function PATCH(req: Request, { params }: Params) {
   if (dateReplacements.length > 0) {
     await syncDependentEventDates(supabase, id, data.form_fields, dateReplacements)
   }
+
+  const pathsToRevalidate = new Set([
+    '/',
+    '/organizer',
+    `/events/${existingEvent.slug}`,
+    `/live/${existingEvent.slug}`,
+    `/archive/${existingEvent.slug}`,
+  ])
+  if (typeof data.slug === 'string' && data.slug) {
+    pathsToRevalidate.add(`/events/${data.slug}`)
+    pathsToRevalidate.add(`/live/${data.slug}`)
+    pathsToRevalidate.add(`/archive/${data.slug}`)
+  }
+  for (const path of pathsToRevalidate) revalidatePath(path)
 
   // Send email notifications if date or location changed
   const significantChange = changedFields.some(f => ['start_at', 'end_at', 'location'].includes(f))

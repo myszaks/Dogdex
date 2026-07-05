@@ -133,6 +133,38 @@ export interface CancellationRequest {
   created_at: string
 }
 
+export type AppRole = 'user' | 'organizer' | 'trainer' | 'organizer_trainer' | 'admin'
+export type RoleRequestKind = 'organizer' | 'trainer' | 'organizer_trainer'
+export type RoleRequestStatus = 'pending' | 'needs_info' | 'approved' | 'rejected'
+
+export interface RoleUpgradeRequest {
+  id: string
+  user_id: string
+  requested_role: RoleRequestKind
+  status: RoleRequestStatus
+  full_name: string
+  business_name: string | null
+  city: string | null
+  phone: string | null
+  experience: string
+  verification_links: string[]
+  certification_urls: string[]
+  pricing_acknowledged: boolean
+  terms_accepted: boolean
+  admin_notes: string | null
+  rejection_reason: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+  profiles?: {
+    id: string
+    full_name: string | null
+    company: string | null
+    role: AppRole | string
+  } | null
+}
+
 export type AgilityLevel = 'none' | 'beginner' | 'intermediate' | 'advanced' | 'competition'
 export type DogGender = 'male' | 'female'
 

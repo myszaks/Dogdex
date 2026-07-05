@@ -4,11 +4,14 @@ import {
   SIZE_CLASSES,
   SIZE_CLASS_LABELS,
   getSizeClass,
-  computeSpeedKmh,
+  computeStoredSpeedKmh,
   formatRunTime,
+  isValidTrackDistanceM,
   parseRunMs,
   bestMs as computeBest,
   medalEmoji,
+  TRACK_DISTANCE_MAX_M,
+  TRACK_DISTANCE_MIN_M,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
@@ -103,12 +106,15 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
   const [recalcMsg, setRecalcMsg] = useState<string | null>(null)
 
   const distanceM = parseFloat(trackDistance) || null
+  const distanceValid = isValidTrackDistanceM(trackDistance)
+  const canEditDistance = !distanceSaved || !distanceValid
 
   // ── Track distance save ────────────────────────────────────────────────────
 
   async function saveDistance() {
+    if (!canEditDistance) return
     const val = parseFloat(trackDistance)
-    if (isNaN(val) || val <= 0) return
+    if (!isValidTrackDistanceM(val)) return
     setSavingDistance(true)
     try {
       await fetch(`/api/events/${eventId}`, {
@@ -228,22 +234,27 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
         <div className="flex items-center gap-3">
           <input
             type="number"
-            min={1}
-            max={500}
+            min={TRACK_DISTANCE_MIN_M}
+            max={TRACK_DISTANCE_MAX_M}
             step={0.5}
             value={trackDistance}
-            onChange={e => { setTrackDistance(e.target.value); setDistanceSaved(false) }}
+            onChange={e => {
+              if (!canEditDistance) return
+              setTrackDistance(e.target.value)
+              setDistanceSaved(false)
+            }}
+            disabled={!canEditDistance}
             placeholder="np. 35"
-            className="form-input w-32 text-center font-mono"
+            className="form-input w-32 text-center font-mono disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           />
           <span className="text-slate-600 font-medium">metrów</span>
           <button
             type="button"
             onClick={saveDistance}
-            disabled={savingDistance || !trackDistance}
+            disabled={savingDistance || !trackDistance || !canEditDistance || !distanceValid}
             className="btn btn-primary btn-sm"
           >
-            {savingDistance ? '...' : distanceSaved ? '✅ Zapisano' : 'Zapisz'}
+            {savingDistance ? '...' : canEditDistance ? 'Zapisz' : '✅ Zapisano'}
           </button>
           {!distanceSaved && trackDistance && (
             <span className="text-xs text-amber-600">⚠️ Nie zapisano – prędkości nie będą obliczone</span>
@@ -272,7 +283,7 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
               {classRows.map(({ r, idx }) => {
                 const best = rowBestMs(r)
                 const speed = best !== null && distanceM !== null
-                  ? computeSpeedKmh(best, distanceM)
+                  ? computeStoredSpeedKmh(best, distanceM)
                   : null
 
                 return (
@@ -411,7 +422,10 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
                 <p className="text-sm text-green-600">{fastest.row.ownerName} · {fastest.row.sizeClass}</p>
                 <p className="font-mono text-green-700 mt-1">
                   {formatRunTime(fastest.best as number)}
-                  {distanceM && ` · ${computeSpeedKmh(fastest.best as number, distanceM).toFixed(2)} km/h`}
+                  {distanceM && (() => {
+                    const speed = computeStoredSpeedKmh(fastest.best as number, distanceM)
+                    return speed !== null ? ` · ${speed.toFixed(2)} km/h` : ''
+                  })()}
                 </p>
               </div>
             )}
@@ -422,7 +436,10 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
                 <p className="text-sm text-orange-600">{slowest.row.ownerName} · {slowest.row.sizeClass}</p>
                 <p className="font-mono text-orange-700 mt-1">
                   {formatRunTime(slowest.best as number)}
-                  {distanceM && ` · ${computeSpeedKmh(slowest.best as number, distanceM).toFixed(2)} km/h`}
+                  {distanceM && (() => {
+                    const speed = computeStoredSpeedKmh(slowest.best as number, distanceM)
+                    return speed !== null ? ` · ${speed.toFixed(2)} km/h` : ''
+                  })()}
                 </p>
               </div>
             )}

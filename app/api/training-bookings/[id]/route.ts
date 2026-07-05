@@ -3,6 +3,7 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendTrainingBookingConfirmation, sendTrainingCancellationEmail } from '@/lib/email'
 import { formatEmailDateTime } from '@/lib/emailDate'
+import { isTrainerRole } from '@/lib/roles'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -28,7 +29,7 @@ export async function GET(req: Request, { params }: Params) {
 // Update booking (accept, reject, or cancel)
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
-  const { user } = await getServerUser()
+  const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: Record<string, unknown>
@@ -59,7 +60,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   // User must be either the booking owner or the trainer
   const isOwner = booking.user_id === user.id
-  const isTrainer = booking.training_types?.trainer_id === user.id
+  const isTrainer = booking.training_types?.trainer_id === user.id && isTrainerRole(role)
 
   if (!isOwner && !isTrainer) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })

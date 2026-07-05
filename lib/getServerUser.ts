@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { createAuthClient } from './supabaseServer'
+import { hasRequiredRole, isTrainerRole } from './roles'
 
 export async function getServerUser() {
   const supabase = await createAuthClient()
@@ -24,7 +25,7 @@ export async function getServerUser() {
 export async function requireRole(roles: string[]) {
   const { user, role } = await getServerUser()
   if (!user) redirect('/')
-  if (role !== 'admin' && (!role || !roles.includes(role))) redirect('/')
+  if (!hasRequiredRole(role, roles)) redirect('/')
   return { user: user!, role: role! }
 }
 
@@ -34,7 +35,7 @@ export async function checkRoleForApi(
 ): Promise<{ error: NextResponse } | { user: NonNullable<Awaited<ReturnType<typeof getServerUser>>['user']>; role: string }> {
   const { user, role } = await getServerUser()
   if (!user) return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 }) }
-  if (role !== 'admin' && (!role || !roles.includes(role))) {
+  if (!hasRequiredRole(role, roles)) {
     return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 }) }
   }
   return { user: user!, role: role! }
@@ -42,10 +43,10 @@ export async function checkRoleForApi(
 
 /**
  * Helper: Check if user can manage a trainer resource (training types, availability, etc.)
- * User can manage if they own it (userId === trainerId) OR they are admin
+ * User can manage if they own it and have a trainer role, or they are admin.
  */
 export function canManageTrainerResource(userId: string, trainerId: string, userRole: string | null): boolean {
-  return userId === trainerId || userRole === 'admin'
+  return userRole === 'admin' || (userId === trainerId && isTrainerRole(userRole))
 }
 
 

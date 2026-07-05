@@ -20,7 +20,7 @@ export default async function CheckInPage({ params }: Props) {
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase
-    .from('events').select('id, slug, title, event_type_id')
+    .from('events').select('id, slug, title, event_type_id, status')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
   const eventId = event.id
@@ -62,7 +62,11 @@ export default async function CheckInPage({ params }: Props) {
         <h1 className="page-title mb-0">🐾 Odprawa – {event.title}</h1>
       </div>
 
-      <CheckInClient eventId={eventId} initialParticipants={participants} />
+      <CheckInClient
+        eventId={eventId}
+        initialParticipants={participants}
+        eventClosed={event.status === 'finished' || event.status === 'cancelled'}
+      />
     </div>
   )
 }

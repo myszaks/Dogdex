@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatDate, formatTime, effectiveStatus, statusLabel, statusColor } from '@/lib/utils'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeSpeedKmh } from '@/lib/speedway'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeStoredSpeedKmh } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 import type { Metadata } from 'next'
 
@@ -42,13 +42,29 @@ export default async function EventArchivePage({ params }: Props) {
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()
-  const { data: results } = await supabase
+  const { data: rawResults } = await supabase
     .from('results')
     .select('*, participants(dog_name, owner_name, dog_breed)')
     .eq('event_id', event.id)
     .order('class_rank', { ascending: true, nullsFirst: false })
 
   const isSpeedway = event.event_type_id === 'speedway'
+  let results = rawResults ?? []
+
+  if (isSpeedway) {
+    const { data: checkedInRegistrations } = await supabase
+      .from('registrations')
+      .select('participant_id')
+      .eq('event_id', event.id)
+      .eq('status', 'confirmed')
+      .eq('checked_in', true)
+
+    const checkedInParticipantIds = new Set(
+      (checkedInRegistrations ?? []).map(reg => reg.participant_id as string)
+    )
+    results = results.filter((r: any) => checkedInParticipantIds.has(r.participant_id as string))
+  }
+
   const distanceM: number | null = event.track_distance_m ?? null
 
   const dispStatus = effectiveStatus(event)
@@ -190,7 +206,7 @@ export default async function EventArchivePage({ params }: Props) {
                                   </td>
                                   {distanceM && (
                                     <td className="px-4 py-3 font-mono text-slate-500 hidden md:table-cell">
-                                      {r.best_ms ? computeSpeedKmh(r.best_ms, distanceM).toFixed(2) : '—'}
+                                      {r.best_ms ? (computeStoredSpeedKmh(r.best_ms, distanceM)?.toFixed(2) ?? '—') : '—'}
                                     </td>
                                   )}
                                 </tr>
@@ -218,7 +234,10 @@ export default async function EventArchivePage({ params }: Props) {
                           <p className="text-sm text-green-600">{fastest.participants?.owner_name ?? '—'} · klasa {fastest.size_class}</p>
                           <p className="font-mono text-green-700 mt-1">
                             {formatRunTime(fastest.best_ms)}
-                            {distanceM && ` · ${computeSpeedKmh(fastest.best_ms, distanceM).toFixed(2)} km/h`}
+                            {distanceM && (() => {
+                              const speed = computeStoredSpeedKmh(fastest.best_ms, distanceM)
+                              return speed !== null ? ` · ${speed.toFixed(2)} km/h` : ''
+                            })()}
                           </p>
                         </div>
                         {slowest && slowest.id !== fastest.id && (
@@ -228,7 +247,10 @@ export default async function EventArchivePage({ params }: Props) {
                             <p className="text-sm text-orange-600">{slowest.participants?.owner_name ?? '—'} · klasa {slowest.size_class}</p>
                             <p className="font-mono text-orange-700 mt-1">
                               {formatRunTime(slowest.best_ms)}
-                              {distanceM && ` · ${computeSpeedKmh(slowest.best_ms, distanceM).toFixed(2)} km/h`}
+                              {distanceM && (() => {
+                                const speed = computeStoredSpeedKmh(slowest.best_ms, distanceM)
+                                return speed !== null ? ` · ${speed.toFixed(2)} km/h` : ''
+                              })()}
                             </p>
                           </div>
                         )}

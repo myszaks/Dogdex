@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
+import { isTrainerRole } from '@/lib/roles'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 async function generateTrainingTypeSlug(
@@ -42,8 +43,7 @@ export async function POST(req: Request) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  // Only organizers and admins can create training types
-  if (role !== 'organizer' && role !== 'admin') {
+  if (!isTrainerRole(role)) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 

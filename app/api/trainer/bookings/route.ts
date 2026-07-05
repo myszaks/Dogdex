@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { isTrainerRole } from '@/lib/roles'
 
 export async function GET() {
-  const { user } = await getServerUser()
+  const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!isTrainerRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   const supabase = await createAuthClient()
 

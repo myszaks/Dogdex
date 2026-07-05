@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS, getSizeClass } from '@/lib/speedway'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
 interface CheckInParticipant {
@@ -15,9 +15,10 @@ interface CheckInParticipant {
 interface Props {
   eventId: string
   initialParticipants: CheckInParticipant[]
+  eventClosed: boolean
 }
 
-export default function CheckInClient({ eventId, initialParticipants }: Props) {
+export default function CheckInClient({ eventId, initialParticipants, eventClosed }: Props) {
   const [participants, setParticipants] = useState(initialParticipants)
   const [loading, setLoading] = useState<Record<string, boolean>>({})
 
@@ -28,6 +29,7 @@ export default function CheckInClient({ eventId, initialParticipants }: Props) {
   )
 
   async function toggleCheckIn(p: CheckInParticipant) {
+    if (eventClosed) return
     const newVal = !p.checkedIn
     setLoading(prev => ({ ...prev, [p.registrationId]: true }))
     try {
@@ -50,6 +52,7 @@ export default function CheckInClient({ eventId, initialParticipants }: Props) {
   }
 
   async function checkInAll() {
+    if (eventClosed) return
     const notIn = participants.filter(p => !p.checkedIn)
     for (const p of notIn) {
       setLoading(prev => ({ ...prev, [p.registrationId]: true }))
@@ -80,10 +83,15 @@ export default function CheckInClient({ eventId, initialParticipants }: Props) {
             <span className="text-sky-500"> / {participants.length}</span>
           </p>
           <p className="text-xs text-sky-600 mt-0.5">psów przeszło odprawę</p>
+          {eventClosed && (
+            <p className="text-xs text-slate-500 mt-1">
+              Zawody są zakończone. Odprawa jest tylko do podglądu.
+            </p>
+          )}
         </div>
         <button
           onClick={checkInAll}
-          disabled={checkedInCount === participants.length}
+          disabled={eventClosed || checkedInCount === participants.length}
           className="btn btn-primary btn-sm"
         >
           ✅ Zatwierdź wszystkich
@@ -120,12 +128,12 @@ export default function CheckInClient({ eventId, initialParticipants }: Props) {
                   </div>
                   <button
                     onClick={() => toggleCheckIn(p)}
-                    disabled={loading[p.registrationId]}
+                    disabled={eventClosed || loading[p.registrationId]}
                     className={`shrink-0 w-28 text-center text-sm font-semibold py-2 px-3 rounded-lg transition-colors ${
                       p.checkedIn
                         ? 'bg-green-500 text-white hover:bg-green-600'
                         : 'bg-slate-200 text-slate-600 hover:bg-sky-100 hover:text-sky-700'
-                    }`}
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
                   >
                     {loading[p.registrationId]
                       ? '...'

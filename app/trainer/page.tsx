@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Panel Trenera' }
 export const dynamic = 'force-dynamic'
 
 export default async function TrainerPage() {
-  const { user } = await requireRole(['organizer', 'admin'])
+  const { user } = await requireRole(['trainer', 'admin'])
   const supabase = await createAuthClient()
 
   // Get trainer profile

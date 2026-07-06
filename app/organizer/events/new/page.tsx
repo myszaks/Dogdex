@@ -1,25 +1,166 @@
 'use client'
-import { useState } from 'react'
+
+import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import {
+  Activity,
+  Award,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Eye,
+  FileText,
+  GalleryHorizontal,
+  ImagePlus,
+  Info,
+  ListChecks,
+  MapPin,
+  PawPrint,
+  Rocket,
+  ShieldCheck,
+  Trophy,
+  Users,
+  Wallet,
+  Zap,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
+import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
   ssr: false,
-  loading: () => <div className="w-full h-64 rounded-xl bg-slate-100 animate-pulse" />,
+  loading: () => <div className="w-full h-64 rounded-2xl bg-sage-100 animate-pulse" />,
 })
+
+const STEPS = [
+  { label: 'Podstawowe informacje', shortLabel: 'Informacje', Icon: FileText },
+  { label: 'Lokalizacja i czas', shortLabel: 'Lokalizacja', Icon: MapPin },
+  { label: 'Rejestracja i limity', shortLabel: 'Rejestracja', Icon: Users },
+  { label: 'Podgląd i publikacja', shortLabel: 'Podgląd', Icon: Eye },
+]
+
+type EventVisual = {
+  label: string
+  description: string
+  Icon: LucideIcon
+}
+
+function getEventVisual(id: string, fallbackName: string): EventVisual {
+  const normalized = id.toLowerCase()
+
+  if (normalized === 'speedway') {
+    return {
+      label: 'Szybkość',
+      description: 'Tory, czasy i rywalizacja sportowa.',
+      Icon: Zap,
+    }
+  }
+  if (normalized === 'agility') {
+    return {
+      label: 'Agility',
+      description: 'Zawody sprawnościowe z przeszkodami.',
+      Icon: PawPrint,
+    }
+  }
+  if (normalized === 'fullfocus' || normalized === 'obedience' || normalized === 'rally_o') {
+    return {
+      label: normalized === 'fullfocus' ? 'Skupienie' : fallbackName,
+      description: 'Precyzja, posłuszeństwo i praca z przewodnikiem.',
+      Icon: Activity,
+    }
+  }
+  if (normalized === 'flyball') {
+    return {
+      label: 'Drużynowe',
+      description: 'Starty zespołowe i kategorie drużyn.',
+      Icon: Users,
+    }
+  }
+  if (normalized === 'spacer') {
+    return {
+      label: 'Spacer',
+      description: 'Spotkania terenowe i wydarzenia socjalizacyjne.',
+      Icon: MapPin,
+    }
+  }
+  if (normalized === 'dog_show') {
+    return {
+      label: 'Wystawa',
+      description: 'Klasy, certyfikaty i oceny wystawowe.',
+      Icon: Trophy,
+    }
+  }
+  if (normalized === 'canicross') {
+    return {
+      label: 'Canicross',
+      description: 'Bieganie, bikejoring i dyscypliny zaprzęgowe.',
+      Icon: Award,
+    }
+  }
+  if (normalized.includes('wyk')) {
+    return {
+      label: 'Szkolenie',
+      description: 'Wykłady, warsztaty i wydarzenia edukacyjne.',
+      Icon: ListChecks,
+    }
+  }
+
+  return {
+    label: fallbackName,
+    description: 'Własny format wydarzenia.',
+    Icon: PawPrint,
+  }
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return 'Do uzupełnienia'
+  return new Intl.DateTimeFormat('pl-PL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function formatMoney(value: string) {
+  const parsed = parseFloat(value)
+  if (Number.isNaN(parsed)) return '0.00 PLN'
+  return `${parsed.toFixed(2)} PLN`
+}
+
+function durationLabel(startAt: string | null, endAt: string | null) {
+  if (!startAt || !endAt) return 'Jednodniowe'
+  const start = new Date(startAt).getTime()
+  const end = new Date(endAt).getTime()
+  const diff = end - start
+  if (diff <= 0) return 'Sprawdź daty'
+  const hours = Math.max(1, Math.round(diff / 36e5))
+  if (hours < 24) return `${hours} godz.`
+  const days = Math.ceil(hours / 24)
+  return `${days} ${days === 1 ? 'dzień' : 'dni'}`
+}
 
 export default function NewEventPage() {
   const router = useRouter()
+  const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [savingMode, setSavingMode] = useState<'draft' | 'publish' | null>(null)
   const [error, setError] = useState<string | null>(null)
+
   const [eventTypeId, setEventTypeId] = useState<string>('')
+  const [title, setTitle] = useState('')
+  const [organizerName, setOrganizerName] = useState('')
+  const [description, setDescription] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [formFields, setFormFields] = useState<FormField[]>([])
   const [hasResults, setHasResults] = useState(false)
@@ -37,17 +178,31 @@ export default function NewEventPage() {
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
   const [location, setLocation] = useState<string>('')
+  const [venueName, setVenueName] = useState('')
   const [groupingField, setGroupingField] = useState<string>('')
+
+  const selectedType = EVENT_TYPES.find(t => t.id === eventTypeId)
+  const selectedVisual = selectedType ? getEventVisual(selectedType.id, selectedType.name) : null
+  const groupableFields = useMemo(
+    () => formFields.filter(f => ['select', 'multiselect', 'multidate'].includes(f.type)),
+    [formFields],
+  )
+  const locationSummary = [venueName.trim(), location.trim()].filter(Boolean).join(', ')
+  const visibleLocation = locationSummary || 'Lokalizacja do uzupełnienia'
+  const seatsLabel = maxParticipants ? `${maxParticipants} miejsc` : 'Bez limitu miejsc'
+  const feeLabel = entryFeeEnabled ? formatMoney(entryFee) : 'Bezpłatne'
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
     setSelectedTemplateId(null)
     setFormFields([])
+    setGroupingField('')
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
     setSelectedTemplateId(templateId)
     setFormFields(fields)
+    if (!fields.some(f => f.id === groupingField)) setGroupingField('')
   }
 
   function handleMapLocation(newLat: number, newLng: number, address: string) {
@@ -56,28 +211,96 @@ export default function NewEventPage() {
     setLocation(address)
   }
 
-  const groupableFields = formFields.filter(f =>
-    ['select', 'multiselect', 'multidate'].includes(f.type)
-  )
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (entryFeeEnabled && !entryFee.trim()) {
-      setError('Podaj kwotę wpisowego lub odznacz opcję pobierania wpisowego.')
-      return
-    }
-    setLoading(true)
+  function validateStep(step: number) {
     setError(null)
 
-    const form = new FormData(e.currentTarget)
+    if (step === 0) {
+      if (!eventTypeId) {
+        setError('Wybierz typ wydarzenia.')
+        return false
+      }
+      if (!title.trim()) {
+        setError('Podaj nazwę wydarzenia.')
+        return false
+      }
+    }
+
+    if (step === 1) {
+      if (!startAt) {
+        setError('Wybierz datę rozpoczęcia wydarzenia.')
+        return false
+      }
+      if (startAt && endAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
+        setError('Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.')
+        return false
+      }
+    }
+
+    if (step === 2) {
+      if (entryFeeEnabled && !entryFee.trim()) {
+        setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
+        return false
+      }
+    }
+
+    return true
+  }
+
+  function goToStep(nextStep: number) {
+    if (nextStep === currentStep) return
+    if (nextStep < currentStep) {
+      setError(null)
+      setCurrentStep(nextStep)
+      return
+    }
+
+    for (let step = currentStep; step < nextStep; step += 1) {
+      if (!validateStep(step)) {
+        setCurrentStep(step)
+        return
+      }
+    }
+    setCurrentStep(nextStep)
+  }
+
+  function goNext() {
+    if (!validateStep(currentStep)) return
+    setCurrentStep(step => Math.min(STEPS.length - 1, step + 1))
+  }
+
+  function goBack() {
+    setError(null)
+    if (currentStep === 0) {
+      router.back()
+      return
+    }
+    setCurrentStep(step => Math.max(0, step - 1))
+  }
+
+  async function saveEvent(status: 'draft' | 'upcoming') {
+    const isDraft = status === 'draft'
+
+    if (!isDraft) {
+      for (let step = 0; step < STEPS.length - 1; step += 1) {
+        if (!validateStep(step)) {
+          setCurrentStep(step)
+          return
+        }
+      }
+    }
+
+    setLoading(true)
+    setSavingMode(isDraft ? 'draft' : 'publish')
+    setError(null)
+
     const payload = {
-      title: form.get('title'),
-      description: form.get('description') || null,
-      location: location || null,
+      title: title.trim() || 'Szkic wydarzenia',
+      description: description.trim() || null,
+      location: locationSummary || null,
       start_at: startAt,
       end_at: endAt || null,
       registration_deadline: registrationDeadline || null,
-      status: 'upcoming',
+      status,
       event_type_id: eventTypeId || null,
       form_fields: formFields,
       has_results: hasResults,
@@ -87,7 +310,7 @@ export default function NewEventPage() {
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       entry_fee: entryFeeEnabled && entryFee ? parseFloat(entryFee) : null,
       image_url: imageUrl,
-      organizer_name: (form.get('organizer_name') as string) || null,
+      organizer_name: organizerName.trim() || null,
       lat,
       lng,
       gallery_images: galleryImages,
@@ -111,254 +334,898 @@ export default function NewEventPage() {
       setError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setLoading(false)
+      setSavingMode(null)
     }
   }
 
-  const selectedType = EVENT_TYPES.find(t => t.id === eventTypeId)
-
   return (
-    <div>
-      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        ← Panel organizatora
-      </Link>
-      <h1 className="page-title">➕ Nowe wydarzenie</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="card space-y-4">
-          <div>
-            <label className="form-label">Typ wydarzenia *</label>
-            <select
-              className="form-input"
-              value={eventTypeId}
-              onChange={e => handleEventTypeChange(e.target.value)}
-              required
-            >
-              <option value="">— wybierz typ —</option>
-              {EVENT_TYPES.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.icon} {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Organizator</label>
-            <input
-              className="form-input"
-              name="organizer_name"
-              placeholder="Imię i nazwisko lub nazwa klubu"
-            />
-          </div>
-          <div>
-            <label className="form-label">Tytuł *</label>
-            <input
-              className="form-input"
-              name="title"
-              required
-              placeholder={
-                selectedType
-                  ? `${selectedType.icon} ${selectedType.name} – Wiosna 2026`
-                  : 'Tytuł wydarzenia'
-              }
-            />
-          </div>
-          <div>
-            <label className="form-label">Opis</label>
-            <textarea
-              className="form-input"
-              name="description"
-              rows={3}
-              placeholder="Krótki opis wydarzenia, zasady, kategorie..."
-            />
-          </div>
-
-          {/* Location + Map */}
-          <div>
-            <label className="form-label">Lokalizacja</label>
-            <MapPicker lat={lat} lng={lng} location={location} onLocationChange={handleMapLocation} />
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="form-label">Data rozpoczęcia *</label>
-              <DateTimePicker value={startAt} onChange={setStartAt} required placeholder="Wybierz datę startu" />
-            </div>
-            <div>
-              <label className="form-label">Data zakończenia</label>
-              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
-            </div>
-          </div>
-          <div>
-            <label className="form-label">Termin zapisów</label>
-            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
-            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
-          </div>
-
-          {/* Registrations settings */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">📝 Zapisy</p>
-            <div>
-              <label className="form-label">Limit miejsc</label>
-              <input
-                className="form-input"
-                type="number"
-                min="1"
-                placeholder="np. 50 (zostaw puste = bez limitu)"
-                value={maxParticipants}
-                onChange={e => setMaxParticipants(e.target.value)}
-              />
-            </div>
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded"
-                checked={entryFeeEnabled}
-                onChange={e => { setEntryFeeEnabled(e.target.checked); if (!e.target.checked) setEntryFee('') }}
-              />
-              <div className="flex-1">
-                <span className="text-sm font-medium text-slate-700">Pobieraj wpisowe</span>
-                <p className="text-xs text-slate-400 mt-0.5">Podaj kwotę wpisowego dla uczestników.</p>
-                {entryFeeEnabled && (
-                  <div className="mt-2">
-                    <label className="form-label">Kwota wpisowego (zł) *</label>
-                    <input
-                      className="form-input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="np. 25"
-                      value={entryFee}
-                      onChange={e => setEntryFee(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded"
-                checked={autoConfirm}
-                onChange={e => setAutoConfirm(e.target.checked)}
-              />
-              <div>
-                <span className="text-sm font-medium text-slate-700">Auto-potwierdzenie zapisów</span>
-                <p className="text-xs text-slate-400 mt-0.5">Każdy zapis będzie od razu potwierdzony (bez oczekiwania na akceptację organizatora).</p>
-              </div>
-            </label>
-          </div>
-
-          {/* Results settings */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
-            <p className="text-sm font-semibold text-slate-700">🏆 Wyniki i ranking</p>
-            <label className="flex items-start gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded"
-                checked={hasResults}
-                onChange={e => setHasResults(e.target.checked)}
-              />
-              <div>
-                <span className="text-sm font-medium text-slate-700">Włącz wyniki i ranking</span>
-                <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł wpisywać wyniki; pojawi się widok live dla uczestników.</p>
-              </div>
-            </label>
-            {hasResults && (
-              <label className="flex items-start gap-3 cursor-pointer select-none pl-6">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 rounded"
-                  checked={resultsPublic}
-                  onChange={e => setResultsPublic(e.target.checked)}
-                />
-                <div>
-                  <span className="text-sm font-medium text-slate-700">Wyniki widoczne publicznie (live)</span>
-                  <p className="text-xs text-slate-400 mt-0.5">Odznacz, jeśli chcesz opublikować wyniki dopiero po zakończeniu rywalizacji.</p>
-                </div>
-              </label>
-            )}
-          </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Nowe wydarzenie</p>
+          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator Wydarzenia</h1>
+          <p className="mt-2 text-muted-foreground">
+            Krok {currentStep + 1}: {STEPS[currentStep].label}
+          </p>
         </div>
-
-        {/* Thumbnail */}
-        <div className="card space-y-3">
-          <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
+        <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
+          <Check className="h-4 w-4 text-accent" />
+          Stan formularza jest zachowywany między krokami
         </div>
+      </div>
 
-        {/* Gallery */}
-        <div className="card space-y-3">
-          <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
-        </div>
+      <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
+        <WizardStepper currentStep={currentStep} onStepChange={goToStep} />
 
-        {/* Template picker section */}
-        <div className="card space-y-3">
-          <div>
-            <h2 className="font-semibold text-slate-800">📋 Formularz zapisów</h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Wybierz szablon pól dodatkowych lub stwórz nowy.
-            </p>
-          </div>
-          <FormTemplatePicker
-            eventTypeId={eventTypeId || null}
-            selectedTemplateId={selectedTemplateId}
-            onSelect={handleTemplateSelect}
-          />
-
-          {/* Grouping field */}
-          {groupableFields.length > 0 && (
-            <div>
-              <label className="form-label">Grupuj zapisy według</label>
-              <select
-                className="form-input"
-                value={groupingField}
-                onChange={e => setGroupingField(e.target.value)}
-              >
-                <option value="">— brak grupowania —</option>
-                {groupableFields.map(f => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
-                ))}
-              </select>
-              <p className="text-xs text-slate-400 mt-1">Listy zapisów będą pogrupowane według tego pola.</p>
-            </div>
+        <div className="p-5 sm:p-8 lg:p-10">
+          {currentStep === 0 && (
+            <StepBasicInfo
+              title={title}
+              organizerName={organizerName}
+              description={description}
+              eventTypeId={eventTypeId}
+              imageUrl={imageUrl}
+              galleryImages={galleryImages}
+              selectedTypeName={selectedType?.name}
+              onTitleChange={setTitle}
+              onOrganizerNameChange={setOrganizerName}
+              onDescriptionChange={setDescription}
+              onEventTypeChange={handleEventTypeChange}
+              onImageUrlChange={setImageUrl}
+              onGalleryImagesChange={setGalleryImages}
+            />
           )}
 
-          {/* Schedule */}
-          <label className="flex items-start gap-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="mt-0.5 rounded"
-              checked={hasSchedule}
-              onChange={e => setHasSchedule(e.target.checked)}
+          {currentStep === 1 && (
+            <StepLocationTime
+              venueName={venueName}
+              location={location}
+              lat={lat}
+              lng={lng}
+              startAt={startAt}
+              endAt={endAt}
+              duration={durationLabel(startAt, endAt)}
+              onVenueNameChange={setVenueName}
+              onLocationChange={handleMapLocation}
+              onStartAtChange={setStartAt}
+              onEndAtChange={setEndAt}
             />
-            <div>
-              <span className="text-sm font-medium text-slate-700">Włącz grafik startów</span>
-              <p className="text-xs text-slate-400 mt-0.5">Organizator będzie mógł przypisywać uczestnikom terminy startów.</p>
-            </div>
-          </label>
+          )}
+
+          {currentStep === 2 && (
+            <StepRegistration
+              maxParticipants={maxParticipants}
+              registrationDeadline={registrationDeadline}
+              entryFeeEnabled={entryFeeEnabled}
+              entryFee={entryFee}
+              autoConfirm={autoConfirm}
+              hasResults={hasResults}
+              resultsPublic={resultsPublic}
+              hasSchedule={hasSchedule}
+              eventTypeId={eventTypeId || null}
+              selectedTemplateId={selectedTemplateId}
+              groupableFields={groupableFields}
+              groupingField={groupingField}
+              formFieldsCount={formFields.length}
+              onMaxParticipantsChange={setMaxParticipants}
+              onRegistrationDeadlineChange={setRegistrationDeadline}
+              onEntryFeeEnabledChange={checked => {
+                setEntryFeeEnabled(checked)
+                if (!checked) setEntryFee('')
+              }}
+              onEntryFeeChange={setEntryFee}
+              onAutoConfirmChange={setAutoConfirm}
+              onHasResultsChange={checked => {
+                setHasResults(checked)
+                if (!checked) setResultsPublic(true)
+              }}
+              onResultsPublicChange={setResultsPublic}
+              onHasScheduleChange={setHasSchedule}
+              onTemplateSelect={handleTemplateSelect}
+              onGroupingFieldChange={setGroupingField}
+            />
+          )}
+
+          {currentStep === 3 && (
+            <StepPreview
+              title={title}
+              description={description}
+              organizerName={organizerName}
+              imageUrl={imageUrl}
+              selectedVisual={selectedVisual}
+              location={visibleLocation}
+              startAt={startAt}
+              endAt={endAt}
+              registrationDeadline={registrationDeadline}
+              seatsLabel={seatsLabel}
+              feeLabel={feeLabel}
+              autoConfirm={autoConfirm}
+              hasResults={hasResults}
+              resultsPublic={resultsPublic}
+              hasSchedule={hasSchedule}
+              galleryCount={galleryImages.length}
+              formFieldsCount={formFields.length}
+              groupingEnabled={Boolean(groupingField)}
+            />
+          )}
         </div>
 
         {error && (
-          <div className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
+          <div className="mx-5 mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-8 lg:mx-10">
             {error}
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-4 border-t border-sage-200 bg-white/90 px-5 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <button
             type="button"
-            onClick={() => router.back()}
-            className="btn btn-secondary flex-1"
+            onClick={goBack}
+            className="btn btn-secondary min-h-12 px-6"
           >
-            Anuluj
+            <ChevronLeft className="h-4 w-4" />
+            {currentStep === 0 ? 'Panel organizatora' : 'Wstecz'}
           </button>
-          <button type="submit" disabled={loading} className="btn btn-primary flex-1">
-            {loading ? 'Tworzenie...' : 'Utwórz wydarzenie'}
-          </button>
+
+          {currentStep < STEPS.length - 1 ? (
+            <button type="button" onClick={goNext} className="btn btn-primary min-h-12 px-8 shadow-primary/10">
+              Dalej
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button type="button" onClick={() => saveEvent('draft')} disabled={loading} className="btn btn-secondary min-h-12 px-8">
+                {loading && savingMode === 'draft' ? 'Zapisywanie...' : 'Zapisz jako szkic'}
+              </button>
+              <button type="button" onClick={() => saveEvent('upcoming')} disabled={loading} className="btn btn-primary min-h-12 px-8 shadow-primary/10">
+                {loading && savingMode === 'publish' ? 'Publikowanie...' : 'Opublikuj teraz'}
+                <Rocket className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   )
 }
 
+function WizardStepper({
+  currentStep,
+  onStepChange,
+}: {
+  currentStep: number
+  onStepChange: (step: number) => void
+}) {
+  return (
+    <div className="border-b border-sage-200 bg-white px-4 py-5 sm:px-8 lg:px-10">
+      <div className="grid gap-3 md:grid-cols-4">
+        {STEPS.map(({ label, shortLabel, Icon }, index) => {
+          const active = index === currentStep
+          const complete = index < currentStep
 
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => onStepChange(index)}
+              className="group flex items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-sage-50"
+            >
+              <span
+                className={cn(
+                  'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-colors',
+                  active && 'border-accent bg-white text-accent ring-4 ring-orange-100',
+                  complete && 'border-primary bg-primary text-white',
+                  !active && !complete && 'border-sage-200 bg-white text-sage-400',
+                )}
+              >
+                {complete ? <Check className="h-4 w-4" /> : active ? index + 1 : <Icon className="h-4 w-4" />}
+              </span>
+              <span className="min-w-0">
+                <span
+                  className={cn(
+                    'block text-[11px] font-bold uppercase tracking-[0.18em]',
+                    active ? 'text-accent' : complete ? 'text-primary' : 'text-sage-400',
+                  )}
+                >
+                  Krok {index + 1}
+                </span>
+                <span className={cn('block truncate text-sm font-semibold', active ? 'text-primary' : 'text-sage-500')}>
+                  <span className="hidden lg:inline">{label}</span>
+                  <span className="lg:hidden">{shortLabel}</span>
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function StepBasicInfo({
+  title,
+  organizerName,
+  description,
+  eventTypeId,
+  imageUrl,
+  galleryImages,
+  selectedTypeName,
+  onTitleChange,
+  onOrganizerNameChange,
+  onDescriptionChange,
+  onEventTypeChange,
+  onImageUrlChange,
+  onGalleryImagesChange,
+}: {
+  title: string
+  organizerName: string
+  description: string
+  eventTypeId: string
+  imageUrl: string | null
+  galleryImages: string[]
+  selectedTypeName?: string
+  onTitleChange: (value: string) => void
+  onOrganizerNameChange: (value: string) => void
+  onDescriptionChange: (value: string) => void
+  onEventTypeChange: (value: string) => void
+  onImageUrlChange: (url: string | null) => void
+  onGalleryImagesChange: (urls: string[]) => void
+}) {
+  return (
+    <div className="space-y-8">
+      <SectionHeader
+        Icon={ImagePlus}
+        eyebrow="Miniaturka wydarzenia"
+        title="Pierwsze wrażenie i najważniejsze informacje"
+        description="Dodaj zdjęcie, nazwę, organizatora i wybierz typ wydarzenia. Galeria jest zachowana jako część obecnego kreatora."
+      />
+
+      <div className="mx-auto max-w-2xl rounded-3xl border-2 border-dashed border-sage-200 bg-sage-50/60 p-3 sm:p-4">
+        <ImageCropUploader currentUrl={imageUrl} onUrlChange={onImageUrlChange} />
+      </div>
+
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="space-y-5">
+          <div>
+            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
+            <input
+              className="form-input min-h-14 bg-sage-50 text-base font-semibold"
+              name="title"
+              value={title}
+              onChange={e => onTitleChange(e.target.value)}
+              placeholder={
+                selectedTypeName
+                  ? `${selectedTypeName} - Wiosna 2026`
+                  : 'Np. Międzynarodowe Zawody Agility'
+              }
+              required
+            />
+          </div>
+
+          <div>
+            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
+            <input
+              className="form-input min-h-12 bg-sage-50"
+              name="organizer_name"
+              value={organizerName}
+              onChange={e => onOrganizerNameChange(e.target.value)}
+              placeholder="Imię i nazwisko lub nazwa klubu"
+            />
+          </div>
+
+          <div>
+            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Szczegółowy opis</label>
+            <textarea
+              className="form-input min-h-44 bg-sage-50 text-base leading-7"
+              name="description"
+              value={description}
+              onChange={e => onDescriptionChange(e.target.value)}
+              placeholder="Opisz misję, zasady, kategorie i unikalne cechy Twojego wydarzenia..."
+            />
+          </div>
+
+          <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-accent">
+                <GalleryHorizontal className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="section-title mb-0">Galeria zdjęć</h2>
+                <p className="text-sm text-muted-foreground">Dodatkowe zdjęcia wydarzenia dla strony publicznej.</p>
+              </div>
+            </div>
+            <GalleryUploader images={galleryImages} onImagesChange={onGalleryImagesChange} />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="form-label uppercase tracking-[0.16em] text-sage-500">Kategorie specjalne *</p>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Wybierz typ wydarzenia. Wszystkie dotychczasowe typy zostały przeniesione do kart.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            {EVENT_TYPES.map(type => {
+              const visual = getEventVisual(type.id, type.name)
+              const selected = eventTypeId === type.id
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => onEventTypeChange(type.id)}
+                  className={cn(
+                    'group min-h-36 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-md',
+                    selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors',
+                      selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent',
+                    )}
+                  >
+                    <visual.Icon className="h-6 w-6" />
+                  </span>
+                  <span className="block font-semibold text-primary">{visual.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{visual.description}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="rounded-2xl border border-sage-200 bg-sage-50 p-5 text-sm text-sage-700">
+            <div className="flex gap-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <p>
+                Typ wydarzenia wpływa na szablony formularza zapisów i pola dodatkowe dostępne w kroku rejestracji.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StepLocationTime({
+  venueName,
+  location,
+  lat,
+  lng,
+  startAt,
+  endAt,
+  duration,
+  onVenueNameChange,
+  onLocationChange,
+  onStartAtChange,
+  onEndAtChange,
+}: {
+  venueName: string
+  location: string
+  lat: number | null
+  lng: number | null
+  startAt: string | null
+  endAt: string | null
+  duration: string
+  onVenueNameChange: (value: string) => void
+  onLocationChange: (lat: number, lng: number, address: string) => void
+  onStartAtChange: (value: string | null) => void
+  onEndAtChange: (value: string | null) => void
+}) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+      <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+        <SectionHeader
+          Icon={MapPin}
+          eyebrow="Lokalizacja"
+          title="Miejsce wydarzenia"
+          description="Wpisz nazwę obiektu, wyszukaj adres lub ustaw pin bezpośrednio na mapie."
+          compact
+        />
+
+        <div className="mt-6 space-y-5">
+          <div>
+            <label className="form-label">Nazwa obiektu</label>
+            <input
+              className="form-input min-h-12 bg-sage-50"
+              value={venueName}
+              onChange={e => onVenueNameChange(e.target.value)}
+              placeholder="np. Stadion Miejski lub Park Narodowy"
+            />
+          </div>
+
+          <div className="rounded-[28px] bg-primary p-3 shadow-sm">
+            <div className="overflow-hidden rounded-3xl bg-white p-3">
+              <MapPicker lat={lat} lng={lng} location={location} onLocationChange={onLocationChange} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+        <SectionHeader
+          Icon={CalendarDays}
+          eyebrow="Harmonogram"
+          title="Data i czas"
+          description="Start jest wymagany. Zakończenie zostaw puste, jeśli wydarzenie nie ma osobnej godziny końca."
+          compact
+        />
+
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="form-label">Data rozpoczęcia *</label>
+            <DateTimePicker value={startAt} onChange={onStartAtChange} required placeholder="Wybierz datę startu" />
+          </div>
+          <div>
+            <label className="form-label">Data zakończenia</label>
+            <DateTimePicker value={endAt} onChange={onEndAtChange} placeholder="Opcjonalnie" />
+          </div>
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-sage-200 bg-sage-50 p-5">
+          <div className="flex items-start gap-4">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-accent shadow-sm">
+              <Clock className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-primary">Podgląd czasu trwania</p>
+              <p className="mt-1 text-3xl font-heading font-bold text-accent">{duration}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Dla wydarzeń wielodniowych ustaw datę zakończenia. Dla spacerów lub zawodów jednodniowych wystarczy start.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-sage-200 bg-white p-4 text-sm text-muted-foreground">
+          <div className="flex gap-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <p>Włączenie grafiku startów oraz pola wieloterminowe znajdziesz w kroku rejestracji.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StepRegistration({
+  maxParticipants,
+  registrationDeadline,
+  entryFeeEnabled,
+  entryFee,
+  autoConfirm,
+  hasResults,
+  resultsPublic,
+  hasSchedule,
+  eventTypeId,
+  selectedTemplateId,
+  groupableFields,
+  groupingField,
+  formFieldsCount,
+  onMaxParticipantsChange,
+  onRegistrationDeadlineChange,
+  onEntryFeeEnabledChange,
+  onEntryFeeChange,
+  onAutoConfirmChange,
+  onHasResultsChange,
+  onResultsPublicChange,
+  onHasScheduleChange,
+  onTemplateSelect,
+  onGroupingFieldChange,
+}: {
+  maxParticipants: string
+  registrationDeadline: string | null
+  entryFeeEnabled: boolean
+  entryFee: string
+  autoConfirm: boolean
+  hasResults: boolean
+  resultsPublic: boolean
+  hasSchedule: boolean
+  eventTypeId: string | null
+  selectedTemplateId: string | null
+  groupableFields: FormField[]
+  groupingField: string
+  formFieldsCount: number
+  onMaxParticipantsChange: (value: string) => void
+  onRegistrationDeadlineChange: (value: string | null) => void
+  onEntryFeeEnabledChange: (checked: boolean) => void
+  onEntryFeeChange: (value: string) => void
+  onAutoConfirmChange: (checked: boolean) => void
+  onHasResultsChange: (checked: boolean) => void
+  onResultsPublicChange: (checked: boolean) => void
+  onHasScheduleChange: (checked: boolean) => void
+  onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
+  onGroupingFieldChange: (value: string) => void
+}) {
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel Icon={Users} title="Limity uczestników">
+          <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
+          <div className="relative">
+            <input
+              className="form-input min-h-14 pr-16 text-lg"
+              type="number"
+              min="1"
+              placeholder="np. 50 (puste = bez limitu)"
+              value={maxParticipants}
+              onChange={e => onMaxParticipantsChange(e.target.value)}
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-sage-500">
+              psów
+            </span>
+          </div>
+          <p className="mt-4 text-sm italic leading-6 text-muted-foreground">
+            Po osiągnięciu limitu zapisy zostaną zablokowane przez istniejącą logikę backendu.
+          </p>
+        </Panel>
+
+        <Panel Icon={CalendarDays} title="Terminy zapisów">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</label>
+              <div className="flex min-h-12 items-center rounded-xl border border-sage-200 bg-sage-50 px-3 text-sm text-sage-600">
+                Po opublikowaniu wydarzenia
+              </div>
+            </div>
+            <div>
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
+              <DateTimePicker value={registrationDeadline} onChange={onRegistrationDeadlineChange} placeholder="Opcjonalnie" />
+            </div>
+          </div>
+          <div className="mt-6 rounded-2xl border border-sage-200 bg-sage-50 p-4 text-sm leading-6 text-sage-700">
+            <div className="flex gap-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <p>Po terminie zamknięcia zapisy zostaną automatycznie zablokowane.</p>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel Icon={Wallet} title="Opłaty">
+          <ToggleRow
+            checked={entryFeeEnabled}
+            onChange={onEntryFeeEnabledChange}
+            title="Pobieraj wpisowe"
+            description="Zachowuje istniejącą logikę wpisowego w PLN."
+          />
+          {entryFeeEnabled && (
+            <div className="mt-5">
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
+              <div className="relative">
+                <input
+                  className="form-input min-h-14 pr-16 text-lg"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={entryFee}
+                  onChange={e => onEntryFeeChange(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-accent">
+                  PLN
+                </span>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <Panel Icon={ShieldCheck} title="Automatyzacja">
+          <div className="space-y-3">
+            <ToggleRow
+              checked={autoConfirm}
+              onChange={onAutoConfirmChange}
+              title="Auto-potwierdzanie zapisów"
+              description="System automatycznie zaakceptuje nowe zgłoszenia."
+            />
+            <ToggleRow
+              checked={hasSchedule}
+              onChange={onHasScheduleChange}
+              title="Włącz grafik startów"
+              description="Organizator będzie mógł przypisywać uczestnikom terminy startów."
+            />
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <Panel Icon={FileText} title="Formularz zapisów">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Wybierz szablon pól dodatkowych albo utwórz nowy. Pola stałe uczestnika pozostają dostępne jak wcześniej.
+          </p>
+          <FormTemplatePicker
+            eventTypeId={eventTypeId}
+            selectedTemplateId={selectedTemplateId}
+            onSelect={onTemplateSelect}
+          />
+
+          {groupableFields.length > 0 && (
+            <div className="mt-5">
+              <label className="form-label">Grupuj zapisy według</label>
+              <select
+                className="form-input"
+                value={groupingField}
+                onChange={e => onGroupingFieldChange(e.target.value)}
+              >
+                <option value="">Brak grupowania</option>
+                {groupableFields.map(field => (
+                  <option key={field.id} value={field.id}>{field.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">Listy zapisów będą pogrupowane według tego pola.</p>
+            </div>
+          )}
+        </Panel>
+
+        <Panel Icon={Trophy} title="Wyniki i ranking">
+          <div className="space-y-3">
+            <ToggleRow
+              checked={hasResults}
+              onChange={onHasResultsChange}
+              title="Włącz wyniki i ranking"
+              description="Pojawią się narzędzia organizatora oraz widok live dla uczestników."
+            />
+            {hasResults && (
+              <ToggleRow
+                checked={resultsPublic}
+                onChange={onResultsPublicChange}
+                title="Wyniki widoczne publicznie"
+                description="Odznacz, jeśli publikacja wyników ma nastąpić dopiero po zawodach."
+              />
+            )}
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <MetricTile label="Pola formularza" value={String(formFieldsCount)} />
+            <MetricTile label="Grupowanie" value={groupingField ? 'Tak' : 'Nie'} />
+          </div>
+        </Panel>
+      </div>
+    </div>
+  )
+}
+
+function StepPreview({
+  title,
+  description,
+  organizerName,
+  imageUrl,
+  selectedVisual,
+  location,
+  startAt,
+  endAt,
+  registrationDeadline,
+  seatsLabel,
+  feeLabel,
+  autoConfirm,
+  hasResults,
+  resultsPublic,
+  hasSchedule,
+  galleryCount,
+  formFieldsCount,
+  groupingEnabled,
+}: {
+  title: string
+  description: string
+  organizerName: string
+  imageUrl: string | null
+  selectedVisual: EventVisual | null
+  location: string
+  startAt: string | null
+  endAt: string | null
+  registrationDeadline: string | null
+  seatsLabel: string
+  feeLabel: string
+  autoConfirm: boolean
+  hasResults: boolean
+  resultsPublic: boolean
+  hasSchedule: boolean
+  galleryCount: number
+  formFieldsCount: number
+  groupingEnabled: boolean
+}) {
+  const VisualIcon = selectedVisual?.Icon ?? PawPrint
+
+  return (
+    <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className="space-y-6">
+        <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-primary shadow-sm">
+          {imageUrl ? (
+            <Image src={imageUrl} alt="" fill className="object-cover" unoptimized />
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(255,128,36,0.35),transparent_28%),linear-gradient(135deg,#1E3932,#10231f)]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/60 to-primary/10" />
+          <div className="absolute inset-0 flex flex-col justify-end p-6 text-white sm:p-10">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-xs font-bold uppercase tracking-[0.16em]">
+                <VisualIcon className="h-4 w-4" />
+                {selectedVisual?.label ?? 'Typ wydarzenia'}
+              </span>
+              <span className="inline-flex rounded-full bg-white/15 px-4 py-2 text-sm backdrop-blur">
+                Limit: {seatsLabel}
+              </span>
+            </div>
+            <h2 className="max-w-3xl text-4xl font-heading font-bold leading-tight sm:text-6xl">
+              {title || 'Nazwa wydarzenia'}
+            </h2>
+            {description && (
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-white/90">{description}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <SummaryTile Icon={CalendarDays} label="Data i czas" value={formatDateTime(startAt)} detail={endAt ? `Do: ${formatDateTime(endAt)}` : 'Bez osobnej daty zakończenia'} accent />
+          <SummaryTile Icon={MapPin} label="Lokalizacja" value={location} detail={organizerName ? `Organizator: ${organizerName}` : 'Organizator nieuzupełniony'} />
+          <SummaryTile Icon={Wallet} label="Koszt uczestnictwa" value={feeLabel} detail={autoConfirm ? 'Zapisy auto-potwierdzane' : 'Zapisy wymagają akceptacji'} />
+          <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
+        </div>
+
+        <div className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm">
+          <h2 className="section-title">Wymagania i ustawienia</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricTile label="Formularz" value={`${formFieldsCount} pól`} />
+            <MetricTile label="Galeria" value={`${galleryCount} zdjęć`} />
+            <MetricTile label="Grafik startów" value={hasSchedule ? 'Włączony' : 'Wyłączony'} />
+            <MetricTile label="Grupowanie" value={groupingEnabled ? 'Włączone' : 'Brak'} />
+            <MetricTile label="Wyniki" value={hasResults ? 'Włączone' : 'Wyłączone'} />
+            <MetricTile label="Widok live" value={hasResults && resultsPublic ? 'Publiczny' : 'Prywatny'} />
+          </div>
+        </div>
+      </div>
+
+      <aside className="h-fit rounded-3xl border border-sage-200 bg-white p-6 shadow-sm xl:sticky xl:top-8">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white">
+            <Rocket className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="section-title mb-0">Finalizacja</h2>
+            <p className="text-sm text-muted-foreground">Ostatni przegląd przed publikacją.</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Informacja prawna</p>
+          <p className="mt-3 text-sm leading-6 text-sage-700">
+            Publikując wydarzenie, potwierdzasz, że posiadasz uprawnienia do jego organizacji i akceptujesz regulamin platformy Dogdex.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-sage-700">
+            Jeśli nie chcesz jeszcze publikować wydarzenia, zapisz je jako szkic. Będzie widoczne tylko w panelu organizatora.
+          </p>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function SectionHeader({
+  Icon,
+  eyebrow,
+  title,
+  description,
+  compact,
+}: {
+  Icon: LucideIcon
+  eyebrow: string
+  title: string
+  description: string
+  compact?: boolean
+}) {
+  return (
+    <div className={cn('flex gap-4', compact ? 'items-start' : 'items-center')}>
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-accent">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-500">{eyebrow}</p>
+        <h2 className="mt-1 text-2xl font-heading font-bold text-primary">{title}</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  )
+}
+
+function Panel({
+  Icon,
+  title,
+  children,
+}: {
+  Icon: LucideIcon
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="mb-6 flex items-center gap-4">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
+          <Icon className="h-5 w-5" />
+        </span>
+        <h2 className="section-title mb-0">{title}</h2>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function ToggleRow({
+  checked,
+  onChange,
+  title,
+  description,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  title: string
+  description: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-left transition-colors',
+        checked ? 'border-accent bg-orange-50/70' : 'border-sage-200 bg-sage-50 hover:border-sage-300',
+      )}
+    >
+      <span>
+        <span className="block font-semibold text-primary">{title}</span>
+        <span className="mt-1 block text-sm leading-5 text-muted-foreground">{description}</span>
+      </span>
+      <span
+        className={cn(
+          'relative h-8 w-14 shrink-0 rounded-full transition-colors',
+          checked ? 'bg-accent' : 'bg-sage-300',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform',
+            checked ? 'translate-x-7' : 'translate-x-1',
+          )}
+        />
+      </span>
+    </button>
+  )
+}
+
+function MetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-sage-200 bg-sage-50 p-4 text-center">
+      <p className="text-xs uppercase tracking-[0.16em] text-sage-500">{label}</p>
+      <p className="mt-2 text-lg font-bold text-primary">{value}</p>
+    </div>
+  )
+}
+
+function SummaryTile({
+  Icon,
+  label,
+  value,
+  detail,
+  accent,
+}: {
+  Icon: LucideIcon
+  label: string
+  value: string
+  detail: string
+  accent?: boolean
+}) {
+  return (
+    <div className={cn('rounded-3xl border bg-white p-5 shadow-sm', accent ? 'border-accent' : 'border-sage-200')}>
+      <div className="flex gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-accent">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-500">{label}</p>
+          <p className="mt-1 text-lg font-bold text-primary wrap-anywhere">{value}</p>
+          <p className="mt-1 text-sm text-muted-foreground wrap-anywhere">{detail}</p>
+        </div>
+      </div>
+    </div>
+  )
+}

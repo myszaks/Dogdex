@@ -39,7 +39,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
   const { event } = await resolveEvent(eventId)
-  if (!event) return { title: 'Wydarzenie' }
+  if (!event || event.status === 'draft') return { title: 'Wydarzenie' }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dogdex.pl'
   const canonicalUrl = `${baseUrl}/events/${event.slug}`
@@ -81,6 +81,7 @@ export default async function EventDetailPage({ params }: Props) {
   const { eventId } = await params
   const { event, redirectTo } = await resolveEvent(eventId)
   if (!event) notFound()
+  if (event.status === 'draft') notFound()
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()

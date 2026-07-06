@@ -70,6 +70,7 @@ export function formatTime(ms: number | null | undefined): string {
 
 export function statusLabel(status: string): string {
   const labels: Record<string, string> = {
+    draft: 'Szkic',
     upcoming: 'Nadchodzące',
     ongoing: 'W trakcie',
     finished: 'Zakończone',
@@ -80,6 +81,7 @@ export function statusLabel(status: string): string {
 
 export function statusColor(status: string): string {
   const colors: Record<string, string> = {
+    draft: 'badge-sage',
     upcoming: 'badge-blue',
     ongoing: 'badge-green',
     finished: 'badge-sage',
@@ -90,6 +92,7 @@ export function statusColor(status: string): string {
 
 export function statusBadgeClasses(status: string): string {
   const map: Record<string, string> = {
+    draft: 'bg-slate-100 text-slate-700',
     upcoming: 'bg-blue-100 text-blue-700',
     ongoing: 'bg-emerald-100 text-emerald-700',
     finished: 'bg-secondary text-muted-foreground',

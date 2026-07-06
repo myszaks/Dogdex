@@ -3,7 +3,7 @@ import { useState } from 'react'
 import OrganizerEventCard from './OrganizerEventCard'
 import type { DogEvent } from '@/types'
 import { effectiveStatus } from '@/lib/utils'
-import { ChevronDown, ChevronRight, Radio, Calendar, CheckCircle2, XCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Radio, Calendar, CheckCircle2, XCircle, FileText } from 'lucide-react'
 
 interface Props {
   events: DogEvent[]
@@ -19,6 +19,13 @@ interface GroupConfig {
 }
 
 const GROUPS: GroupConfig[] = [
+  {
+    key: 'draft',
+    label: 'Szkice',
+    icon: <FileText className="w-4 h-4 text-slate-600" />,
+    color: 'text-slate-700',
+    defaultCollapsed: false,
+  },
   {
     key: 'ongoing',
     label: 'W trakcie',
@@ -59,6 +66,7 @@ export default function OrganizerEventGroups({ events, registrationCountMap = {}
   }
 
   const grouped: Record<string, DogEvent[]> = {
+    draft: [],
     ongoing: [],
     upcoming: [],
     finished: [],
@@ -74,6 +82,7 @@ export default function OrganizerEventGroups({ events, registrationCountMap = {}
   // Sort each group
   grouped.ongoing.sort((a, b) => (a.start_at ?? '').localeCompare(b.start_at ?? ''))
   grouped.upcoming.sort((a, b) => (a.start_at ?? '').localeCompare(b.start_at ?? ''))
+  grouped.draft.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
   grouped.finished.sort((a, b) => (b.start_at ?? '').localeCompare(a.start_at ?? ''))
   grouped.cancelled.sort((a, b) => (b.start_at ?? '').localeCompare(a.start_at ?? ''))
 

@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { effectiveEventStatus, isEventRegistrationOpen } from '@/lib/eventStatus'
 
 describe('eventStatus', () => {
+  it('keeps draft events as draft and closed for registration', () => {
+    const event = {
+      status: 'draft',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: null,
+      registration_deadline: null,
+    }
+
+    expect(effectiveEventStatus(event, new Date('2026-06-01T10:00:00.000Z'))).toBe('draft')
+    expect(isEventRegistrationOpen(event, new Date('2026-06-01T10:00:00.000Z'))).toBe(false)
+  })
+
   it('returns cancelled for explicitly cancelled events', () => {
     expect(effectiveEventStatus({
       status: 'cancelled',

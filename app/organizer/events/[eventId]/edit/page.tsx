@@ -1,6 +1,5 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import EditEventClient from './EditEventClient'
 import type { Metadata } from 'next'
 
@@ -26,10 +25,6 @@ export default async function EditEventPage({ params }: Props) {
 
   return (
     <div>
-      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        ← Panel organizatora
-      </Link>
-      <h1 className="page-title">✏️ Edytuj wydarzenie</h1>
       <EditEventClient
         eventId={eventId}
         initialData={{

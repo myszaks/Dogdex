@@ -8,6 +8,7 @@ type EventStatusLike = {
 }
 
 export function effectiveEventStatus(event: EventStatusLike, now = new Date()): string {
+  if (event.status === 'draft') return 'draft'
   if (event.status === 'cancelled') return 'cancelled'
   if (event.status === 'finished') return 'finished'
 

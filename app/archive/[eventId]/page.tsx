@@ -39,6 +39,7 @@ export default async function EventArchivePage({ params }: Props) {
   const { eventId } = await params
   const { event, redirectTo } = await resolveArchiveEvent(eventId)
   if (!event) notFound()
+  if (event.status === 'draft') notFound()
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()

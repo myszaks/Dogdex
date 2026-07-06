@@ -42,6 +42,7 @@ export default async function LivePage({ params }: Props) {
   const { event: resolvedEvent, redirectTo } = await resolveEvent(eventId)
 
   if (!resolvedEvent) notFound()
+  if (resolvedEvent.status === 'draft') notFound()
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()

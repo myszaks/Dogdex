@@ -9,6 +9,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('events')
     .select('*')
+    .neq('status', 'draft')
     .order('start_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -30,12 +31,19 @@ export async function POST(req: Request) {
 
   const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field } = body as Record<string, unknown>
 
-  if (!title || typeof title !== 'string' || title.trim() === '') {
+  const nextStatus = typeof status === 'string' ? status : 'upcoming'
+  const normalizedTitle = typeof title === 'string' && title.trim() !== ''
+    ? title.trim()
+    : nextStatus === 'draft'
+      ? 'Szkic wydarzenia'
+      : ''
+
+  if (!normalizedTitle) {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
   }
 
   // Generate a unique slug
-  const baseSlug = toSlug((title as string).trim()) || 'event'
+  const baseSlug = toSlug(normalizedTitle) || 'event'
   let slug = baseSlug
   let counter = 1
   while (true) {
@@ -52,14 +60,14 @@ export async function POST(req: Request) {
   const { data, error } = await supabase
     .from('events')
     .insert([{
-      title: (title as string).trim(),
+      title: normalizedTitle,
       slug,
       description: (description as string | null) ?? null,
       location: (location as string | null) ?? null,
       start_at: (start_at as string | null) ?? null,
       end_at: (end_at as string | null) ?? null,
       registration_deadline: (registration_deadline as string | null) ?? null,
-      status: (status as string) ?? 'upcoming',
+      status: nextStatus,
       event_type_id: (event_type_id as string | null) ?? null,
       form_fields: Array.isArray(form_fields) ? form_fields : [],
       has_results: typeof has_results === 'boolean' ? has_results : false,

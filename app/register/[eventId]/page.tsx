@@ -38,6 +38,7 @@ export default async function RegisterPage({ params }: Props) {
   const { event, redirectTo } = await resolveEvent(eventId)
 
   if (!event) notFound()
+  if (event.status === 'draft') notFound()
   if (redirectTo) redirect(redirectTo)
 
   const regOpen = isRegistrationOpen(event)

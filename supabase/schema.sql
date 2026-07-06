@@ -21,7 +21,7 @@ create table if not exists events (
   created_by  uuid,
   metadata    jsonb not null default '{}',
   status      text not null default 'upcoming'
-                check (status in ('upcoming','ongoing','finished','cancelled')),
+                check (status in ('draft','upcoming','ongoing','finished','cancelled')),
   image_url   text,
   created_at  timestamptz not null default now()
 );

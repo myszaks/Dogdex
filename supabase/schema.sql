@@ -400,7 +400,7 @@ create table if not exists training_bookings (
   id                    uuid primary key default gen_random_uuid(),
   training_type_id      uuid not null references training_types(id) on delete cascade,
   user_id               uuid not null references auth.users(id) on delete cascade,
-  dog_id                uuid,  -- opcjonalnie link do konkretnego psa
+  dog_id                uuid references dogs(id) on delete set null,  -- opcjonalnie link do konkretnego psa
   scheduled_at          timestamptz not null,  -- data i godzina treningu
   duration_min          integer not null default 60,
   status                text not null default 'pending'
@@ -415,6 +415,7 @@ create table if not exists training_bookings (
 );
 
 create index if not exists idx_training_bookings_user_id on training_bookings(user_id);
+create index if not exists idx_training_bookings_dog_id on training_bookings(dog_id);
 create index if not exists idx_training_bookings_training_type on training_bookings(training_type_id);
 create index if not exists idx_training_bookings_scheduled on training_bookings(scheduled_at);
 create index if not exists idx_training_bookings_status on training_bookings(status);

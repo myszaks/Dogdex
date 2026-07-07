@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { sendTrainingBookingConfirmation, sendTrainingBookingToTrainer } from '@/lib/email'
+import { formatEmailDateTime } from '@/lib/emailDate'
 import { getServerUser } from '@/lib/getServerUser'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import {
   bookingFitsAvailability,
   bookingsOverlap,
   getBookingDateTimeParts,
   resolveBookingDuration,
 } from '@/lib/trainingBooking'
-import { formatEmailDateTime } from '@/lib/emailDate'
+import { hydrateTrainingBookings } from '@/lib/trainingBookingRelations'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -17,32 +18,45 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 export async function GET() {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!user) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  }
 
   const supabase = await createAuthClient()
+  const relationClient = createServerClient()
   const { data, error } = await supabase
     .from('training_bookings')
-    .select(`
-      *,
-      training_types(id, trainer_id, name, price_per_hour),
-      dogs(id, name)
-    `)
+    .select('*')
     .eq('user_id', user.id)
     .order('scheduled_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
-  return NextResponse.json(data)
+  if (error) {
+    console.error('[training-bookings][GET] Failed to load bookings:', error)
+    return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
+  }
+
+  try {
+    const bookings = await hydrateTrainingBookings(relationClient, data ?? [], {
+      dogsClient: supabase,
+    })
+    return NextResponse.json(bookings)
+  } catch (relationsError) {
+    console.error('[training-bookings][GET] Failed to hydrate relations:', relationsError)
+    return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
+  }
 }
 
 export async function POST(req: Request) {
   const { user } = await getServerUser()
-  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!user) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  }
 
   let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
+    return NextResponse.json({ error: 'Nieprawidłowy JSON' }, { status: 400 })
   }
 
   const { training_type_id, dog_id, scheduled_at, duration_min, notes_user } = body
@@ -163,7 +177,9 @@ export async function POST(req: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 })
+  if (error) {
+    return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 })
+  }
 
   const userEmail = user.email || ''
   const userName = user.user_metadata?.full_name || 'Użytkownik'
@@ -197,6 +213,8 @@ export async function POST(req: Request) {
   let checkoutUrl: string | null = null
   if (stripe && trainerProfile?.stripe_account_id && trainingType.price_per_hour) {
     try {
+      const baseMyTrainingsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/moje-zapisy?tab=trainings`
+
       const session = await stripe.checkout.sessions.create(
         {
           payment_method_types: ['card'],
@@ -213,8 +231,8 @@ export async function POST(req: Request) {
             },
             quantity: 1,
           }],
-          success_url: `${process.env.NEXT_PUBLIC_APP_URL}/moje-treningi?payment=success&booking_id=${booking.id}`,
-          cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/moje-treningi?payment=cancelled&booking_id=${booking.id}`,
+          success_url: `${baseMyTrainingsUrl}&payment=success&booking_id=${booking.id}`,
+          cancel_url: `${baseMyTrainingsUrl}&payment=cancelled&booking_id=${booking.id}`,
           payment_intent_data: {
             application_fee_amount: 0,
             on_behalf_of: trainerProfile.stripe_account_id,

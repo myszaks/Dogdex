@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 /**
- * Service-role client — bypasses RLS. Use only for admin server operations.
+ * Service-role client - bypasses RLS. Use only for admin server operations.
  * NEVER expose the service role key to the browser.
  */
 export function createServerClient() {
@@ -17,10 +17,13 @@ export function createServerClient() {
   })
 }
 
-
+export function hasServiceRoleKey() {
+  return typeof process.env.SUPABASE_SERVICE_ROLE_KEY === 'string'
+    && process.env.SUPABASE_SERVICE_ROLE_KEY.length > 0
+}
 
 /**
- * Auth-aware server client — reads the user's session from cookies.
+ * Auth-aware server client - reads the user's session from cookies.
  * Use in Server Components, Server Actions and API Route Handlers.
  */
 export async function createAuthClient() {
@@ -37,12 +40,10 @@ export async function createAuthClient() {
               (cookieStore as any).set?.(name, value, options)
             )
           } catch {
-            // Server Components cannot set cookies — middleware handles refresh
+            // Server Components cannot set cookies - middleware handles refresh
           }
         },
       },
     }
   )
 }
-
-

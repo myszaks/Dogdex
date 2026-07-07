@@ -1,20 +1,23 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { Suspense } from 'react'
-import Link from 'next/link'
-import MyTrainingsContent from './MyTrainingsContent'
+interface MyTrainingsPageProps {
+  searchParams: Promise<{
+    payment?: string
+    booking_id?: string
+  }>
+}
 
-export default function MyTrainingsPage() {
-  return (
-    <Suspense fallback={
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-          ← Profil
-        </Link>
-        <div className="text-center">Ladowanie...</div>
-      </div>
-    }>
-      <MyTrainingsContent />
-    </Suspense>
-  )
+export default async function MyTrainingsPage({ searchParams }: MyTrainingsPageProps) {
+  const params = await searchParams
+  const nextSearchParams = new URLSearchParams({ tab: 'trainings' })
+
+  if (params.payment) {
+    nextSearchParams.set('payment', params.payment)
+  }
+
+  if (params.booking_id) {
+    nextSearchParams.set('booking_id', params.booking_id)
+  }
+
+  redirect(`/moje-zapisy?${nextSearchParams.toString()}`)
 }

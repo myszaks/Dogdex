@@ -191,7 +191,7 @@ export default function BookTrainingPage({ params }: Props) {
         // No payment needed, go to my trainings
         setSuccess(true)
         setTimeout(() => {
-          window.location.href = `/moje-treningi`
+          window.location.href = '/moje-zapisy?tab=trainings'
         }, 2000)
       }
     } catch (err) {

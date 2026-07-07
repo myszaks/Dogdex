@@ -1,52 +1,80 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, Clock, MapPin, AlertCircle, Check, XCircle, CreditCard } from 'lucide-react'
+import { AlertCircle, Calendar, Check, Clock, XCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import type { TrainingBooking } from '@/types'
 
-export default function MyTrainingsContent() {
-  const searchParams = useSearchParams()
+interface MyTrainingsContentProps {
+  embedded?: boolean
+  paymentStatus?: string | null
+}
+
+export default function MyTrainingsContent({
+  embedded = false,
+  paymentStatus = null,
+}: MyTrainingsContentProps) {
   const [bookings, setBookings] = useState<TrainingBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const paymentStatus = searchParams.get('payment')
-  const bookingId = searchParams.get('booking_id')
-
   useEffect(() => {
     if (paymentStatus === 'success') {
-      setSuccessMessage('✅ Płatność powiodła się! Twoja rezerwacja jest potwierdzona.')
+      setSuccessMessage('Platnosc powiodla sie. Twoja rezerwacja jest potwierdzona.')
       setTimeout(() => setSuccessMessage(null), 5000)
-    } else if (paymentStatus === 'cancelled') {
-      setError('❌ Anulowałeś płatność. Twoja rezerwacja pozostała, ale wymaga płatności.')
-      setTimeout(() => setError(null), 5000)
+      return
     }
+
+    if (paymentStatus === 'cancelled') {
+      setError('Platnosc zostala anulowana. Rezerwacja pozostala w systemie, ale wymaga platnosci.')
+      setTimeout(() => setError(null), 5000)
+      return
+    }
+
+    setSuccessMessage(null)
   }, [paymentStatus])
 
   useEffect(() => {
-    fetch('/api/training-bookings')
-      .then(r => {
-        if (!r.ok) throw new Error('Błąd przy ładowaniu')
-        return r.json()
-      })
-      .then(data => {
-        setBookings(Array.isArray(data) ? data : [])
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err.message)
-        setLoading(false)
-      })
+    let cancelled = false
+
+    async function loadBookings() {
+      try {
+        const response = await fetch('/api/training-bookings')
+        const data = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie pobrac rezerwacji')
+        }
+
+        if (!cancelled) {
+          setBookings(Array.isArray(data) ? data : [])
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError((loadError as Error).message)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadBookings()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleCancel = async (bookingId: string) => {
-    if (!confirm('Czy na pewno chcesz anulować tę rezerwację?')) return
+    if (!confirm('Czy na pewno chcesz anulowac te rezerwacje?')) {
+      return
+    }
 
     setCancelling(bookingId)
     try {
@@ -55,20 +83,22 @@ export default function MyTrainingsContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'cancelled',
-          cancellation_reason: 'Anulowanie przez użytkownika',
+          cancellation_reason: 'Anulowanie przez uzytkownika',
         }),
       })
 
+      const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error('Błąd przy anulacji')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Blad przy anulacji')
       }
 
-      // Update local state
-      setBookings(bookings.map(b => 
-        b.id === bookingId ? { ...b, status: 'cancelled' } : b
-      ))
-    } catch (err) {
-      alert((err as Error).message)
+      setBookings(currentBookings =>
+        currentBookings.map(booking =>
+          booking.id === bookingId ? { ...booking, status: 'cancelled' } : booking
+        )
+      )
+    } catch (cancelError) {
+      alert((cancelError as Error).message)
     } finally {
       setCancelling(null)
     }
@@ -98,7 +128,7 @@ export default function MyTrainingsContent() {
       case 'cancelled':
         return 'Anulowane'
       case 'completed':
-        return 'Ukończone'
+        return 'Ukonczone'
       default:
         return 'Nieznany status'
     }
@@ -117,33 +147,45 @@ export default function MyTrainingsContent() {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-          ← Profil
-        </Link>
-        <div className="text-center text-slate-500">Ładowanie…</div>
+      <div className={embedded ? 'py-12' : 'max-w-6xl mx-auto px-4 py-12'}>
+        {!embedded && (
+          <Link
+            href="/profile"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
+          >
+            {'<-'} Profil
+          </Link>
+        )}
+        <div className="text-center text-slate-500">Ladowanie...</div>
       </div>
     )
   }
 
-  const upcomingBookings = bookings.filter(b => 
-    new Date(b.scheduled_at) > new Date() && ['pending', 'confirmed'].includes(b.status)
+  const upcomingBookings = bookings.filter(booking =>
+    new Date(booking.scheduled_at) > new Date() && ['pending', 'confirmed'].includes(booking.status)
   )
-  const pastBookings = bookings.filter(b => 
-    new Date(b.scheduled_at) <= new Date() || b.status === 'cancelled'
+  const pastBookings = bookings.filter(booking =>
+    new Date(booking.scheduled_at) <= new Date() || booking.status === 'cancelled'
   )
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        ← Profil
-      </Link>
-      <div className="mb-8">
-        <h1 className="page-title mb-2">Moje Treningi</h1>
-        <p className="text-muted-foreground">
-          Twoje rezerwacje treningów indywidualnych
-        </p>
-      </div>
+    <div className={embedded ? '' : 'max-w-6xl mx-auto px-4 py-8'}>
+      {!embedded && (
+        <>
+          <Link
+            href="/profile"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
+          >
+            {'<-'} Profil
+          </Link>
+          <div className="mb-8">
+            <h1 className="page-title mb-2">Moje Treningi</h1>
+            <p className="text-muted-foreground">
+              Twoje rezerwacje treningow indywidualnych
+            </p>
+          </div>
+        </>
+      )}
 
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
@@ -160,20 +202,19 @@ export default function MyTrainingsContent() {
 
       {bookings.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-slate-500 mb-4">Nie masz jeszcze żadnych rezerwacji</p>
+          <p className="text-slate-500 mb-4">Nie masz jeszcze zadnych rezerwacji</p>
           <Link href="/trainings" className="btn btn-primary inline-block">
-            Przeglądaj trenerów
+            Przegladaj trenerow
           </Link>
         </div>
       ) : (
         <>
-          {/* Upcoming */}
           {upcomingBookings.length > 0 && (
             <div className="mb-12">
-              <h2 className="font-heading font-semibold text-xl mb-6">Nadchodzące treningi</h2>
+              <h2 className="font-heading font-semibold text-xl mb-6">Nadchodzace treningi</h2>
               <div className="space-y-4">
                 {upcomingBookings.map(booking => (
-                  <div key={booking.id} className={`card border-l-4 border-accent p-6`}>
+                  <div key={booking.id} className="card border-l-4 border-accent p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="font-heading font-semibold text-lg mb-1">
@@ -193,7 +234,7 @@ export default function MyTrainingsContent() {
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Clock className="w-4 h-4" />
-                        {format(parseISO(booking.scheduled_at), 'HH:mm')} – {booking.duration_min} minut
+                        {format(parseISO(booking.scheduled_at), 'HH:mm')} - {booking.duration_min} minut
                       </div>
                     </div>
 
@@ -210,7 +251,7 @@ export default function MyTrainingsContent() {
                         disabled={cancelling === booking.id}
                         className="text-sm text-red-600 hover:text-red-700 font-semibold"
                       >
-                        {cancelling === booking.id ? 'Anulowanie…' : 'Anuluj rezerwację'}
+                        {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwacje'}
                       </button>
                     )}
                   </div>
@@ -219,7 +260,6 @@ export default function MyTrainingsContent() {
             </div>
           )}
 
-          {/* Past */}
           {pastBookings.length > 0 && (
             <div>
               <h2 className="font-heading font-semibold text-xl mb-6">Historia</h2>

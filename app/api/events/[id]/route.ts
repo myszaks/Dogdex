@@ -7,6 +7,8 @@ import {
   syncMultidateFormData,
   syncMultidateFormFields,
 } from '@/lib/eventDateSync'
+import { registrationWindowValidationError } from '@/lib/eventStatus'
+import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -37,7 +39,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields')
+    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, event_type_id, registration_opens_at, registration_deadline')
     .eq('id', id)
     .single()
 
@@ -58,7 +60,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Only allow updating safe fields (including new phase-1 columns)
   const allowedFields = [
     'title', 'description', 'location', 'start_at', 'end_at', 'status',
-    'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
+    'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_opens_at', 'registration_deadline',
     'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
     'live_phase', 'form_template_id',
@@ -66,6 +68,29 @@ export async function PATCH(req: Request, { params }: Params) {
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+
+  const registrationWindowError = registrationWindowValidationError({
+    start_at: 'start_at' in body ? body.start_at : existingEvent.start_at,
+    registration_opens_at: 'registration_opens_at' in body
+      ? body.registration_opens_at
+      : existingEvent.registration_opens_at,
+    registration_deadline: 'registration_deadline' in body
+      ? body.registration_deadline
+      : existingEvent.registration_deadline,
+  })
+  if (registrationWindowError) {
+    return NextResponse.json({ error: registrationWindowError }, { status: 400 })
+  }
+
+  const nextEventTypeId = 'event_type_id' in body
+    ? body.event_type_id
+    : existingEvent.event_type_id
+  const sourceFormFields = 'form_fields' in update
+    ? update.form_fields
+    : existingEvent.form_fields
+  if (nextEventTypeId === 'speedway') {
+    update.form_fields = ensureSpeedwayClassificationFields(sourceFormFields, nextEventTypeId)
   }
 
   const dateReplacements = buildEventDateReplacements(existingEvent, {

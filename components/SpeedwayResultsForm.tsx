@@ -9,6 +9,7 @@ import {
   parseRunMs,
   bestMs as computeBest,
   medalEmoji,
+  normalizeSizeClass,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
@@ -20,6 +21,7 @@ export interface SpeedwayParticipant {
   ownerName: string
   breed: string
   heightCm: number | null
+  registrationClass?: string | null
   result: {
     id: string
     run1_ms: number | null
@@ -60,11 +62,11 @@ function msToInput(ms: number | null): string {
 }
 
 function defaultClass(p: SpeedwayParticipant): SizeClass {
+  const registrationClass = normalizeSizeClass(p.registrationClass)
+  if (registrationClass) return registrationClass
+  const storedClass = normalizeSizeClass(p.result?.size_class)
+  if (storedClass) return storedClass
   if (p.heightCm !== null) return getSizeClass(p.heightCm)
-  // Fall back to stored size_class if no height
-  if (p.result?.size_class && SIZE_CLASSES.includes(p.result.size_class as SizeClass)) {
-    return p.result.size_class as SizeClass
-  }
   return 'M' // sensible default – organizer will correct
 }
 

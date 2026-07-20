@@ -21,9 +21,15 @@
     }
 
     const events = await eventsRes.json()
-    const upcoming = Array.isArray(events) ? events.find(e => e.status === 'upcoming') : null
+    const now = new Date()
+    const upcoming = Array.isArray(events) ? events.find(event =>
+      event.status === 'upcoming' &&
+      (!event.start_at || new Date(event.start_at) > now) &&
+      (!event.registration_opens_at || new Date(event.registration_opens_at) <= now) &&
+      (!event.registration_deadline || new Date(event.registration_deadline) > now)
+    ) : null
     if (!upcoming) {
-      console.error('[E2E] No upcoming event found (check DB)')
+      console.error('[E2E] No event with open registration found (check DB)')
       process.exit(1)
     }
 

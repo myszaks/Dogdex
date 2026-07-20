@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
-import { formatDate, statusColor, statusLabel, isRegistrationOpen, effectiveStatus } from '@/lib/utils'
+import { formatDate, statusColor, statusLabel, isRegistrationOpen, registrationPhase, effectiveStatus } from '@/lib/utils'
 import RegisterModal from './RegisterModal'
 import type { DogEvent, FormField } from '@/types'
 import type { ReactNode } from 'react'
@@ -31,6 +31,7 @@ export default function EventCard({ event, registeredCount, extraActions, hidePu
   const isOngoing = dispStatus === 'ongoing'
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const regOpen = isRegistrationOpen(event)
+  const regPhase = registrationPhase(event)
   const maxParticipants = typeof event.max_participants === 'number' ? event.max_participants : null
   const capacityKnown = typeof registeredCount === 'number'
   const isFull = capacityKnown && maxParticipants !== null && maxParticipants > 0 && registeredCount >= maxParticipants
@@ -105,7 +106,13 @@ export default function EventCard({ event, registeredCount, extraActions, hidePu
                 {isFull ? 'Brak wolnych miejsc' : `${registeredCount} / ${maxParticipants} miejsc`}
               </p>
             )}
-            {event.registration_deadline && dispStatus === 'upcoming' && (
+            {event.registration_opens_at && regPhase === 'not_started' && (
+              <p className="text-xs flex items-center gap-1.5 text-muted-foreground font-medium">
+                <Lock className="w-3.5 h-3.5 shrink-0" />
+                Zapisy od {formatDate(event.registration_opens_at)}
+              </p>
+            )}
+            {event.registration_deadline && dispStatus === 'upcoming' && regPhase !== 'not_started' && (
               <p className={cn('text-xs flex items-center gap-1.5', regOpen ? 'text-muted-foreground' : 'text-orange-600 font-medium')}>
                 <Lock className="w-3.5 h-3.5 shrink-0" />
                 {regOpen ? `Zapisy do ${formatDate(event.registration_deadline)}` : 'Zapisy zamknięte'}
@@ -126,7 +133,16 @@ export default function EventCard({ event, registeredCount, extraActions, hidePu
                   Brak miejsc
                 </span>
               )}
-              {dispStatus === 'upcoming' && !regOpen && (
+              {dispStatus === 'upcoming' && regPhase === 'not_started' && event.registration_opens_at && (
+                <button
+                  type="button"
+                  disabled
+                  className="btn btn-sm bg-secondary text-muted-foreground border border-border cursor-not-allowed"
+                >
+                  Zapisy od {formatDate(event.registration_opens_at)}
+                </button>
+              )}
+              {dispStatus === 'upcoming' && regPhase === 'closed' && (
                 <span className="btn btn-sm bg-secondary text-muted-foreground border border-border cursor-not-allowed">
                   Zapisy zamknięte
                 </span>

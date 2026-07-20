@@ -30,7 +30,7 @@ export default async function ResultsPage({ params }: Props) {
   const [{ data: registrations }, { data: results }] = await Promise.all([
     supabase
       .from('registrations')
-      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
+      .select('id, participant_id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm, breed))')
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -75,13 +75,21 @@ export default async function ResultsPage({ params }: Props) {
     const dogHeightCm = Array.isArray(r.participants?.dogs)
       ? r.participants.dogs[0]?.height_cm
       : r.participants?.dogs?.height_cm
+    const profileBreed = Array.isArray(r.participants?.dogs)
+      ? r.participants.dogs[0]?.breed
+      : r.participants?.dogs?.breed
     return {
       participantId: r.participants?.id ?? r.participant_id,
       dogName: r.participants?.dog_name ?? '',
       ownerName: r.participants?.owner_name ?? '',
       breed: r.participants?.dog_breed ?? '',
       heightCm: dogHeightCm ?? null,
-      formSizeClass: extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm) ?? null,
+      formSizeClass: extractSizeClassFromRegistration(
+        r.form_data as Record<string, unknown>,
+        dogHeightCm,
+        r.participants?.dog_breed,
+        profileBreed,
+      ) ?? null,
       checkedIn: Boolean(r.checked_in),
       result: existingResult ? {
         id: existingResult.id,

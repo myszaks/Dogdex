@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
-import { bestMs as computeBestMs, computeSpeedKmh } from '@/lib/speedway'
+import { bestMs as computeBestMs, computeSpeedKmh, normalizeSizeClass } from '@/lib/speedway'
 
 export async function GET(req: Request) {
   const supabase = await createAuthClient()
@@ -51,6 +51,11 @@ export async function POST(req: Request) {
   const best = computeBestMs(r1, r2)
   const distM = typeof track_distance_m === 'number' ? track_distance_m : null
   const speed = best !== null && distM !== null ? computeSpeedKmh(best, distM) : null
+  const normalizedSizeClass = normalizeSizeClass(size_class)
+
+  if (size_class != null && !normalizedSizeClass) {
+    return NextResponse.json({ error: 'Nieprawidłowa klasa startowa' }, { status: 400 })
+  }
 
   // For speedway, time_ms = best_ms (backward compat with public display)
   const effectiveTimeMs = best !== null ? best : (typeof time_ms === 'number' ? time_ms : null)
@@ -65,7 +70,7 @@ export async function POST(req: Request) {
     run2_status: s2,
     best_ms: best,
     speed_kmh: speed,
-    size_class: typeof size_class === 'string' ? size_class : null,
+    size_class: normalizedSizeClass,
   }
 
   let data, error

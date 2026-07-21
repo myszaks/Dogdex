@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getBookingDateTimeParts } from '@/lib/trainingBooking'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createServiceRoleClient } from '@/lib/supabaseServer'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +10,8 @@ export async function GET(request: NextRequest) {
     if (!trainerId) {
       return NextResponse.json({ error: 'Brakuje identyfikatora trenera' }, { status: 400 })
     }
+
+    const supabase = createServiceRoleClient()
 
     const today = new Date().toISOString().split('T')[0]
 

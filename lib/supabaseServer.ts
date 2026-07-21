@@ -17,6 +17,29 @@ export function createServerClient() {
   })
 }
 
+/**
+ * Strict service-role client for endpoints that must bypass RLS.
+ * Keep creation inside a request handler so route modules can be evaluated
+ * safely by Next.js during the build.
+ */
+export function createServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error(
+      'Brakuje NEXT_PUBLIC_SUPABASE_URL lub SUPABASE_SERVICE_ROLE_KEY w konfiguracji serwera.'
+    )
+  }
+
+  return createClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+}
+
 
 
 /**

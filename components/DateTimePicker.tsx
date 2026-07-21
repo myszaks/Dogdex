@@ -9,9 +9,10 @@ interface Props {
   required?: boolean
   placeholder?: string
   minDate?: Date
+  maxDate?: Date
 }
 
-export default function DateTimePicker({ value, onChange, required, placeholder, minDate }: Props) {
+export default function DateTimePicker({ value, onChange, required, placeholder, minDate, maxDate }: Props) {
   const selected = value ? new Date(value) : null
 
   return (
@@ -30,6 +31,7 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
       isClearable={!required}
       showPopperArrow={false}
       minDate={minDate}
+      maxDate={maxDate}
       timeCaption="Godzina"
       autoComplete="off"
     />

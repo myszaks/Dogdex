@@ -5,6 +5,7 @@ import {
   SIZE_CLASSES,
   SIZE_CLASS_LABELS,
   getSizeClass,
+  normalizeSizeClass,
   computeSpeedKmh,
   formatRunTime,
   parseRunMs,
@@ -56,15 +57,15 @@ interface RowResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function defaultClass(p: SpeedwayLiveParticipant): SizeClass {
+  const registrationClass = normalizeSizeClass(p.formSizeClass)
+  if (registrationClass) return registrationClass
+
+  const storedClass = normalizeSizeClass(p.result?.size_class)
+  if (storedClass) return storedClass
+
   if (p.heightCm !== null) {
     const n = typeof p.heightCm === 'number' ? p.heightCm : parseFloat(p.heightCm as unknown as string)
     if (!isNaN(n)) return getSizeClass(n)
-  }
-  if (p.formSizeClass && SIZE_CLASSES.includes(p.formSizeClass as SizeClass)) {
-    return p.formSizeClass as SizeClass
-  }
-  if (p.result?.size_class && SIZE_CLASSES.includes(p.result.size_class as SizeClass)) {
-    return p.result.size_class as SizeClass
   }
   return 'M'
 }

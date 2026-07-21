@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import FormBuilder from './FormBuilder'
 import TemplateFieldConfigurator from './TemplateFieldConfigurator'
 import { getEventType } from '@/lib/eventTypes'
+import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 import type { FormField } from '@/types'
 
 interface TemplateMeta {
@@ -154,6 +155,15 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
   return (
     <>
       <div className="space-y-2">
+        {eventTypeId === 'speedway' && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+            <p className="font-semibold">🔒 Klasyfikacja Speedway</p>
+            <p className="mt-1 text-xs text-sky-700">
+              Wzrost psa i wybór klasy Sport są polami systemowymi. Nie można ich usunąć ani zmienić,
+              ponieważ na ich podstawie aplikacja wyznacza klasę startową.
+            </p>
+          </div>
+        )}
         {loading && <p className="text-sm text-slate-400">Ładowanie szablonów...</p>}
 
         {!loading && templates.length === 0 && (
@@ -171,7 +181,11 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
             {selectedTemplateId && (
               <button
                 type="button"
-                onClick={() => { setConfiguredFields([]); onSelect(null, []) }}
+                onClick={() => {
+                  const systemFields = ensureSpeedwayClassificationFields([], eventTypeId)
+                  setConfiguredFields(systemFields)
+                  onSelect(null, systemFields)
+                }}
                 className="text-xs text-slate-400 hover:text-slate-600 underline"
               >
                 Usuń wybór (brak dodatkowych pól)
@@ -185,7 +199,10 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
                 selected={selectedTemplateId === t.id}
                 deletingConfirm={deletingId === t.id}
                 onSelect={() => {
-                  const fresh = t.fields.map(f => ({ ...f }))
+                  const fresh = ensureSpeedwayClassificationFields(
+                    t.fields.map(f => ({ ...f })),
+                    eventTypeId,
+                  )
                   setConfiguredFields(fresh)
                   onSelect(t.id, fresh)
                 }}
@@ -204,7 +221,10 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
                     selected={selectedTemplateId === t.id}
                     deletingConfirm={deletingId === t.id}
                     onSelect={() => {
-                      const fresh = t.fields.map(f => ({ ...f }))
+                      const fresh = ensureSpeedwayClassificationFields(
+                        t.fields.map(f => ({ ...f })),
+                        eventTypeId,
+                      )
                       setConfiguredFields(fresh)
                       onSelect(t.id, fresh)
                     }}

@@ -5,6 +5,7 @@ export interface DogEvent {
   description: string | null
   start_at: string | null
   end_at: string | null
+  registration_opens_at: string | null
   registration_deadline: string | null
   location: string | null
   status: string

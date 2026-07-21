@@ -7,6 +7,7 @@ import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
+import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 import type { FormField } from '@/types'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -22,6 +23,7 @@ interface Props {
     location: string | null
     start_at: string | null
     end_at: string | null
+    registration_opens_at: string | null
     registration_deadline: string | null
     status: string
     event_type_id: string | null
@@ -64,6 +66,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [organizerName, setOrganizerName] = useState<string>(initialData.organizer_name ?? '')
   const [startAt, setStartAt] = useState<string | null>(initialData.start_at ?? null)
   const [endAt, setEndAt] = useState<string | null>(initialData.end_at ?? null)
+  const [registrationOpensAt, setRegistrationOpensAt] = useState<string | null>(initialData.registration_opens_at ?? null)
   const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(initialData.registration_deadline ?? null)
   const [lat, setLat] = useState<number | null>(initialData.lat ?? null)
   const [lng, setLng] = useState<number | null>(initialData.lng ?? null)
@@ -73,6 +76,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
+    if (id === 'speedway') {
+      setFormFields(ensureSpeedwayClassificationFields(formFields, id))
+      return
+    }
     if (formFields.length === 0) {
       const et = EVENT_TYPES.find(t => t.id === id)
       if (et) {
@@ -111,6 +118,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       location: location || null,
       start_at: startAt,
       end_at: endAt || null,
+      registration_opens_at: registrationOpensAt || null,
       registration_deadline: registrationDeadline || null,
       status: form.get('status'),
       event_type_id: eventTypeId || null,
@@ -212,10 +220,28 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
             </div>
           </div>
-          <div>
-            <label className="form-label">Termin zapisów</label>
-            <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
-            <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Początek zapisów</label>
+              <DateTimePicker
+                value={registrationOpensAt}
+                onChange={setRegistrationOpensAt}
+                placeholder="Od razu"
+                maxDate={registrationDeadline || startAt ? new Date(registrationDeadline ?? startAt!) : undefined}
+              />
+              <p className="text-xs text-slate-400 mt-1">Przed tą datą przycisk zapisów będzie nieaktywny.</p>
+            </div>
+            <div>
+              <label className="form-label">Koniec zapisów</label>
+              <DateTimePicker
+                value={registrationDeadline}
+                onChange={setRegistrationDeadline}
+                placeholder="Opcjonalnie"
+                minDate={registrationOpensAt ? new Date(registrationOpensAt) : undefined}
+                maxDate={startAt ? new Date(startAt) : undefined}
+              />
+              <p className="text-xs text-slate-400 mt-1">Po tym terminie zapisy zostaną automatycznie zamknięte.</p>
+            </div>
           </div>
 
           {/* Registrations settings */}

@@ -4,7 +4,7 @@ import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
 import SpeedwayLiveView from '@/components/SpeedwayLiveView'
 import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
-import { extractSizeClassFromRegistration } from '@/lib/speedway'
+import { extractSizeClassFromRegistration, normalizeSizeClass } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -55,7 +55,7 @@ export default async function LivePage({ params }: Props) {
       .order('rank', { ascending: true }),
     supabase
       .from('registrations')
-      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm))')
+      .select('id, order_index, form_data, checked_in, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm, breed))')
       .eq('event_id', resolvedId)
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
@@ -82,10 +82,16 @@ export default async function LivePage({ params }: Props) {
       const dogHeightCm = Array.isArray(r.participants?.dogs)
         ? r.participants.dogs[0]?.height_cm
         : r.participants?.dogs?.height_cm
-      const formClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm)
-      const existingClass = existingResult?.size_class && ['XS','S','M','L','XL'].includes(existingResult.size_class)
-        ? existingResult.size_class as import('@/lib/speedway').SizeClass
-        : null
+      const profileBreed = Array.isArray(r.participants?.dogs)
+        ? r.participants.dogs[0]?.breed
+        : r.participants?.dogs?.breed
+      const formClass = extractSizeClassFromRegistration(
+        r.form_data as Record<string, unknown>,
+        dogHeightCm,
+        r.participants?.dog_breed,
+        profileBreed,
+      )
+      const existingClass = normalizeSizeClass(existingResult?.size_class)
       const sizeClass: import('@/lib/speedway').SizeClass = formClass ?? existingClass ?? 'M'
       return {
         participantId: pid,

@@ -53,10 +53,10 @@ const AGILITY_ALIASES: Record<string, string[]> = {
   competition:  ['competition', 'zawodnik', 'zawodowy'],
 }
 
-const SPEEDWAY_CLASS_OPTIONS = new Set(['xs', 's', 'm', 'l', 'xl'])
+const SPEEDWAY_CLASS_OPTIONS = new Set(['xs', 's', 'm', 'l', 'chart', 'sport'])
 
 function optionSizeClass(option: string): SizeClass | null {
-  const match = option.trim().toUpperCase().match(/^(XS|XL|S|M|L)\b/)
+  const match = option.trim().toUpperCase().match(/^(CHART|SPORT|XS|S|M|L)\b/)
   return match ? match[1] as SizeClass : null
 }
 

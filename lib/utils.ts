@@ -1,7 +1,11 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { DogEvent } from "@/types"
-import { effectiveEventStatus, isEventRegistrationOpen } from "@/lib/eventStatus"
+import {
+  effectiveEventStatus,
+  getEventRegistrationPhase,
+  isEventRegistrationOpen,
+} from "@/lib/eventStatus"
 
 export const DISPLAY_TIME_ZONE = 'Europe/Warsaw'
 
@@ -100,6 +104,10 @@ export function statusBadgeClasses(status: string): string {
 
 export function isRegistrationOpen(event: DogEvent): boolean {
   return isEventRegistrationOpen(event)
+}
+
+export function registrationPhase(event: DogEvent) {
+  return getEventRegistrationPhase(event)
 }
 
 export function effectiveStatus(event: DogEvent): string {

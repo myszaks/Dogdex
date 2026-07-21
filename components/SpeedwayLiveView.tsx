@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime } from '@/lib/speedway'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, normalizeSizeClass } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,7 +85,12 @@ export default function SpeedwayLiveView({
   const supabase = getSupabaseBrowserClient()
   const [startIndex, setStartIndex] = useState(initialStartIndex)
   const [livePhase, setLivePhase] = useState(initialLivePhase)
-  const [results, setResults] = useState<SpeedwayResult[]>(initialResults)
+  const [results, setResults] = useState<SpeedwayResult[]>(
+    initialResults.map(result => ({
+      ...result,
+      size_class: normalizeSizeClass(result.size_class),
+    }))
+  )
   const [connected, setConnected] = useState(false)
 
   // Pre-compute sequence structures (stable — participants don't change)
@@ -115,7 +120,12 @@ export default function SpeedwayLiveView({
       .from('results')
       .select('id, participant_id, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank')
       .eq('event_id', eventId)
-    if (data) setResults(data as SpeedwayResult[])
+    if (data) {
+      setResults((data as SpeedwayResult[]).map(result => ({
+        ...result,
+        size_class: normalizeSizeClass(result.size_class),
+      })))
+    }
   }, [eventId, supabase])
 
   const fetchEventState = useCallback(async () => {

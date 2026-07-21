@@ -17,6 +17,8 @@ create table if not exists events (
   description text,
   start_at    timestamptz,
   end_at      timestamptz,
+  registration_opens_at timestamptz,
+  registration_deadline timestamptz,
   location    text,
   created_by  uuid,
   metadata    jsonb not null default '{}',
@@ -170,6 +172,7 @@ grant all on public.results       to service_role;
 grant all on public.participants  to service_role;
 grant all on public.registrations to service_role;
 grant all on public.profiles      to service_role;
+grant select on public.dogs       to service_role;
 
 -- profiles
 grant select on public.profiles to authenticated;
@@ -304,9 +307,57 @@ create policy "participants_organizer_delete" on participants
 -- Nowe kolumny w tabeli events
 alter table events add column if not exists event_type_id           text;
 alter table events add column if not exists form_fields              jsonb not null default '[]';
+alter table events add column if not exists registration_opens_at    timestamptz;
 alter table events add column if not exists registration_deadline    timestamptz;
 alter table events add column if not exists has_results              boolean not null default false;
 alter table events add column if not exists results_public           boolean not null default true;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'events_registration_window_order_check'
+      and conrelid = 'public.events'::regclass
+  ) then
+    alter table public.events
+      add constraint events_registration_window_order_check
+      check (
+        registration_opens_at is null
+        or registration_deadline is null
+        or registration_opens_at < registration_deadline
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'events_registration_opens_before_start_check'
+      and conrelid = 'public.events'::regclass
+  ) then
+    alter table public.events
+      add constraint events_registration_opens_before_start_check
+      check (
+        registration_opens_at is null
+        or start_at is null
+        or registration_opens_at < start_at
+      );
+  end if;
+end
+$$;
+
+drop policy if exists "registrations_public_insert" on public.registrations;
+create policy "registrations_public_insert" on public.registrations
+  for insert
+  with check (
+    exists (
+      select 1
+      from public.events
+      where events.id = registrations.event_id
+        and events.status <> 'cancelled'
+        and (events.start_at is null or current_timestamp < events.start_at)
+        and (events.registration_opens_at is null or current_timestamp >= events.registration_opens_at)
+        and (events.registration_deadline is null or current_timestamp < events.registration_deadline)
+    )
+  );
 
 -- Tabela szablonów formularzy
 create table if not exists form_templates (

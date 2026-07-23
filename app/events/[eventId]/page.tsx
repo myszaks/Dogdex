@@ -8,6 +8,7 @@ import {
   effectiveStatus,
   statusLabel,
   statusBadgeClasses,
+  plForm,
 } from '@/lib/utils'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
@@ -15,6 +16,7 @@ import EventMapClient from '@/components/EventMapClient'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight, Banknote } from 'lucide-react'
+import { getEventCountdown } from '@/lib/eventCountdown'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -41,7 +43,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { event } = await resolveEvent(eventId)
   if (!event) return { title: 'Wydarzenie' }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dogdex.pl'
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    'https://dogdex.pro'
   const canonicalUrl = `${baseUrl}/events/${event.slug}`
   const description = event.description
     ? event.description.slice(0, 200).replace(/\s+/g, ' ').trim()
@@ -96,13 +101,8 @@ export default async function EventDetailPage({ params }: Props) {
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
   const hasSchedule = (slotCount ?? 0) > 0
 
-  // Days remaining to registration deadline or event start
-  const now = new Date()
-  const deadlineDate = event.registration_deadline ? new Date(event.registration_deadline) : null
-  const startDate = event.start_at ? new Date(event.start_at) : null
-  const targetDate = deadlineDate && deadlineDate > now ? deadlineDate : startDate
-  const daysRemaining = dispStatus === 'upcoming' && targetDate
-    ? Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const countdown = dispStatus === 'upcoming'
+    ? getEventCountdown(event)
     : null
 
   const registeredCount = regCount ?? 0
@@ -291,11 +291,13 @@ export default async function EventDetailPage({ params }: Props) {
             )}
 
             {/* Days remaining */}
-            {daysRemaining != null && daysRemaining > 0 && (
+            {countdown && (
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Pozostało</span>
-                <span className="font-semibold text-foreground ml-auto">{daysRemaining} {daysRemaining === 1 ? 'dzień' : 'dni'}</span>
+                <span className="text-muted-foreground">{countdown.label}</span>
+                <span className="font-semibold text-foreground ml-auto">
+                  {plForm(countdown.days, 'dzień', 'dni', 'dni')}
+                </span>
               </div>
             )}
 

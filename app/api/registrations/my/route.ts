@@ -5,13 +5,19 @@ import { getServerUser } from '@/lib/getServerUser'
 export async function GET(req: Request) {
   const { user } = await getServerUser()
   if (!user?.email) {
-    return NextResponse.json(null, { status: 401 })
+    return NextResponse.json(null, {
+      status: 401,
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
   }
 
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
   if (!eventId) {
-    return NextResponse.json({ error: 'eventId wymagany' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'eventId wymagany' },
+      { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+    )
   }
 
   const supabase = await createAuthClient()
@@ -49,7 +55,9 @@ export async function GET(req: Request) {
   }
 
   if (participantIds.size === 0) {
-    return NextResponse.json([])
+    return NextResponse.json([], {
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
   }
 
   // Find all registrations for this event (excluding cancelled).
@@ -63,7 +71,9 @@ export async function GET(req: Request) {
 
   const registrationIds = (registrations ?? []).map(reg => reg.id as string)
   if (registrationIds.length === 0) {
-    return NextResponse.json([])
+    return NextResponse.json([], {
+      headers: { 'Cache-Control': 'private, no-store' },
+    })
   }
 
   const { data: pendingCancellationRequests } = await supabase
@@ -80,6 +90,7 @@ export async function GET(req: Request) {
     (registrations ?? []).map(reg => ({
       ...reg,
       pending_cancellation_request: pendingByRegistrationId.get(reg.id as string) ?? null,
-    }))
+    })),
+    { headers: { 'Cache-Control': 'private, no-store' } }
   )
 }

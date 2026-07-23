@@ -103,16 +103,18 @@ export default async function EventDetailPage({ params }: Props) {
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
   const hasSchedule = (slotCount ?? 0) > 0
 
-  const countdown = dispStatus === 'upcoming'
-    ? getEventCountdown(event)
-    : null
-
   const registeredCount = regCount ?? 0
   const maxParticipants = event.max_participants
   const isFull = typeof maxParticipants === 'number' && maxParticipants > 0 && registeredCount >= maxParticipants
   const fillPct = maxParticipants && maxParticipants > 0
     ? Math.min(100, Math.round((registeredCount / maxParticipants) * 100))
     : null
+  const countdown = getEventCountdown({
+    ...event,
+    status: dispStatus as 'upcoming' | 'ongoing' | 'finished' | 'cancelled',
+    registrationPhase: regPhase,
+    registrationAvailable: regOpen && !isFull,
+  })
 
   const statusDotColor: Record<string, string> = {
     upcoming: 'bg-blue-400',

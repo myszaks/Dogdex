@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import RegistrationEventCard from '@/components/RegistrationEventCard'
 import RegistrationsCalendar from '@/components/RegistrationsCalendar'
+import RegistrationsAutoRefresh from '@/components/RegistrationsAutoRefresh'
 import type { Metadata } from 'next'
 import type { CancellationRequest } from '@/types'
 
@@ -81,6 +82,7 @@ export default async function MyRegistrationsPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
+      <RegistrationsAutoRefresh />
       <div className="mb-8">
         <h1 className="page-title">Moje zapisy</h1>
       </div>

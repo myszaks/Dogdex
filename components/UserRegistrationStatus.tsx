@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import useUser from '@/hooks/useUser'
 import type { FormField } from '@/types'
 import ConfirmModal from './ConfirmModal'
@@ -26,14 +26,10 @@ export default function UserRegistrationStatus({ eventId }: Props) {
   const [requestSentIds, setRequestSentIds] = useState<Set<string>>(() => new Set())
   const [confirmRegistrationId, setConfirmRegistrationId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!user?.email) {
-      setRegistrations([])
-      setRequestSentIds(new Set())
-      return
-    }
+  const loadRegistrations = useCallback(() => {
+    if (!user?.email) return
 
-    fetch(`/api/registrations/my?eventId=${eventId}`)
+    fetch(`/api/registrations/my?eventId=${eventId}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then(data => {
         const nextRegistrations: RegistrationWithParticipant[] = Array.isArray(data)
@@ -54,6 +50,29 @@ export default function UserRegistrationStatus({ eventId }: Props) {
         setRequestSentIds(new Set())
       })
   }, [user?.email, eventId])
+
+  useEffect(() => {
+    if (!user?.email) {
+      setRegistrations([])
+      setRequestSentIds(new Set())
+      return
+    }
+
+    loadRegistrations()
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') loadRegistrations()
+    }
+    window.addEventListener('focus', refreshIfVisible)
+    document.addEventListener('visibilitychange', refreshIfVisible)
+    const intervalId = window.setInterval(refreshIfVisible, 30_000)
+
+    return () => {
+      window.removeEventListener('focus', refreshIfVisible)
+      document.removeEventListener('visibilitychange', refreshIfVisible)
+      window.clearInterval(intervalId)
+    }
+  }, [user?.email, loadRegistrations])
 
   if (registrations === undefined || !user || registrations.length === 0) return null
 

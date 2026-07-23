@@ -1,11 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createServiceRoleClient } from '@/lib/supabaseServer'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +8,8 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
+
+    const supabase = createServiceRoleClient()
 
     // Fetch trainer's date availability slots
     const { data, error } = await supabase
@@ -41,6 +38,8 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
+
+    const supabase = createServiceRoleClient()
 
     const body = await request.json()
     const { available_date, start_time, end_time } = body
@@ -98,6 +97,8 @@ export async function PATCH(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
+
+    const supabase = createServiceRoleClient()
 
     const body = await request.json()
     const { id, start_time, end_time } = body
@@ -159,6 +160,8 @@ export async function DELETE(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
     }
+
+    const supabase = createServiceRoleClient()
 
     const body = await request.json()
     const { id } = body

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser, checkRoleForApi } from '@/lib/getServerUser'
+import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 
 export async function GET(req: Request) {
   const { user: authUser } = await getServerUser()
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
       name: name.trim(),
       event_type_id: event_type_id ?? null,
       created_by: authUser.id,
-      fields,
+      fields: ensureSpeedwayClassificationFields(fields, event_type_id),
     }])
     .select()
     .single()

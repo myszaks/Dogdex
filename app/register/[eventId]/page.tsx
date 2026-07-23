@@ -1,7 +1,7 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { formatDate, isRegistrationOpen, effectiveStatus } from '@/lib/utils'
+import { formatDate, isRegistrationOpen, registrationPhase, effectiveStatus } from '@/lib/utils'
 import RegisterForm from '@/components/RegisterForm'
 import { getEventType } from '@/lib/eventTypes'
 import type { Metadata } from 'next'
@@ -41,6 +41,7 @@ export default async function RegisterPage({ params }: Props) {
   if (redirectTo) redirect(redirectTo)
 
   const regOpen = isRegistrationOpen(event)
+  const regPhase = registrationPhase(event)
   const dispStatus = effectiveStatus(event)
   const eventHref = `/events/${event.slug}`
 
@@ -53,12 +54,18 @@ export default async function RegisterPage({ params }: Props) {
         <div className="card text-center py-16">
           <p className="text-5xl mb-4">{dispStatus !== 'upcoming' ? '🚫' : '🔒'}</p>
           <p className="text-lg font-semibold text-slate-700">
-            {dispStatus !== 'upcoming' ? 'Zapisy niedostępne' : 'Zapisy zamknięte'}
+            {dispStatus !== 'upcoming'
+              ? 'Zapisy niedostępne'
+              : regPhase === 'not_started'
+                ? 'Zapisy jeszcze się nie rozpoczęły'
+                : 'Zapisy zamknięte'}
           </p>
           <p className="text-slate-500 text-sm mt-2">
             {dispStatus !== 'upcoming'
               ? 'To wydarzenie nie przyjmuje już zapisów.'
-              : 'Termin zapisów minął.'}
+              : regPhase === 'not_started' && event.registration_opens_at
+                ? `Zapisy rozpoczną się ${formatDate(event.registration_opens_at)}.`
+                : 'Termin zapisów minął.'}
           </p>
         </div>
       </div>
@@ -90,7 +97,7 @@ export default async function RegisterPage({ params }: Props) {
         )}
       </div>
 
-      <RegisterForm eventId={eventId} formFields={formFields} />
+      <RegisterForm eventId={event.id} formFields={formFields} />
     </div>
   )
 }

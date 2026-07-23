@@ -1,4 +1,5 @@
 import type { FormField } from '@/types'
+import { SPEEDWAY_HEIGHT_FIELD, SPEEDWAY_SPORT_FIELD } from '@/lib/speedway'
 
 export interface EventType {
   id: string
@@ -34,14 +35,8 @@ export const EVENT_TYPES: EventType[] = [
     name: 'Speedway',
     icon: '🏎️',
     defaultFields: [
-      {
-        id: 'height_cm',
-        label: 'Wzrost psa w kłębie (cm)',
-        type: 'number',
-        required: true,
-        placeholder: 'np. 45',
-        description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (50–59.9cm), XL (≥60cm)',
-      },
+      { ...SPEEDWAY_HEIGHT_FIELD },
+      { ...SPEEDWAY_SPORT_FIELD },
     ],
   },
   {

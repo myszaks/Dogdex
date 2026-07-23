@@ -27,7 +27,7 @@ export default async function CheckInPage({ params }: Props) {
 
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, checked_in, form_data, participants(id, dog_name, owner_name, dogs(height_cm))')
+    .select('id, checked_in, form_data, participants(id, dog_name, owner_name, dog_breed, dogs(height_cm, breed))')
     .eq('event_id', eventId)
     .eq('status', 'confirmed')
     .order('order_index', { ascending: true, nullsFirst: false })
@@ -38,7 +38,15 @@ export default async function CheckInPage({ params }: Props) {
     const dogHeightCm = Array.isArray(r.participants?.dogs)
       ? r.participants.dogs[0]?.height_cm
       : r.participants?.dogs?.height_cm
-    const sizeClass: SizeClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm) ?? 'M'
+    const profileBreed = Array.isArray(r.participants?.dogs)
+      ? r.participants.dogs[0]?.breed
+      : r.participants?.dogs?.breed
+    const sizeClass: SizeClass = extractSizeClassFromRegistration(
+      r.form_data as Record<string, unknown>,
+      dogHeightCm,
+      r.participants?.dog_breed,
+      profileBreed,
+    ) ?? 'M'
     return {
       registrationId: r.id as string,
       participantId: pid as string,

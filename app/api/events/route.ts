@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
+import { registrationWindowValidationError } from '@/lib/eventStatus'
+import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -28,11 +30,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_opens_at, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field } = body as Record<string, unknown>
 
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
   }
+
+  const registrationWindowError = registrationWindowValidationError({
+    start_at,
+    registration_opens_at,
+    registration_deadline,
+  })
+  if (registrationWindowError) {
+    return NextResponse.json({ error: registrationWindowError }, { status: 400 })
+  }
+
+  const normalizedFormFields = ensureSpeedwayClassificationFields(form_fields, event_type_id)
 
   // Generate a unique slug
   const baseSlug = toSlug((title as string).trim()) || 'event'
@@ -58,10 +71,11 @@ export async function POST(req: Request) {
       location: (location as string | null) ?? null,
       start_at: (start_at as string | null) ?? null,
       end_at: (end_at as string | null) ?? null,
+      registration_opens_at: (registration_opens_at as string | null) ?? null,
       registration_deadline: (registration_deadline as string | null) ?? null,
       status: (status as string) ?? 'upcoming',
       event_type_id: (event_type_id as string | null) ?? null,
-      form_fields: Array.isArray(form_fields) ? form_fields : [],
+      form_fields: normalizedFormFields,
       has_results: typeof has_results === 'boolean' ? has_results : false,
       results_public: typeof results_public === 'boolean' ? results_public : true,
       has_schedule: typeof has_schedule === 'boolean' ? has_schedule : false,

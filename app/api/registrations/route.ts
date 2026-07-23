@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
-import { isEventRegistrationOpen } from '@/lib/eventStatus'
+import { getEventRegistrationPhase } from '@/lib/eventStatus'
 
 export async function GET(req: Request) {
   const auth = await checkRoleForApi(['organizer', 'admin'])
@@ -56,12 +56,22 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline')
+    .select('id, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_opens_at, registration_deadline')
     .eq('id', eventId)
     .single()
 
   if (!event) return NextResponse.json({ error: 'Wydarzenie nie istnieje' }, { status: 404 })
-  if (!isEventRegistrationOpen(event)) {
+  const registrationPhase = getEventRegistrationPhase(event)
+  if (registrationPhase === 'not_started') {
+    return NextResponse.json(
+      {
+        error: 'Zapisy na to wydarzenie jeszcze się nie rozpoczęły',
+        registrationOpensAt: event.registration_opens_at,
+      },
+      { status: 409 },
+    )
+  }
+  if (registrationPhase === 'closed') {
     return NextResponse.json({ error: 'Zapisy na to wydarzenie są zamknięte' }, { status: 409 })
   }
 
@@ -88,7 +98,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Brak uprawnień do użycia tego psa' }, { status: 401 })
     }
 
-    const { data: ownedDog, error: dogError } = await supabase
+    // Verify ownership with the caller's authenticated session. The dogs table
+    // is protected by RLS, so this query can only return a dog owned by `user`.
+    const authSupabase = await createAuthClient()
+    const { data: ownedDog, error: dogError } = await authSupabase
       .from('dogs')
       .select('id')
       .eq('id', dogIdNorm)

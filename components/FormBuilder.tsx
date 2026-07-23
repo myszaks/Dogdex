@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import type { FormField } from '@/types'
 import OptionReorder from './OptionReorder'
+import { isSpeedwayClassificationFieldKey } from '@/lib/speedway'
 
 // ─── Field type labels ──────────────────────────────────────────────────────
 const FIELD_TYPES: Array<{ value: FormField['type']; label: string }> = [
@@ -37,6 +38,7 @@ interface FieldCardProps {
   onMoveUp: (index: number) => void
   onMoveDown: (index: number) => void
   templateMode?: boolean
+  locked?: boolean
 }
 
 function FieldCard({
@@ -49,6 +51,7 @@ function FieldCard({
   onMoveUp,
   onMoveDown,
   templateMode,
+  locked,
 }: FieldCardProps) {
   function addOption() {
     const newOpt = field.type === 'multidate'
@@ -84,6 +87,11 @@ function FieldCard({
 
         {/* Main content */}
         <div className="flex-1 space-y-2 min-w-0">
+          {locked && (
+            <p className="text-xs font-semibold text-sky-700">
+              🔒 Pole systemowe Speedway
+            </p>
+          )}
           {/* Label + type row */}
           <div className="flex gap-2">
             <input
@@ -91,10 +99,12 @@ function FieldCard({
               value={field.label}
               onChange={e => onUpdate(index, { label: e.target.value })}
               placeholder="Nazwa pola"
+              disabled={locked}
             />
             <select
               className="form-input text-sm w-36 shrink-0"
               value={field.type}
+              disabled={locked}
               onChange={e => {
                 const t = e.target.value as FormField['type']
                 onUpdate(index, {
@@ -123,6 +133,7 @@ function FieldCard({
               value={field.placeholder ?? ''}
               onChange={e => onUpdate(index, { placeholder: e.target.value })}
               placeholder="Tekst podpowiedzi (opcjonalnie)"
+              disabled={locked}
             />
           )}
 
@@ -134,6 +145,7 @@ function FieldCard({
               onUpdate(index, { description: e.target.value || undefined })
             }
             placeholder="Opis / pomoc dla uczestnika (opcjonalnie)"
+            disabled={locked}
           />
 
           {/* Select options */}
@@ -161,20 +173,27 @@ function FieldCard({
               checked={field.required}
               onChange={e => onUpdate(index, { required: e.target.checked })}
               className="rounded"
+              disabled={locked}
             />
             Pole wymagane
           </label>
         </div>
 
         {/* Delete */}
-        <button
-          type="button"
-          onClick={() => onRemove(index)}
-          className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-1 shrink-0"
-          title="Usuń pole"
-        >
-          🗑️
-        </button>
+        {locked ? (
+          <span className="text-sky-500 p-1 shrink-0" title="Tego pola nie można usunąć">
+            🔒
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-1 shrink-0"
+            title="Usuń pole"
+          >
+            🗑️
+          </button>
+        )}
       </div>
     </div>
   )
@@ -411,6 +430,7 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
               onMoveUp={moveUp}
               onMoveDown={moveDown}
               templateMode={templateMode}
+              locked={eventTypeId === 'speedway' && isSpeedwayClassificationFieldKey(field.id)}
             />
           ))}
         </div>

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   formatDate,
   isRegistrationOpen,
+  registrationPhase,
   effectiveStatus,
   statusLabel,
   statusBadgeClasses,
@@ -97,6 +98,7 @@ export default async function EventDetailPage({ params }: Props) {
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const dispStatus = effectiveStatus(event)
   const regOpen = isRegistrationOpen(event)
+  const regPhase = registrationPhase(event)
   const isOngoing = dispStatus === 'ongoing'
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
   const hasSchedule = (slotCount ?? 0) > 0
@@ -189,6 +191,15 @@ export default async function EventDetailPage({ params }: Props) {
                 triggerLabel={<>Zapisz się <ChevronRight className="w-4 h-4" /></>}
               />
             </div>
+          )}
+          {dispStatus === 'upcoming' && regPhase === 'not_started' && event.registration_opens_at && (
+            <button
+              type="button"
+              disabled
+              className="btn shrink-0 px-6 py-2.5 text-sm font-semibold bg-secondary text-muted-foreground border border-border cursor-not-allowed"
+            >
+              Zapisy od {formatDate(event.registration_opens_at)}
+            </button>
           )}
           {dispStatus === 'ongoing' && event.has_results && event.results_public && (
             <Link href={`/live/${event.slug}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
@@ -311,6 +322,17 @@ export default async function EventDetailPage({ params }: Props) {
             )}
 
             {/* Registration deadline */}
+            {event.registration_opens_at && dispStatus === 'upcoming' && (
+              <div className="flex items-start gap-2 text-sm border-t border-border pt-3">
+                <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">
+                    {regPhase === 'not_started' ? 'Zapisy rozpoczną się' : 'Zapisy otwarte od'}
+                  </p>
+                  <p className="font-medium text-foreground">{formatDate(event.registration_opens_at)}</p>
+                </div>
+              </div>
+            )}
             {event.registration_deadline && dispStatus === 'upcoming' && regOpen && (
               <div className="flex items-start gap-2 text-sm border-t border-border pt-3">
                 <Lock className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -344,7 +366,17 @@ export default async function EventDetailPage({ params }: Props) {
                 Brak wolnych miejsc na to wydarzenie
               </div>
             )}
-            {dispStatus === 'upcoming' && !regOpen && (
+            {dispStatus === 'upcoming' && regPhase === 'not_started' && event.registration_opens_at && (
+              <button
+                type="button"
+                disabled
+                className="btn btn-secondary w-full py-2.5 cursor-not-allowed"
+              >
+                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Zapisy rozpoczną się {formatDate(event.registration_opens_at)}</span>
+              </button>
+            )}
+            {dispStatus === 'upcoming' && regPhase === 'closed' && (
               <div className="flex items-center gap-2 text-sm text-orange-600 font-medium bg-orange-50 rounded-xl px-3 py-2.5">
                 <Lock className="w-4 h-4 shrink-0" />
                 Zapisy zostały zamknięte

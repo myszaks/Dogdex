@@ -16,20 +16,25 @@
     // find upcoming event
     const { data: events, error: eErr } = await supabase
       .from('events')
-      .select('id,title,status,auto_confirm,start_at,location,max_participants')
+      .select('id,title,status,auto_confirm,start_at,end_at,location,max_participants,registration_opens_at,registration_deadline')
       .eq('status', 'upcoming')
-      .limit(1)
 
     if (eErr) {
       console.error('[E2E] Error fetching events', eErr)
       process.exit(1)
     }
-    if (!events || events.length === 0) {
-      console.error('[E2E] No upcoming events found')
+    const now = new Date()
+    const ev = events?.find(event =>
+      (!event.start_at || new Date(event.start_at) > now) &&
+      (!event.registration_opens_at || new Date(event.registration_opens_at) <= now) &&
+      (!event.registration_deadline || new Date(event.registration_deadline) > now)
+    )
+
+    if (!ev) {
+      console.error('[E2E] No event with open registration found')
       process.exit(1)
     }
 
-    const ev = events[0]
     console.log('[E2E] Using event', ev.id, ev.title)
 
     const payload = {

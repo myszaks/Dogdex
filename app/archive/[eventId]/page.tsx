@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatDate, formatTime, effectiveStatus, statusLabel, statusColor } from '@/lib/utils'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeSpeedKmh } from '@/lib/speedway'
+import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeSpeedKmh, normalizeSizeClass } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 import type { Metadata } from 'next'
 
@@ -42,11 +42,15 @@ export default async function EventArchivePage({ params }: Props) {
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()
-  const { data: results } = await supabase
+  const { data: rawResults } = await supabase
     .from('results')
     .select('*, participants(dog_name, owner_name, dog_breed)')
     .eq('event_id', event.id)
     .order('class_rank', { ascending: true, nullsFirst: false })
+  const results = rawResults?.map(result => ({
+    ...result,
+    size_class: normalizeSizeClass(result.size_class) ?? result.size_class,
+  }))
 
   const isSpeedway = event.event_type_id === 'speedway'
   const distanceM: number | null = event.track_distance_m ?? null

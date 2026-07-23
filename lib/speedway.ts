@@ -1,22 +1,200 @@
-// Kategorie rozmiarowe dla Speedway wg wzrostu psa w kłębie
+import type { FormField } from '@/types'
 
-export const SIZE_CLASSES = ['XS', 'S', 'M', 'L', 'XL'] as const
+// Kolejność klas jest równocześnie kolejnością startów w widokach Speedway.
+export const SIZE_CLASSES = ['XS', 'S', 'M', 'L', 'CHART', 'SPORT'] as const
 export type SizeClass = (typeof SIZE_CLASSES)[number]
 
 export const SIZE_CLASS_LABELS: Record<SizeClass, string> = {
   XS: 'XS  (< 30 cm)',
   S: 'S  (30 – 39.9 cm)',
   M: 'M  (40 – 49.9 cm)',
-  L: 'L  (50 – 59.9 cm)',
-  XL: 'XL  (≥ 60 cm)',
+  L: 'L  (≥ 50 cm)',
+  CHART: 'Chart',
+  SPORT: 'Sport',
 }
 
 export function getSizeClass(heightCm: number): SizeClass {
-  if (heightCm >= 60) return 'XL'
   if (heightCm >= 50) return 'L'
   if (heightCm >= 40) return 'M'
   if (heightCm >= 30) return 'S'
   return 'XS'
+}
+
+export const SPEEDWAY_HEIGHT_FIELD_ID = 'height_cm'
+export const SPEEDWAY_HEIGHT_FIELD: FormField = {
+  id: SPEEDWAY_HEIGHT_FIELD_ID,
+  label: 'Wzrost psa w kłębie (cm)',
+  type: 'number',
+  required: true,
+  placeholder: 'np. 45',
+  description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (≥50cm). Charty trafiają do osobnej klasy.',
+}
+
+export const SPEEDWAY_SPORT_FIELD_ID = 'sport_class'
+export const SPEEDWAY_SPORT_FIELD: FormField = {
+  id: SPEEDWAY_SPORT_FIELD_ID,
+  label: 'Klasa sport',
+  type: 'checkbox',
+  required: false,
+  description: 'Dla psów będących w treningu sportowym',
+}
+
+/**
+ * Oficjalne rasy grupy FCI 10 wraz z popularnymi polskimi i angielskimi
+ * nazwami. Uwzględniamy też prowizorycznie uznanego Kazakh Tazy.
+ */
+export const SIGHTHOUND_BREED_ALIASES = [
+  'chart',
+  'sighthound',
+  'afghan hound',
+  'saluki',
+  'borzoi',
+  'borzoj',
+  'russkaya psovaya borzaya',
+  'deerhound',
+  'irish wolfhound',
+  'wilczarz irlandzki',
+  'greyhound',
+  'whippet',
+  'magyar agar',
+  'hungarian greyhound',
+  'charcik wloski',
+  'piccolo levriero italiano',
+  'italian sighthound',
+  'italian greyhound',
+  'azawakh',
+  'sloughi',
+  'galgo',
+  'galgo espanol',
+  'spanish greyhound',
+  'kazakh tazy',
+  'tazy',
+] as const
+
+function normalizeSearchText(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+export function isSighthoundBreed(value: unknown): boolean {
+  const breed = normalizeSearchText(value)
+  if (!breed) return false
+
+  const paddedBreed = ` ${breed} `
+  return SIGHTHOUND_BREED_ALIASES.some(alias =>
+    paddedBreed.includes(` ${alias} `)
+  )
+}
+
+export function normalizeSizeClass(value: unknown): SizeClass | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase()
+  if (normalized === 'XL') return 'L'
+  return (SIZE_CLASSES as readonly string[]).includes(normalized)
+    ? normalized as SizeClass
+    : null
+}
+
+export function isSpeedwaySportFieldKey(key: string): boolean {
+  const normalized = normalizeSearchText(key).replace(/\s+/g, '_')
+  return (
+    normalized === SPEEDWAY_SPORT_FIELD_ID ||
+    normalized.startsWith(`${SPEEDWAY_SPORT_FIELD_ID}_`) ||
+    normalized === 'speedway_sport_class' ||
+    normalized.startsWith('speedway_sport_class_') ||
+    normalized === 'klasa_sport' ||
+    normalized.startsWith('klasa_sport_')
+  )
+}
+
+export function isSpeedwayHeightFieldKey(key: string): boolean {
+  const normalized = normalizeSearchText(key).replace(/\s+/g, '_')
+  return (
+    normalized === SPEEDWAY_HEIGHT_FIELD_ID ||
+    normalized.startsWith(`${SPEEDWAY_HEIGHT_FIELD_ID}_`) ||
+    normalized.includes('wzrost') ||
+    normalized.includes('wysokosc') ||
+    normalized.includes('height')
+  )
+}
+
+export function isSpeedwayClassificationFieldKey(key: string): boolean {
+  return isSpeedwayHeightFieldKey(key) || isSpeedwaySportFieldKey(key)
+}
+
+function isTruthySelection(value: unknown): boolean {
+  if (value === true || value === 1) return true
+  if (typeof value !== 'string') return false
+  return ['true', '1', 'yes', 'tak', 'on', 'sport'].includes(value.trim().toLowerCase())
+}
+
+export function isSportClassSelected(
+  formData: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!formData) return false
+
+  return Object.entries(formData).some(([key, value]) =>
+    (isSpeedwaySportFieldKey(key) && isTruthySelection(value)) ||
+    normalizeSizeClass(value) === 'SPORT'
+  )
+}
+
+export function ensureSpeedwayClassificationFields(
+  formFields: unknown,
+  eventTypeId: unknown,
+): FormField[] {
+  const fields = Array.isArray(formFields) ? formFields as FormField[] : []
+  if (eventTypeId !== 'speedway') return fields
+
+  let hasHeightField = false
+  let hasSportField = false
+  const normalizedFields: FormField[] = []
+
+  for (const field of fields) {
+    if (!field || typeof field !== 'object' || typeof field.id !== 'string') continue
+
+    if (isSpeedwayHeightFieldKey(field.id)) {
+      if (hasHeightField) continue
+      hasHeightField = true
+      normalizedFields.push({
+        ...field,
+        type: 'number',
+        required: true,
+        label: SPEEDWAY_HEIGHT_FIELD.label,
+        placeholder: SPEEDWAY_HEIGHT_FIELD.placeholder,
+        description: SPEEDWAY_HEIGHT_FIELD.description,
+      })
+      continue
+    }
+
+    if (isSpeedwaySportFieldKey(field.id)) {
+      if (hasSportField) continue
+      hasSportField = true
+      normalizedFields.push({
+        ...field,
+        type: 'checkbox',
+        required: false,
+        label: SPEEDWAY_SPORT_FIELD.label,
+        description: SPEEDWAY_SPORT_FIELD.description,
+        options: undefined,
+        placeholder: undefined,
+      })
+      continue
+    }
+
+    normalizedFields.push(field)
+  }
+
+  if (!hasHeightField) normalizedFields.push({ ...SPEEDWAY_HEIGHT_FIELD })
+  if (!hasSportField) normalizedFields.push({ ...SPEEDWAY_SPORT_FIELD })
+  return normalizedFields
 }
 
 /** Prędkość w km/h na podstawie najlepszego czasu i długości toru */
@@ -45,21 +223,6 @@ function parseHeightCm(value: unknown): number | null {
   return Number.isNaN(n) ? null : n
 }
 
-function isHeightFieldKey(key: string): boolean {
-  const normalized = key
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  return (
-    normalized === 'height_cm' ||
-    normalized.startsWith('height_cm_') ||
-    normalized.includes('wzrost') ||
-    normalized.includes('wysokosc') ||
-    normalized.includes('height')
-  )
-}
-
 /** Wyznacza najlepszy czas (null jeśli oba brak) */
 export function bestMs(run1: number | null, run2: number | null): number | null {
   if (run1 !== null && run2 !== null) return Math.min(run1, run2)
@@ -75,11 +238,11 @@ export function medalEmoji(rank: number): string {
 }
 
 /**
- * Wyciąga klasę rozmiarową z form_data rejestracji.
+ * Wyciąga klasę startową z form_data rejestracji.
  * Obsługuje trzy przypadki:
- *   1. Pole `height_cm` (number/string) → oblicza klasę automatycznie
- *   2. Pole `size_class` z wartością XS/S/M/L/XL → używa bezpośrednio
- *   3. JAKIEKOLWIEK inne pole, którego wartość to XS/S/M/L/XL → używa go
+ *   1. Zaznaczona klasa Sport → używa jej niezależnie od pozostałych danych
+ *   2. Pole `height_cm` (number/string) → oblicza klasę automatycznie
+ *   3. Dowolne pole z poprawnym symbolem klasy → używa go bezpośrednio
  *      (obsługa niestandardowych nazw pól, np. `klasa`, `dog_class`, itp.)
  */
 export function extractSizeClassFromFormData(
@@ -87,19 +250,24 @@ export function extractSizeClassFromFormData(
 ): SizeClass | null {
   if (!formData) return null
 
-  // 1. height_cm → przelicz wzrost na klasę
+  if (isSportClassSelected(formData)) return 'SPORT'
+
+  // Jawnie wybrana klasa Chart również ma pierwszeństwo przed wzrostem.
+  for (const value of Object.values(formData)) {
+    if (normalizeSizeClass(value) === 'CHART') return 'CHART'
+  }
+
+  // height_cm → przelicz wzrost na klasę
   for (const [key, value] of Object.entries(formData)) {
-    if (!isHeightFieldKey(key)) continue
+    if (!isSpeedwayHeightFieldKey(key)) continue
     const height = parseHeightCm(value)
     if (height !== null) return getSizeClass(height)
   }
 
-  // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana
-  //    jako klasa (obsługuje size_class, klasa, dog_class, kategoria, etc.)
-  for (const v of Object.values(formData)) {
-    if (typeof v === 'string' && (SIZE_CLASSES as readonly string[]).includes(v)) {
-      return v as SizeClass
-    }
+  // Skanuj wszystkie wartości — poprawny symbol klasy traktujemy jako klasę.
+  for (const value of Object.values(formData)) {
+    const sizeClass = normalizeSizeClass(value)
+    if (sizeClass) return sizeClass
   }
 
   return null
@@ -108,7 +276,15 @@ export function extractSizeClassFromFormData(
 export function extractSizeClassFromRegistration(
   formData: Record<string, unknown> | null | undefined,
   dogHeightCm: unknown,
+  registrationBreed?: unknown,
+  profileBreed?: unknown,
 ): SizeClass | null {
+  // Kolejność biznesowa: Sport → Chart → klasa wzrostowa.
+  if (isSportClassSelected(formData)) return 'SPORT'
+  if (isSighthoundBreed(registrationBreed) || isSighthoundBreed(profileBreed)) {
+    return 'CHART'
+  }
+
   const fromForm = extractSizeClassFromFormData(formData)
   if (fromForm) return fromForm
 

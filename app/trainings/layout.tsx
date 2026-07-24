@@ -1,13 +1,14 @@
 import { notFound } from 'next/navigation'
 import { INDIVIDUAL_TRAININGS_ENABLED } from '@/lib/features'
-import { requireRole } from '@/lib/getServerUser'
 
 interface LayoutProps {
   children: React.ReactNode
 }
 
-export default async function TrainerLayout({ children }: LayoutProps) {
-  await requireRole(['trainer', 'admin'])
+export default function TrainingsLayout({ children }: LayoutProps) {
+  if (!INDIVIDUAL_TRAININGS_ENABLED) {
+    notFound()
+  }
 
   return children
 }

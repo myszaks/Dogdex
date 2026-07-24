@@ -18,6 +18,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { INDIVIDUAL_TRAININGS_ENABLED } from '@/lib/features'
 
 function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()

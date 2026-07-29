@@ -122,7 +122,7 @@ export default function EventResultsSetup({
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
+      <section data-tutorial-id="results-toggle" className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="flex gap-4">
             <span className={cn(
@@ -184,7 +184,7 @@ export default function EventResultsSetup({
             </div>
           )}
 
-          <section className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
+          <section data-tutorial-id="results-method" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Krok 1</p>
               <h2 className="mt-1 text-xl font-heading font-bold text-primary">Jak liczymy wyniki?</h2>
@@ -282,7 +282,7 @@ export default function EventResultsSetup({
             </section>
           )}
 
-          <section className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
+          <section data-tutorial-id="results-visibility" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Krok 3</p>
             <h2 className="mt-1 text-xl font-heading font-bold text-primary">Co widzą uczestnicy?</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">

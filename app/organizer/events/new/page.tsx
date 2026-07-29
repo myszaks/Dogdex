@@ -162,7 +162,7 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   const [savingMode, setSavingMode] = useState<'draft' | 'publish' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialSession, setTutorialSession] = useState(0)
 
   const [eventTypeId, setEventTypeId] = useState<string>('')
   const [title, setTitle] = useState('')
@@ -394,7 +394,7 @@ export default function NewEventPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setTutorialOpen(true)}
+            onClick={() => setTutorialSession(session => session + 1)}
             className="btn btn-secondary btn-sm"
           >
             <HelpCircle className="h-4 w-4" />
@@ -408,8 +408,10 @@ export default function NewEventPage() {
       </div>
 
       <EventCreatorTutorial
-        manualOpen={tutorialOpen}
-        onManualOpenChange={setTutorialOpen}
+        key={`${currentStep}-${tutorialSession}`}
+        currentStep={currentStep}
+        forceStart={tutorialSession > 0}
+        onManualComplete={() => setTutorialSession(0)}
       />
 
       <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
@@ -653,12 +655,12 @@ function StepBasicInfo({
         description="Dodaj zdjęcie, nazwę, organizatora i wybierz typ wydarzenia. Galeria jest zachowana jako część obecnego kreatora."
       />
 
-      <div className="mx-auto max-w-2xl rounded-3xl border-2 border-dashed border-sage-200 bg-sage-50/60 p-3 sm:p-4">
+      <div data-tutorial-id="event-cover" className="mx-auto max-w-2xl rounded-3xl border-2 border-dashed border-sage-200 bg-sage-50/60 p-3 sm:p-4">
         <ImageCropUploader currentUrl={imageUrl} onUrlChange={onImageUrlChange} />
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-5">
+        <div data-tutorial-id="event-details" className="space-y-5">
           <div>
             <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
             <input
@@ -711,7 +713,7 @@ function StepBasicInfo({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div data-tutorial-id="event-type" className="space-y-4">
           <div>
             <p className="form-label uppercase tracking-[0.16em] text-sage-500">Kategorie specjalne *</p>
             <p className="mb-4 text-sm text-muted-foreground">
@@ -789,7 +791,7 @@ function StepLocationTime({
 }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-      <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+      <div data-tutorial-id="event-location" className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
         <SectionHeader
           Icon={MapPin}
           eyebrow="Lokalizacja"
@@ -817,7 +819,7 @@ function StepLocationTime({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+      <div data-tutorial-id="event-dates" className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
         <SectionHeader
           Icon={CalendarDays}
           eyebrow="Harmonogram"
@@ -907,7 +909,7 @@ function StepRegistration({
   return (
     <div className="space-y-8">
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel Icon={Users} title="Limity uczestników">
+        <Panel Icon={Users} title="Limity uczestników" tutorialId="registration-limits">
           <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
           <div className="relative">
             <input
@@ -927,7 +929,7 @@ function StepRegistration({
           </p>
         </Panel>
 
-        <Panel Icon={CalendarDays} title="Terminy zapisów">
+        <Panel Icon={CalendarDays} title="Terminy zapisów" tutorialId="registration-dates">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <label className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</label>
@@ -948,7 +950,7 @@ function StepRegistration({
           </div>
         </Panel>
 
-        <Panel Icon={Wallet} title="Opłaty">
+        <Panel Icon={Wallet} title="Opłaty" tutorialId="registration-fees">
           <ToggleRow
             checked={entryFeeEnabled}
             onChange={onEntryFeeEnabledChange}
@@ -976,7 +978,7 @@ function StepRegistration({
           )}
         </Panel>
 
-        <Panel Icon={ShieldCheck} title="Automatyzacja">
+        <Panel Icon={ShieldCheck} title="Automatyzacja" tutorialId="registration-automation">
           <div className="space-y-3">
             <ToggleRow
               checked={autoConfirm}
@@ -995,7 +997,7 @@ function StepRegistration({
       </div>
 
       <div>
-        <Panel Icon={FileText} title="Formularz zapisów">
+        <Panel Icon={FileText} title="Formularz zapisów" tutorialId="registration-form">
           <p className="mb-4 text-sm text-muted-foreground">
             Wybierz szablon pól dodatkowych albo utwórz nowy. Pola stałe uczestnika pozostają dostępne jak wcześniej.
           </p>
@@ -1074,7 +1076,7 @@ function StepPreview({
 
   return (
     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_390px]">
-      <div className="space-y-6">
+      <div data-tutorial-id="event-preview" className="space-y-6">
         <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-primary shadow-sm">
           {imageUrl ? (
             <Image src={imageUrl} alt="" fill className="object-cover" unoptimized />
@@ -1121,7 +1123,7 @@ function StepPreview({
         </div>
       </div>
 
-      <aside className="h-fit rounded-3xl border border-sage-200 bg-white p-6 shadow-sm xl:sticky xl:top-8">
+      <aside data-tutorial-id="event-publish" className="h-fit rounded-3xl border border-sage-200 bg-white p-6 shadow-sm xl:sticky xl:top-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white">
             <Rocket className="h-5 w-5" />
@@ -1177,13 +1179,15 @@ function Panel({
   Icon,
   title,
   children,
+  tutorialId,
 }: {
   Icon: LucideIcon
   title: string
   children: React.ReactNode
+  tutorialId?: string
 }) {
   return (
-    <section className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+    <section data-tutorial-id={tutorialId} className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
       <div className="mb-6 flex items-center gap-4">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
           <Icon className="h-5 w-5" />

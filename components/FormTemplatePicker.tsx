@@ -1,7 +1,6 @@
 ﻿'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import FormBuilder from './FormBuilder'
-import TemplateFieldConfigurator from './TemplateFieldConfigurator'
 import { getEventType } from '@/lib/eventTypes'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { Check, FilePlus2, Pencil, Trash2, X } from 'lucide-react'
@@ -17,13 +16,12 @@ interface TemplateMeta {
 interface Props {
   eventTypeId: string | null
   selectedTemplateId: string | null
-  initialConfiguredFields?: FormField[]
   onSelect: (templateId: string | null, fields: FormField[]) => void
 }
 
 type ModalMode = 'create' | 'edit'
 
-export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, initialConfiguredFields, onSelect }: Props) {
+export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, onSelect }: Props) {
   const [templates, setTemplates] = useState<TemplateMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -36,22 +34,24 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [configuredFields, setConfiguredFields] = useState<FormField[]>(initialConfiguredFields ?? [])
 
-  const fetchTemplates = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/form-templates')
-      const data = await res.json()
-      setTemplates(Array.isArray(data) ? data : [])
-    } catch {
-      setTemplates([])
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/form-templates')
+      .then(response => response.json())
+      .then(data => {
+        if (!cancelled) setTemplates(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
-
-  useEffect(() => { fetchTemplates() }, [fetchTemplates])
   useEffect(() => {
     if (!showModal) return
     const previousOverflow = document.body.style.overflow
@@ -116,7 +116,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
         setTemplates(prev => prev.map(t => t.id === editingId ? updated : t))
         if (selectedTemplateId === editingId) {
           const fresh = updated.fields.map(f => ({ ...f }))
-          setConfiguredFields(fresh)
           onSelect(updated.id, fresh)
         }
       } else {
@@ -146,7 +145,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
         if (!res.ok) throw new Error()
         setTemplates(prev => prev.filter(t => t.id !== id))
         if (selectedTemplateId === id) {
-          setConfiguredFields([])
           onSelect(null, [])
         }
       } catch {
@@ -160,7 +158,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
     }
   }
 
-  const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
   const matching = eventTypeId ? templates.filter(t => t.event_type_id === eventTypeId) : templates
   const other = eventTypeId ? templates.filter(t => t.event_type_id !== eventTypeId) : []
 
@@ -172,12 +169,12 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
         {!loading && templates.length === 0 && (
           <div className="rounded-2xl border-2 border-dashed border-[#d6e2d0] bg-[#fafcf8] px-5 py-8 text-center">
             <FilePlus2 className="mx-auto mb-3 h-7 w-7 text-[#7b8b73]" />
-            <p className="font-semibold text-[#43513d]">Zacznij od własnego formularza</p>
+            <p className="font-semibold text-[#43513d]">Nie masz jeszcze zapisanych schematów</p>
             <p className="mx-auto mb-4 mt-1 max-w-md text-sm leading-relaxed text-[#71806a]">
-              Pola z danymi właściciela i psa są już gotowe. Dodaj tylko pytania potrzebne przy tym rodzaju wydarzenia.
+              Pytania dla tego wydarzenia możesz edytować poniżej. Schemat przyda się, jeśli chcesz wykorzystać ten sam zestaw ponownie.
             </p>
             <button type="button" onClick={openCreateModal} className="btn btn-primary">
-              + Stwórz pierwszy szablon
+              + Utwórz schemat na przyszłość
             </button>
           </div>
         )}
@@ -187,7 +184,7 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
             {selectedTemplateId && (
               <button
                 type="button"
-                onClick={() => { setConfiguredFields([]); onSelect(null, []) }}
+                onClick={() => onSelect(null, [])}
                 className="min-h-10 rounded-xl px-3 text-sm font-medium text-[#66735f] hover:bg-[#f4f7f1]"
               >
                 Usuń wybór (brak dodatkowych pól)
@@ -202,7 +199,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
                 deletingConfirm={deletingId === t.id}
                 onSelect={() => {
                   const fresh = t.fields.map(f => ({ ...f }))
-                  setConfiguredFields(fresh)
                   onSelect(t.id, fresh)
                 }}
                 onEdit={e => openEditModal(t, e)}
@@ -221,7 +217,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
                     deletingConfirm={deletingId === t.id}
                     onSelect={() => {
                       const fresh = t.fields.map(f => ({ ...f }))
-                      setConfiguredFields(fresh)
                       onSelect(t.id, fresh)
                     }}
                     onEdit={e => openEditModal(t, e)}
@@ -238,29 +233,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
           </>
         )}
 
-        {selectedTemplate && (
-          <div className="rounded-2xl border border-[#d6e2d0] bg-[#f8faf6] p-4 space-y-3">
-            <div>
-              <p className="font-semibold text-[#43513d]">
-                Opcje dla tego wydarzenia
-              </p>
-              <p className="mt-1 text-sm leading-relaxed text-[#71806a]">
-                Wybrano „{selectedTemplate.name}”. Sprawdź daty i opcje odpowiedzi — możesz je zmienić bez modyfikowania szablonu.
-              </p>
-            </div>
-            {configuredFields.length > 0 ? (
-              <TemplateFieldConfigurator
-                fields={configuredFields}
-                onChange={updated => {
-                  setConfiguredFields(updated)
-                  onSelect(selectedTemplate.id, updated)
-                }}
-              />
-            ) : (
-              <p className="text-xs text-slate-400 italic">Brak pól dodatkowych w tym szablonie.</p>
-            )}
-          </div>
-        )}
       </div>
 
       {showModal && (

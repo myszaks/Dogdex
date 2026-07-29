@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
+import FormBuilder from '@/components/FormBuilder'
 import EventCreatorTutorial from '@/components/EventCreatorTutorial'
 import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
@@ -40,6 +41,7 @@ import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
+  hasSizeClassRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
@@ -485,6 +487,7 @@ export default function NewEventPage() {
               groupableFields={groupableFields}
               groupingField={groupingField}
               formFieldsCount={formFields.length}
+              formFields={formFields}
               onMaxParticipantsChange={setMaxParticipants}
               onRegistrationDeadlineChange={setRegistrationDeadline}
               onEntryFeeEnabledChange={checked => {
@@ -495,6 +498,10 @@ export default function NewEventPage() {
               onAutoConfirmChange={setAutoConfirm}
               onHasScheduleChange={setHasSchedule}
               onTemplateSelect={handleTemplateSelect}
+              onFormFieldsChange={fields => {
+                setFormFields(fields)
+                if (!fields.some(field => field.id === groupingField)) setGroupingField('')
+              }}
               onGroupingFieldChange={setGroupingField}
             />
           )}
@@ -675,51 +682,53 @@ function StepBasicInfo({
 
   return (
     <div className="space-y-8">
-      <SectionHeader
-        Icon={FileText}
-        eyebrow="Najważniejsze informacje"
-        title="Co organizujesz?"
-        description="Najpierw podaj nazwę i wybierz rodzaj wydarzenia. Zdjęcia są opcjonalne i możesz dodać je później."
-      />
-
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div data-tutorial-id="event-details" className="space-y-5">
-          <div>
-            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
-            <input
-              className="form-input min-h-14 bg-sage-50 text-base font-semibold"
-              name="title"
-              value={title}
-              onChange={e => onTitleChange(e.target.value)}
-              placeholder={
-                selectedTypeName
-                  ? `${selectedTypeName} - Wiosna 2026`
-                  : 'Np. Międzynarodowe Zawody Agility'
-              }
-              required
-            />
-          </div>
+        <div className="space-y-8">
+          <SectionHeader
+            Icon={FileText}
+            eyebrow="Najważniejsze informacje"
+            title="Co organizujesz?"
+            description="Najpierw podaj nazwę i wybierz rodzaj wydarzenia. Zdjęcia są opcjonalne i możesz dodać je później."
+          />
 
-          <div>
-            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
-            <input
-              className="form-input min-h-12 bg-sage-50"
-              name="organizer_name"
-              value={organizerName}
-              onChange={e => onOrganizerNameChange(e.target.value)}
-              placeholder="Imię i nazwisko lub nazwa klubu"
-            />
-          </div>
+          <div data-tutorial-id="event-details" className="space-y-5">
+            <div>
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
+              <input
+                className="form-input min-h-14 bg-sage-50 text-base font-semibold"
+                name="title"
+                value={title}
+                onChange={e => onTitleChange(e.target.value)}
+                placeholder={
+                  selectedTypeName
+                    ? `${selectedTypeName} - Wiosna 2026`
+                    : 'Np. Międzynarodowe Zawody Agility'
+                }
+                required
+              />
+            </div>
 
-          <div>
-            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Opis wydarzenia</label>
-            <textarea
-              className="form-input min-h-36 bg-sage-50 text-base leading-7"
-              name="description"
-              value={description}
-              onChange={e => onDescriptionChange(e.target.value)}
-              placeholder="Napisz, dla kogo jest wydarzenie i czego uczestnicy mogą się spodziewać..."
-            />
+            <div>
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
+              <input
+                className="form-input min-h-12 bg-sage-50"
+                name="organizer_name"
+                value={organizerName}
+                onChange={e => onOrganizerNameChange(e.target.value)}
+                placeholder="Imię i nazwisko lub nazwa klubu"
+              />
+            </div>
+
+            <div>
+              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Opis wydarzenia</label>
+              <textarea
+                className="form-input min-h-36 bg-sage-50 text-base leading-7"
+                name="description"
+                value={description}
+                onChange={e => onDescriptionChange(e.target.value)}
+                placeholder="Napisz, dla kogo jest wydarzenie i czego uczestnicy mogą się spodziewać..."
+              />
+            </div>
           </div>
         </div>
 
@@ -927,6 +936,7 @@ function StepRegistration({
   groupableFields,
   groupingField,
   formFieldsCount,
+  formFields,
   onMaxParticipantsChange,
   onRegistrationDeadlineChange,
   onEntryFeeEnabledChange,
@@ -934,6 +944,7 @@ function StepRegistration({
   onAutoConfirmChange,
   onHasScheduleChange,
   onTemplateSelect,
+  onFormFieldsChange,
   onGroupingFieldChange,
 }: {
   maxParticipants: string
@@ -947,6 +958,7 @@ function StepRegistration({
   groupableFields: FormField[]
   groupingField: string
   formFieldsCount: number
+  formFields: FormField[]
   onMaxParticipantsChange: (value: string) => void
   onRegistrationDeadlineChange: (value: string | null) => void
   onEntryFeeEnabledChange: (checked: boolean) => void
@@ -954,28 +966,68 @@ function StepRegistration({
   onAutoConfirmChange: (checked: boolean) => void
   onHasScheduleChange: (checked: boolean) => void
   onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
+  onFormFieldsChange: (fields: FormField[]) => void
   onGroupingFieldChange: (value: string) => void
 }) {
+  const speedwayDependencyReady = eventTypeId !== 'speedway'
+    || hasSizeClassRegistrationSource(formFields)
+
   return (
     <div className="space-y-8">
       <Panel Icon={FileText} title="Formularz zapisów" tutorialId="registration-form">
         <p className="mb-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Dane właściciela i psa są dodawane automatycznie. Wybierz swój schemat, aby dodać pytania potrzebne tylko przy tym wydarzeniu.
+          Dane właściciela i psa są dodawane automatycznie. Poniżej możesz od razu ustawić wszystkie pytania potrzebne przy tym wydarzeniu.
         </p>
         {eventTypeId === 'speedway' && (
-          <div className="mb-5 flex gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm leading-relaxed text-green-900">
+          <div className={`mb-5 flex gap-3 rounded-2xl border p-4 text-sm leading-relaxed ${
+            speedwayDependencyReady
+              ? 'border-green-200 bg-green-50 text-green-900'
+              : 'border-amber-200 bg-amber-50 text-amber-900'
+          }`}>
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
             <p>
-              <strong>Zależność Speedway zabezpieczona:</strong> formularz zawiera wymagane źródło klasy:
-              wzrost psa albo pełny wybór XS–XL.
+              {speedwayDependencyReady ? (
+                <>
+                  <strong>Zależność Speedway zabezpieczona:</strong> formularz zawiera wymagane źródło klasy:
+                  wzrost psa albo pełny wybór XS–XL.
+                </>
+              ) : (
+                <>
+                  <strong>Uzupełnij źródło klasy Speedway:</strong> dodaj wymagany wzrost psa albo listę ze wszystkimi klasami XS–XL.
+                </>
+              )}
             </p>
           </div>
         )}
-        <FormTemplatePicker
-          eventTypeId={eventTypeId}
-          selectedTemplateId={selectedTemplateId}
-          onSelect={onTemplateSelect}
-        />
+
+        <div className="rounded-2xl border border-sage-200 bg-sage-50/40 p-4 sm:p-5">
+          <div className="mb-4">
+            <p className="font-semibold text-primary">Pytania w tym wydarzeniu</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Możesz zmienić nazwę, typ, wymaganie i opcje każdego pytania — także dodanego automatycznie.
+            </p>
+          </div>
+          <FormBuilder
+            value={formFields}
+            onChange={onFormFieldsChange}
+            eventTypeId={eventTypeId}
+            hideTemplateActions
+          />
+        </div>
+
+        <details className="group mt-5 rounded-2xl border border-sage-200 bg-white">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-primary marker:hidden">
+            <span>{selectedTemplateId ? 'Zmień wybrany schemat formularza' : 'Użyj zapisanego schematu (opcjonalnie)'}</span>
+            <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="border-t border-sage-200 p-4">
+            <FormTemplatePicker
+              eventTypeId={eventTypeId}
+              selectedTemplateId={selectedTemplateId}
+              onSelect={onTemplateSelect}
+            />
+          </div>
+        </details>
 
         {groupableFields.length > 0 && (
           <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">

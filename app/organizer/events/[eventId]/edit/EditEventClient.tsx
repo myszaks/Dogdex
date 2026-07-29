@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
+import FormBuilder from '@/components/FormBuilder'
 import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
@@ -36,6 +37,7 @@ import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
+  hasSizeClassRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
 import { cn } from '@/lib/utils'
@@ -480,14 +482,49 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                   Dane właściciela i psa są zawsze dostępne. Tutaj ustawiasz tylko dodatkowe pytania organizatora.
                 </p>
                 {eventTypeId === 'speedway' && (
-                  <div className="mb-5 flex gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm leading-relaxed text-green-900">
+                  <div className={`mb-5 flex gap-3 rounded-2xl border p-4 text-sm leading-relaxed ${
+                    hasSizeClassRegistrationSource(formFields)
+                      ? 'border-green-200 bg-green-50 text-green-900'
+                      : 'border-amber-200 bg-amber-50 text-amber-900'
+                  }`}>
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <p>
-                      Formularz zawiera wymagane źródło klasy Speedway: wzrost psa albo pełny wybór XS–XL.
+                      {hasSizeClassRegistrationSource(formFields)
+                        ? 'Formularz zawiera wymagane źródło klasy Speedway: wzrost psa albo pełny wybór XS–XL.'
+                        : 'Dodaj wymagany wzrost psa albo pełny wybór klas XS–XL.'}
                     </p>
                   </div>
                 )}
-                <FormTemplatePicker eventTypeId={eventTypeId || null} selectedTemplateId={selectedTemplateId} initialConfiguredFields={initialData.form_fields ?? []} onSelect={handleTemplateSelect} />
+                <div className="rounded-2xl border border-sage-200 bg-sage-50/40 p-4 sm:p-5">
+                  <div className="mb-4">
+                    <p className="font-semibold text-primary">Pytania w tym wydarzeniu</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Zmiany dotyczą tego wydarzenia. Możesz edytować również pola dodane automatycznie.
+                    </p>
+                  </div>
+                  <FormBuilder
+                    value={formFields}
+                    onChange={fields => {
+                      setFormFields(fields)
+                      if (!fields.some(field => field.id === groupingField)) setGroupingField('')
+                    }}
+                    eventTypeId={eventTypeId || null}
+                    hideTemplateActions
+                  />
+                </div>
+                <details className="group mt-5 rounded-2xl border border-sage-200 bg-white">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">
+                    {selectedTemplateId ? 'Zmień wybrany schemat formularza' : 'Użyj zapisanego schematu (opcjonalnie)'}
+                    <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                  </summary>
+                  <div className="border-t border-sage-200 p-4">
+                    <FormTemplatePicker
+                      eventTypeId={eventTypeId || null}
+                      selectedTemplateId={selectedTemplateId}
+                      onSelect={handleTemplateSelect}
+                    />
+                  </div>
+                </details>
                 {groupableFields.length > 0 && (
                   <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
                     <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ensureEventTypeRegistrationDependencies,
+  hasSizeClassRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
 import { cloneCompetitionPreset } from '@/lib/eventCompetitionSetup'
@@ -33,6 +34,19 @@ describe('event form and competition schema dependencies', () => {
       validateEventCompetitionDependencies(fields, cloneCompetitionPreset('speedway')),
     ).toEqual([])
     expect(ensureEventTypeRegistrationDependencies('speedway', fields)).toBe(fields)
+  })
+
+  it('detects when an organizer makes the automatic Speedway source optional', () => {
+    const [heightField] = ensureEventTypeRegistrationDependencies('speedway', [])
+    const editedFields = [{ ...heightField, required: false }]
+
+    expect(hasSizeClassRegistrationSource(editedFields)).toBe(false)
+    expect(
+      validateEventCompetitionDependencies(
+        editedFields,
+        cloneCompetitionPreset('speedway'),
+      )[0].message,
+    ).toContain('musi wymagać wzrostu psa')
   })
 
   it('rejects a schema whose required registration answer is missing or optional', () => {

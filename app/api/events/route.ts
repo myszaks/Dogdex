@@ -7,6 +7,7 @@ import {
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
+import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -135,6 +136,18 @@ export async function POST(req: Request) {
         { error: 'Parametry formatu zawodów są nieprawidłowe.', issues: valueIssues },
         { status: 400 },
       )
+    }
+    if (nextStatus !== 'draft') {
+      const dependencyIssues = validateEventCompetitionDependencies(
+        Array.isArray(form_fields) ? form_fields : [],
+        competitionConfig as import('@/types/competition').CompetitionFormatDefinition,
+      )
+      if (dependencyIssues.length > 0) {
+        return NextResponse.json(
+          { error: dependencyIssues[0].message, issues: dependencyIssues },
+          { status: 400 },
+        )
+      }
     }
   }
 

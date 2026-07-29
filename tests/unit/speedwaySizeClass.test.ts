@@ -24,4 +24,9 @@ describe('speedway size class extraction', () => {
   it('prefers form data over dog profile height', () => {
     expect(extractSizeClassFromRegistration({ height_cm: '35' }, 62)).toBe('S')
   })
+
+  it('understands descriptive XS–XL option labels from registration forms', () => {
+    expect(extractSizeClassFromFormData({ size_class: 'XS (< 30 cm)' })).toBe('XS')
+    expect(extractSizeClassFromFormData({ category: 'XL (≥ 60 cm)' })).toBe('XL')
+  })
 })

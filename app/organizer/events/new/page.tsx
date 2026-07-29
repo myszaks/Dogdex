@@ -38,6 +38,10 @@ import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
+import {
+  ensureEventTypeRegistrationDependencies,
+  validateEventCompetitionDependencies,
+} from '@/lib/eventCompetitionDependencies'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
@@ -207,7 +211,7 @@ export default function NewEventPage() {
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
     setSelectedTemplateId(null)
-    setFormFields([])
+    setFormFields(ensureEventTypeRegistrationDependencies(id, []))
     setGroupingField('')
   }
 
@@ -224,9 +228,10 @@ export default function NewEventPage() {
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
+    const compatibleFields = ensureEventTypeRegistrationDependencies(eventTypeId, fields)
     setSelectedTemplateId(templateId)
-    setFormFields(fields)
-    if (!fields.some(f => f.id === groupingField)) setGroupingField('')
+    setFormFields(compatibleFields)
+    if (!compatibleFields.some(f => f.id === groupingField)) setGroupingField('')
   }
 
   function handleMapLocation(newLat: number, newLng: number, address: string) {
@@ -273,6 +278,14 @@ export default function NewEventPage() {
     }
 
     if (step === 3 && hasResults && competitionDefinition) {
+      const dependencyIssues = validateEventCompetitionDependencies(
+        formFields,
+        competitionDefinition,
+      )
+      if (dependencyIssues.length > 0) {
+        setError(`${dependencyIssues[0].message} Wróć do kroku rejestracji, aby poprawić formularz.`)
+        return false
+      }
       const valueIssues = validateCompetitionFieldValues(
         competitionDefinition.eventFields,
         competitionValues,
@@ -655,6 +668,11 @@ function StepBasicInfo({
   onImageUrlChange: (url: string | null) => void
   onGalleryImagesChange: (urls: string[]) => void
 }) {
+  const activeEventType = EVENT_TYPES.find(type => type.id === eventTypeId)
+  const activeEventVisual = activeEventType
+    ? getEventVisual(activeEventType.id, activeEventType.name)
+    : null
+
   return (
     <div className="space-y-8">
       <SectionHeader
@@ -713,7 +731,7 @@ function StepBasicInfo({
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
             {EVENT_TYPES.map(type => {
               const visual = getEventVisual(type.id, type.name)
               const selected = eventTypeId === type.id
@@ -723,30 +741,35 @@ function StepBasicInfo({
                   type="button"
                   onClick={() => onEventTypeChange(type.id)}
                   className={cn(
-                    'group min-h-28 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-md',
+                    'group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md',
                     selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200',
                   )}
                 >
                   <span
                     className={cn(
-                      'mb-2 flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors',
                       selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent',
                     )}
                   >
-                    <visual.Icon className="h-5 w-5" />
+                    <visual.Icon className="h-4 w-4" />
                   </span>
-                  <span className="block font-semibold text-primary">{visual.label}</span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{visual.description}</span>
+                  <span className="min-w-0 truncate text-sm font-semibold text-primary">{visual.label}</span>
                 </button>
               )
             })}
           </div>
 
-          <div className="rounded-2xl border border-sage-200 bg-sage-50 p-5 text-sm text-sage-700">
+          <div className="rounded-2xl border border-sage-200 bg-sage-50 p-4 text-sm text-sage-700">
             <div className="flex gap-3">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              {activeEventVisual ? (
+                <activeEventVisual.Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              ) : (
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              )}
               <p>
-                Typ wydarzenia wpływa na szablony formularza zapisów i pola dodatkowe dostępne w kroku rejestracji.
+                {activeEventVisual
+                  ? activeEventVisual.description
+                  : 'Typ wydarzenia wpływa na formularz zapisów i podpowiadany sposób liczenia.'}
               </p>
             </div>
           </div>
@@ -939,6 +962,15 @@ function StepRegistration({
         <p className="mb-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Dane właściciela i psa są dodawane automatycznie. Wybierz swój schemat, aby dodać pytania potrzebne tylko przy tym wydarzeniu.
         </p>
+        {eventTypeId === 'speedway' && (
+          <div className="mb-5 flex gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm leading-relaxed text-green-900">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+            <p>
+              <strong>Zależność Speedway zabezpieczona:</strong> formularz zawiera wymagane źródło klasy:
+              wzrost psa albo pełny wybór XS–XL.
+            </p>
+          </div>
+        )}
         <FormTemplatePicker
           eventTypeId={eventTypeId}
           selectedTemplateId={selectedTemplateId}
@@ -983,7 +1015,7 @@ function StepRegistration({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Panel Icon={Users} title="Limity uczestników" tutorialId="registration-limits">
           <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
           <div className="relative">

@@ -233,14 +233,10 @@ export async function POST(req: Request, { params }: Params) {
         id: row.id,
         form_data: formData,
         checked_in: Boolean(row.checked_in),
-        ...(event.event_type_id === 'speedway'
-          ? {
-              size_class: extractSizeClassFromRegistration(
-                formData,
-                participantDogHeight(participant),
-              ) ?? 'M',
-            }
-          : {}),
+        size_class: extractSizeClassFromRegistration(
+          formData,
+          participantDogHeight(participant),
+        ),
       },
       attempts: entriesByParticipant.get(row.participant_id as string) ?? [],
     }

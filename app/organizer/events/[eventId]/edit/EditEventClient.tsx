@@ -34,6 +34,10 @@ import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
+import {
+  ensureEventTypeRegistrationDependencies,
+  validateEventCompetitionDependencies,
+} from '@/lib/eventCompetitionDependencies'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
@@ -129,7 +133,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
   const [eventTypeId, setEventTypeId] = useState<string>(initialData.event_type_id ?? '')
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(initialData.form_template_id ?? null)
-  const [formFields, setFormFields] = useState<FormField[]>(initialData.form_fields ?? [])
+  const [formFields, setFormFields] = useState<FormField[]>(() =>
+    ensureEventTypeRegistrationDependencies(
+      initialData.event_type_id ?? null,
+      initialData.form_fields ?? [],
+    )
+  )
   const [hasResults, setHasResults] = useState(initialData.has_results ?? false)
   const [resultsPublic, setResultsPublic] = useState(initialData.results_public ?? true)
   const [competitionFormatId, setCompetitionFormatId] = useState<string | null>(
@@ -174,18 +183,14 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
-    if (formFields.length === 0) {
-      const eventType = EVENT_TYPES.find(type => type.id === id)
-      if (eventType) {
-        setFormFields(eventType.defaultFields.map(field => ({ ...field, id: `${field.id}_${Date.now()}` })))
-      }
-    }
+    setFormFields(current => ensureEventTypeRegistrationDependencies(id, current))
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
+    const compatibleFields = ensureEventTypeRegistrationDependencies(eventTypeId, fields)
     setSelectedTemplateId(templateId)
-    setFormFields(fields)
-    if (!fields.some(field => field.id === groupingField)) setGroupingField('')
+    setFormFields(compatibleFields)
+    if (!compatibleFields.some(field => field.id === groupingField)) setGroupingField('')
   }
 
   function handleCompetitionFormatSelect(
@@ -247,6 +252,14 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     }
 
     if (step === 3 && publishing && hasResults && competitionDefinition) {
+      const dependencyIssues = validateEventCompetitionDependencies(
+        formFields,
+        competitionDefinition,
+      )
+      if (dependencyIssues.length > 0) {
+        setError(`${dependencyIssues[0].message} Wróć do kroku rejestracji, aby poprawić formularz.`)
+        return false
+      }
       const valueIssues = validateCompetitionFieldValues(
         competitionDefinition.eventFields,
         competitionValues,
@@ -466,6 +479,14 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
                   Dane właściciela i psa są zawsze dostępne. Tutaj ustawiasz tylko dodatkowe pytania organizatora.
                 </p>
+                {eventTypeId === 'speedway' && (
+                  <div className="mb-5 flex gap-3 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm leading-relaxed text-green-900">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+                    <p>
+                      Formularz zawiera wymagane źródło klasy Speedway: wzrost psa albo pełny wybór XS–XL.
+                    </p>
+                  </div>
+                )}
                 <FormTemplatePicker eventTypeId={eventTypeId || null} selectedTemplateId={selectedTemplateId} initialConfiguredFields={initialData.form_fields ?? []} onSelect={handleTemplateSelect} />
                 {groupableFields.length > 0 && (
                   <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
@@ -483,7 +504,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 )}
               </Panel>
 
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid items-start gap-6 lg:grid-cols-2">
                 <Panel Icon={Users} title="Limity uczestników">
                   <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
                   <div className="relative">
@@ -695,27 +716,32 @@ function WizardStepper({ currentStep, onStepChange }: { currentStep: number; onS
 }
 
 function EventTypePicker({ eventTypeId, onEventTypeChange, selectedTypeName }: { eventTypeId: string; onEventTypeChange: (id: string) => void; selectedTypeName?: string }) {
+  const activeVisual = eventTypeId ? eventTypeVisual(eventTypeId) : null
   return (
     <div className="space-y-4">
       <div>
         <p className="form-label uppercase tracking-[0.16em] text-sage-500">Kategorie specjalne</p>
         <p className="text-sm text-muted-foreground">Wybrany typ: {selectedTypeName ?? 'brak'}</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
         {EVENT_TYPES.map(type => {
           const visual = eventTypeVisual(type.id)
           const selected = eventTypeId === type.id
           return (
-            <button key={type.id} type="button" onClick={() => onEventTypeChange(type.id)} className={cn('group min-h-32 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-md', selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200')}>
-              <span className={cn('mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors', selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent')}>
-                <visual.Icon className="h-6 w-6" />
+            <button key={type.id} type="button" onClick={() => onEventTypeChange(type.id)} className={cn('group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md', selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200')}>
+              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors', selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent')}>
+                <visual.Icon className="h-4 w-4" />
               </span>
-              <span className="block font-semibold text-primary">{visual.label}</span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">{type.name}</span>
+              <span className="min-w-0 truncate text-sm font-semibold text-primary">{visual.label}</span>
             </button>
           )
         })}
       </div>
+      {activeVisual && (
+        <p className="rounded-xl border border-sage-200 bg-sage-50 px-4 py-3 text-sm text-sage-700">
+          Wybrano: <strong>{activeVisual.label}</strong>
+        </p>
+      )}
     </div>
   )
 }

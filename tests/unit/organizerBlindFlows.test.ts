@@ -47,6 +47,8 @@ describe('blind organizer journeys through the event creator', () => {
       definition.eventFields,
       { distance_m: 50 },
     )).toEqual([])
+    expect(definition.resultFields.map(field => field.id)).toEqual(['time_ms'])
+    expect(definition.eventFields.map(field => field.id)).toContain('distance_m')
   })
 
   it('does not silently assign an unrelated points system to obedience', () => {

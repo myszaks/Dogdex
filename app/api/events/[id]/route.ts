@@ -19,6 +19,7 @@ import {
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
+import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -210,6 +211,16 @@ export async function PATCH(req: Request, { params }: Params) {
     if (fieldIssues.length > 0) {
       return NextResponse.json(
         { error: fieldIssues[0].message, issues: fieldIssues },
+        { status: 400 },
+      )
+    }
+    const dependencyIssues = validateEventCompetitionDependencies(
+      nextFormFields,
+      nextCompetitionConfig as import('@/types/competition').CompetitionFormatDefinition | null,
+    )
+    if (dependencyIssues.length > 0) {
+      return NextResponse.json(
+        { error: dependencyIssues[0].message, issues: dependencyIssues },
         { status: 400 },
       )
     }

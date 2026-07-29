@@ -22,6 +22,15 @@ export function getSizeClass(heightCm: number): SizeClass {
   return 'XS'
 }
 
+export function parseSizeClassValue(value: unknown): SizeClass | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase()
+  const matched = SIZE_CLASSES.find(sizeClass =>
+    new RegExp(`^${sizeClass}(?:$|[\\s(/:–—-])`).test(normalized)
+  )
+  return matched ?? null
+}
+
 /** Prędkość w km/h na podstawie najlepszego czasu i długości toru */
 export function computeSpeedKmh(bestMs: number, distanceM: number): number {
   if (bestMs <= 0 || distanceM <= 0) return 0
@@ -116,9 +125,8 @@ export function extractSizeClassFromFormData(
   // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana
   //    jako klasa (obsługuje size_class, klasa, dog_class, kategoria, etc.)
   for (const v of Object.values(formData)) {
-    if (typeof v === 'string' && (SIZE_CLASSES as readonly string[]).includes(v)) {
-      return v as SizeClass
-    }
+    const sizeClass = parseSizeClassValue(v)
+    if (sizeClass) return sizeClass
   }
 
   return null

@@ -203,12 +203,14 @@ export default function EventResultsSetup({
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <ChoiceCard
-                selected={!formatId && !definition}
-                title="Proste wyniki"
-                description="Ręczne wpisywanie miejsca, czasu i punktów — bez automatycznych obliczeń."
-                onClick={chooseBasicResults}
-              />
+              {eventTypeId !== 'speedway' && (
+                <ChoiceCard
+                  selected={!formatId && !definition}
+                  title="Proste wyniki"
+                  description="Ręczne wpisywanie miejsca, czasu i punktów — bez automatycznych obliczeń."
+                  onClick={chooseBasicResults}
+                />
+              )}
               {COMPETITION_PRESETS.map(preset => (
                 <ChoiceCard
                   key={preset.key}
@@ -220,6 +222,12 @@ export default function EventResultsSetup({
                 />
               ))}
             </div>
+
+            {eventTypeId === 'speedway' && (
+              <p className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                Speedway korzysta ze schematu obliczeniowego, aby długość toru, klasy wzrostowe, czasy i prędkość miały jedno spójne źródło danych.
+              </p>
+            )}
 
             <button
               type="button"

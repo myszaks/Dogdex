@@ -16,6 +16,7 @@ interface TargetRect {
   left: number
   width: number
   height: number
+  borderRadius: string
 }
 
 const PROMPTS_BY_STEP: Record<number, TutorialPrompt[]> = {
@@ -187,9 +188,10 @@ export default function EventCreatorTutorial({
       `[data-tutorial-id="${prompt.target}"]`,
     )
     if (!target) return
+    const targetElement = target
 
     const isSmallScreen = window.innerWidth < 640
-    target.scrollIntoView({
+    targetElement.scrollIntoView({
       behavior: 'auto',
       block: isSmallScreen ? 'start' : 'center',
     })
@@ -198,24 +200,30 @@ export default function EventCreatorTutorial({
     }
 
     function updatePosition() {
-      const rect = target?.getBoundingClientRect()
-      if (!rect) return
+      const rect = targetElement.getBoundingClientRect()
       setTargetRect({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top,
+        left: rect.left,
         width: rect.width,
         height: rect.height,
+        borderRadius: window.getComputedStyle(targetElement).borderRadius,
       })
     }
 
     const frame = window.requestAnimationFrame(updatePosition)
     const observer = new ResizeObserver(updatePosition)
-    observer.observe(target)
+    observer.observe(targetElement)
     window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('scroll', updatePosition)
     return () => {
       window.cancelAnimationFrame(frame)
       observer.disconnect()
       window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('scroll', updatePosition)
     }
   }, [active, prompt])
 
@@ -223,10 +231,10 @@ export default function EventCreatorTutorial({
 
   const isLastPrompt = promptIndex === prompts.length - 1
   const isFinalStep = currentStep === 4
-  const spotlightLeft = Math.max(window.scrollX + 8, targetRect.left - 6)
+  const spotlightLeft = Math.max(8, targetRect.left - 5)
   const spotlightWidth = Math.min(
-    targetRect.width + 12,
-    window.scrollX + window.innerWidth - spotlightLeft - 8,
+    targetRect.width + 10,
+    window.innerWidth - spotlightLeft - 8,
   )
 
   function rememberPromptIds(ids: string[]) {
@@ -299,12 +307,19 @@ export default function EventCreatorTutorial({
   return (
     <>
       <div
-        className="pointer-events-none absolute z-[125] rounded-[28px] border-2 border-accent"
+        className="pointer-events-none fixed z-[125] border-2 border-accent"
         style={{
-          top: targetRect.top - 6,
+          top: Math.max(6, targetRect.top - 5),
           left: spotlightLeft,
           width: spotlightWidth,
-          height: targetRect.height + 12,
+          height: Math.max(
+            0,
+            Math.min(
+              targetRect.height + 10,
+              window.innerHeight - Math.max(6, targetRect.top - 5) - 6,
+            ),
+          ),
+          borderRadius: targetRect.borderRadius || '24px',
           boxShadow: '0 0 0 9999px rgba(16, 35, 31, 0.58), 0 12px 40px rgba(0, 0, 0, 0.24)',
         }}
       />

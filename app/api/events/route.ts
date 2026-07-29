@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
+import {
+  validateCompetitionFieldValues,
+  validateCompetitionFormatDefinition,
+} from '@/lib/competitionEngine'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -29,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
 
   const nextStatus = typeof status === 'string' ? status : 'upcoming'
   const normalizedTitle = typeof title === 'string' && title.trim() !== ''
@@ -55,6 +59,73 @@ export async function POST(req: Request) {
     if (!existing) break
     counter += 1
     slug = `${baseSlug}-${counter}`
+  }
+
+  let competitionFormatId: string | null = null
+  let competitionConfig: unknown = null
+
+  if (typeof competition_format_id === 'string' && competition_format_id) {
+    const { data: format, error: formatError } = await supabase
+      .from('competition_formats')
+      .select('id, status, definition, created_by')
+      .eq('id', competition_format_id)
+      .maybeSingle()
+
+    if (formatError) return NextResponse.json({ error: formatError.message }, { status: 500 })
+    if (!format) return NextResponse.json({ error: 'Nie znaleziono wybranego formatu zawodów.' }, { status: 404 })
+    if (nextStatus !== 'draft' && format.status !== 'published') {
+      return NextResponse.json(
+        { error: 'Przed publikacją wydarzenia opublikuj jego format zawodów.' },
+        { status: 409 },
+      )
+    }
+    if (
+      format.status === 'draft'
+      && authResult.role !== 'admin'
+      && format.created_by !== authResult.user.id
+    ) {
+      return NextResponse.json({ error: 'Brak dostępu do roboczego formatu zawodów.' }, { status: 403 })
+    }
+    competitionFormatId = format.id
+    competitionConfig = format.definition
+  }
+
+  if (
+    competitionFormatId === null
+    && competition_config !== undefined
+    && competition_config !== null
+  ) {
+    competitionConfig = competition_config
+  }
+
+  if (competitionConfig !== null) {
+    const validation = validateCompetitionFormatDefinition(competitionConfig)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Konfiguracja zawodów jest nieprawidłowa.', issues: validation.issues },
+        { status: 400 },
+      )
+    }
+    competitionConfig = validation.data
+  }
+
+  const competitionValues = (
+    typeof competition_values === 'object'
+    && competition_values !== null
+    && !Array.isArray(competition_values)
+  ) ? competition_values : {}
+  if (competitionConfig !== null) {
+    const valueIssues = validateCompetitionFieldValues(
+      (competitionConfig as import('@/types/competition').CompetitionFormatDefinition).eventFields,
+      competitionValues,
+      { requireRequired: nextStatus !== 'draft' },
+    )
+    if (valueIssues.length > 0) {
+      return NextResponse.json(
+        { error: 'Parametry formatu zawodów są nieprawidłowe.', issues: valueIssues },
+        { status: 400 },
+      )
+    }
   }
 
   const { data, error } = await supabase
@@ -84,6 +155,10 @@ export async function POST(req: Request) {
       gallery_images: Array.isArray(gallery_images) ? gallery_images : [],
       grouping_field: (grouping_field as string | null) ?? null,
       form_template_id: (form_template_id as string | null) ?? null,
+      competition_format_id: competitionFormatId,
+      competition_config: competitionConfig,
+      competition_values: competitionValues,
+      competition_config_revision: 1,
     }])
     .select()
     .single()

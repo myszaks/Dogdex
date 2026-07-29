@@ -50,6 +50,13 @@ export default async function EditEventPage({ params }: Props) {
           gallery_images: Array.isArray(event.gallery_images) ? event.gallery_images : [],
           grouping_field: event.grouping_field ?? null,
           form_template_id: event.form_template_id ?? null,
+          competition_format_id: event.competition_format_id ?? null,
+          competition_values: (
+            event.competition_values
+            && typeof event.competition_values === 'object'
+            && !Array.isArray(event.competition_values)
+          ) ? event.competition_values : {},
+          competition_config_locked_at: event.competition_config_locked_at ?? null,
         }}
       />
     </div>

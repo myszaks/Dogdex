@@ -14,6 +14,10 @@ import {
   TRACK_DISTANCE_MAX_M,
   TRACK_DISTANCE_MIN_M,
 } from '@/lib/speedway'
+import {
+  validateCompetitionFieldValues,
+  validateCompetitionFormatDefinition,
+} from '@/lib/competitionEngine'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -44,7 +48,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, track_distance_m, slug')
+    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
     .eq('id', id)
     .single()
 
@@ -68,11 +72,100 @@ export async function PATCH(req: Request, { params }: Params) {
     'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
     'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
-    'live_phase', 'form_template_id',
+    'live_phase', 'form_template_id', 'competition_values',
   ]
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+
+  let nextCompetitionConfig = existingEvent.competition_config
+  let nextCompetitionFormatId = existingEvent.competition_format_id
+  const nextEventStatus = typeof body.status === 'string' ? body.status : existingEvent.status
+
+  if ('competition_format_id' in body) {
+    if (body.competition_format_id === null || body.competition_format_id === '') {
+      nextCompetitionFormatId = null
+      nextCompetitionConfig = null
+      update.competition_values = {}
+    } else if (typeof body.competition_format_id === 'string') {
+      const { data: format, error: formatError } = await supabase
+        .from('competition_formats')
+        .select('id, status, definition, created_by')
+        .eq('id', body.competition_format_id)
+        .maybeSingle()
+      if (formatError) return NextResponse.json({ error: formatError.message }, { status: 500 })
+      if (!format) {
+        return NextResponse.json({ error: 'Nie znaleziono wybranego formatu zawodów.' }, { status: 404 })
+      }
+      if (nextEventStatus !== 'draft' && format.status !== 'published') {
+        return NextResponse.json(
+          { error: 'Przed publikacją wydarzenia opublikuj jego format zawodów.' },
+          { status: 409 },
+        )
+      }
+      if (
+        format.status === 'draft'
+        && authResult.role !== 'admin'
+        && format.created_by !== authResult.user.id
+      ) {
+        return NextResponse.json({ error: 'Brak dostępu do roboczego formatu zawodów.' }, { status: 403 })
+      }
+      nextCompetitionFormatId = format.id
+      nextCompetitionConfig = format.definition
+    } else {
+      return NextResponse.json({ error: 'Nieprawidłowe competition_format_id.' }, { status: 400 })
+    }
+  } else if ('competition_config' in body && nextCompetitionFormatId === null) {
+    nextCompetitionConfig = body.competition_config
+  }
+
+  if (nextCompetitionConfig !== null) {
+    const validation = validateCompetitionFormatDefinition(nextCompetitionConfig)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: 'Konfiguracja zawodów jest nieprawidłowa.', issues: validation.issues },
+        { status: 400 },
+      )
+    }
+    nextCompetitionConfig = validation.data
+    const nextValues = 'competition_values' in update
+      ? update.competition_values
+      : existingEvent.competition_values
+    const valueIssues = validateCompetitionFieldValues(
+      validation.data.eventFields,
+      nextValues,
+      { requireRequired: nextEventStatus !== 'draft' },
+    )
+    if (valueIssues.length > 0) {
+      return NextResponse.json(
+        { error: 'Parametry formatu zawodów są nieprawidłowe.', issues: valueIssues },
+        { status: 400 },
+      )
+    }
+  } else if ('competition_values' in update && Object.keys(
+    typeof update.competition_values === 'object'
+      && update.competition_values !== null
+      && !Array.isArray(update.competition_values)
+      ? update.competition_values as Record<string, unknown>
+      : {}
+  ).length > 0) {
+    return NextResponse.json(
+      { error: 'Nie można zapisać parametrów bez formatu zawodów.' },
+      { status: 400 },
+    )
+  }
+
+  if (
+    nextCompetitionConfig !== existingEvent.competition_config
+    || nextCompetitionFormatId !== existingEvent.competition_format_id
+    || 'competition_values' in update
+  ) {
+    update.competition_format_id = nextCompetitionFormatId
+    update.competition_config = nextCompetitionConfig
+    update.competition_config_revision = (
+      Number(existingEvent.competition_config_revision) || 1
+    ) + 1
   }
 
   if ('track_distance_m' in update) {
@@ -130,7 +223,13 @@ export async function PATCH(req: Request, { params }: Params) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    const locked = error.message.includes('Competition configuration is locked')
+    return NextResponse.json(
+      { error: locked ? 'Konfiguracja zawodów jest zablokowana po zapisaniu pierwszego wyniku.' : error.message },
+      { status: locked ? 409 : 500 },
+    )
+  }
 
   if (dateReplacements.length > 0) {
     await syncDependentEventDates(supabase, id, data.form_fields, dateReplacements)

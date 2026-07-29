@@ -2,6 +2,7 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import ResultsForm from '@/components/ResultsForm'
 import SpeedwayLiveEntry from '@/components/SpeedwayLiveEntry'
+import CompetitionResultEntry from '@/components/CompetitionResultEntry'
 import type { SpeedwayLiveParticipant } from '@/components/SpeedwayLiveEntry'
 import NextStartButton from '@/components/NextStartButton'
 import PublishResultsButton from '@/components/PublishResultsButton'
@@ -9,6 +10,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { effectiveStatus } from '@/lib/utils'
+import type { CompetitionFormatDefinition } from '@/types/competition'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -106,6 +108,18 @@ export default async function ResultsPage({ params }: Props) {
       } : null,
     }
   })
+  const competitionDefinition = event.competition_config as CompetitionFormatDefinition | null
+  const { data: competitionEntries } = competitionDefinition
+    ? await supabase
+        .from('competition_result_entries')
+        .select('id, participant_id, stage_id, attempt_id, status, values')
+        .eq('event_id', eventId)
+    : { data: [] }
+  const competitionParticipants = (registrations ?? []).map((registration: any) => ({
+    participantId: registration.participants?.id ?? registration.participant_id,
+    dogName: registration.participants?.dog_name ?? '',
+    ownerName: registration.participants?.owner_name ?? '',
+  }))
 
   return (
     <div>
@@ -115,7 +129,7 @@ export default async function ResultsPage({ params }: Props) {
       <h1 className="page-title">🏆 Wyniki</h1>
 
       {/* Live control panel – only for ongoing events with ordered participants */}
-      {effectiveStatus(event) === 'ongoing' && !isSpeedway && (registrations?.length ?? 0) > 0 && (
+      {effectiveStatus(event) === 'ongoing' && !isSpeedway && !competitionDefinition && (registrations?.length ?? 0) > 0 && (
         <div className="space-y-3 mb-5">
           <NextStartButton
             eventId={eventId}
@@ -140,7 +154,14 @@ export default async function ResultsPage({ params }: Props) {
 
       <PublishResultsButton eventId={eventId} resultsPublic={!!event.results_public} />
 
-      {isSpeedway ? (
+      {competitionDefinition ? (
+        <CompetitionResultEntry
+          eventId={eventId}
+          definition={competitionDefinition}
+          participants={competitionParticipants}
+          initialEntries={competitionEntries ?? []}
+        />
+      ) : isSpeedway ? (
         <SpeedwayLiveEntry
           eventId={eventId}
           eventSlug={event.slug}

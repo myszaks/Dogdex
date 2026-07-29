@@ -3,11 +3,13 @@ import { notFound, redirect } from 'next/navigation'
 import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
 import SpeedwayLiveView from '@/components/SpeedwayLiveView'
+import CompetitionViewRenderer from '@/components/CompetitionViewRenderer'
 import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
 import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import type { CompetitionFormatDefinition } from '@/types/competition'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +99,25 @@ export default async function LivePage({ params }: Props) {
   const speedwayResults = (results ?? []).filter((res: any) =>
     speedwayParticipantIds.has(res.participant_id as string)
   )
+  const competitionDefinition = event.competition_config as CompetitionFormatDefinition | null
+  const [{ data: competitionResults }, { data: competitionLiveState }] = competitionDefinition
+    ? await Promise.all([
+        supabase
+          .from('competition_calculated_results')
+          .select('participant_id, computed, groups, ranks, recalculated_at, participants(dog_name, owner_name, dog_breed)')
+          .eq('event_id', resolvedId),
+        supabase
+          .from('competition_live_state')
+          .select('view_id, phase, current_participant_id, cursor, state')
+          .eq('event_id', resolvedId)
+          .maybeSingle(),
+      ])
+    : [{ data: [] }, { data: null }]
+  const competitionParticipants = (registrations ?? []).map((registration: any) => ({
+    participantId: registration.participants?.id ?? registration.participant_id,
+    dogName: registration.participants?.dog_name ?? null,
+    ownerName: registration.participants?.owner_name ?? null,
+  }))
 
   return (
     <div>
@@ -116,7 +137,16 @@ export default async function LivePage({ params }: Props) {
 
       {showLiveContent ? (
         <>
-          {isSpeedway ? (
+          {competitionDefinition ? (
+            <CompetitionViewRenderer
+              eventId={resolvedId}
+              definition={competitionDefinition}
+              kind="live"
+              participants={competitionParticipants}
+              initialResults={competitionResults ?? []}
+              initialLiveState={competitionLiveState ?? null}
+            />
+          ) : isSpeedway ? (
             <SpeedwayLiveView
               eventId={resolvedId}
               initialStartIndex={event.current_start_index ?? 0}

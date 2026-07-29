@@ -15,7 +15,6 @@ import {
   FileText,
   GalleryHorizontal,
   ImagePlus,
-  Info,
   MapPin,
   PawPrint,
   Rocket,
@@ -28,12 +27,14 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
+import CompetitionFormatPicker from '@/components/CompetitionFormatPicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
+import type { CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
   ssr: false,
@@ -74,6 +75,9 @@ interface Props {
     gallery_images: string[]
     grouping_field: string | null
     form_template_id: string | null
+    competition_format_id: string | null
+    competition_values: Record<string, CompetitionScalar>
+    competition_config_locked_at: string | null
   }
 }
 
@@ -124,6 +128,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [formFields, setFormFields] = useState<FormField[]>(initialData.form_fields ?? [])
   const [hasResults, setHasResults] = useState(initialData.has_results ?? false)
   const [resultsPublic, setResultsPublic] = useState(initialData.results_public ?? true)
+  const [competitionFormatId, setCompetitionFormatId] = useState<string | null>(
+    initialData.competition_format_id ?? null,
+  )
+  const [competitionValues, setCompetitionValues] = useState<Record<string, CompetitionScalar>>(
+    initialData.competition_values ?? {},
+  )
   const [hasSchedule, setHasSchedule] = useState(initialData.has_schedule ?? false)
   const [autoConfirm, setAutoConfirm] = useState(initialData.auto_confirm ?? false)
   const [maxParticipants, setMaxParticipants] = useState<string>(
@@ -277,6 +287,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       lng,
       gallery_images: galleryImages,
       grouping_field: groupingField || null,
+      ...(initialData.competition_config_locked_at ? {} : {
+        competition_format_id: competitionFormatId,
+        competition_values: competitionValues,
+      }),
     }
 
     try {
@@ -443,8 +457,38 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
                 <Panel Icon={Trophy} title="Wyniki i ranking">
                   <div className="space-y-3">
-                    <ToggleRow checked={hasResults} onChange={checked => { setHasResults(checked); if (!checked) setResultsPublic(true) }} title="Włącz wyniki i ranking" description="Pojawią się narzędzia organizatora oraz widok live." />
-                    {hasResults && <ToggleRow checked={resultsPublic} onChange={setResultsPublic} title="Wyniki widoczne publicznie" description="Odznacz, jeśli chcesz opublikować wyniki później." />}
+                    <ToggleRow
+                      checked={hasResults}
+                      onChange={checked => {
+                        setHasResults(checked)
+                        if (!checked) {
+                          setResultsPublic(true)
+                          setCompetitionFormatId(null)
+                          setCompetitionValues({})
+                        }
+                      }}
+                      title="Włącz wyniki i ranking"
+                      description="Pojawią się narzędzia organizatora oraz widok live."
+                    />
+                    {hasResults && (
+                      <>
+                        <ToggleRow checked={resultsPublic} onChange={setResultsPublic} title="Wyniki widoczne publicznie" description="Odznacz, jeśli chcesz opublikować wyniki później." />
+                        <div className="mt-5 border-t border-sage-100 pt-5">
+                          {initialData.competition_config_locked_at ? (
+                            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                              Format i parametry są zablokowane po zapisaniu pierwszego wyniku.
+                            </p>
+                          ) : (
+                            <CompetitionFormatPicker
+                              selectedId={competitionFormatId}
+                              values={competitionValues}
+                              onSelect={(id) => setCompetitionFormatId(id)}
+                              onValuesChange={setCompetitionValues}
+                            />
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </Panel>
               </div>

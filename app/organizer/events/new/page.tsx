@@ -29,12 +29,14 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
+import CompetitionFormatPicker from '@/components/CompetitionFormatPicker'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
+import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
   ssr: false,
@@ -165,6 +167,9 @@ export default function NewEventPage() {
   const [formFields, setFormFields] = useState<FormField[]>([])
   const [hasResults, setHasResults] = useState(false)
   const [resultsPublic, setResultsPublic] = useState(true)
+  const [competitionFormatId, setCompetitionFormatId] = useState<string | null>(null)
+  const [competitionDefinition, setCompetitionDefinition] = useState<CompetitionFormatDefinition | null>(null)
+  const [competitionValues, setCompetitionValues] = useState<Record<string, CompetitionScalar>>({})
   const [hasSchedule, setHasSchedule] = useState(false)
   const [autoConfirm, setAutoConfirm] = useState(false)
   const [maxParticipants, setMaxParticipants] = useState<string>('')
@@ -197,6 +202,15 @@ export default function NewEventPage() {
     setSelectedTemplateId(null)
     setFormFields([])
     setGroupingField('')
+  }
+
+  function handleCompetitionFormatSelect(
+    id: string | null,
+    definition: CompetitionFormatDefinition | null,
+  ) {
+    setCompetitionFormatId(id)
+    setCompetitionDefinition(definition)
+    if (!id) setCompetitionValues({})
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
@@ -316,6 +330,9 @@ export default function NewEventPage() {
       gallery_images: galleryImages,
       grouping_field: groupingField || null,
       form_template_id: selectedTemplateId,
+      competition_format_id: competitionFormatId,
+      competition_config: competitionFormatId ? undefined : competitionDefinition,
+      competition_values: competitionValues,
     }
 
     try {
@@ -401,6 +418,8 @@ export default function NewEventPage() {
               autoConfirm={autoConfirm}
               hasResults={hasResults}
               resultsPublic={resultsPublic}
+              competitionFormatId={competitionFormatId}
+              competitionValues={competitionValues}
               hasSchedule={hasSchedule}
               eventTypeId={eventTypeId || null}
               selectedTemplateId={selectedTemplateId}
@@ -417,9 +436,16 @@ export default function NewEventPage() {
               onAutoConfirmChange={setAutoConfirm}
               onHasResultsChange={checked => {
                 setHasResults(checked)
-                if (!checked) setResultsPublic(true)
+                if (!checked) {
+                  setResultsPublic(true)
+                  setCompetitionFormatId(null)
+                  setCompetitionDefinition(null)
+                  setCompetitionValues({})
+                }
               }}
               onResultsPublicChange={setResultsPublic}
+              onCompetitionFormatSelect={handleCompetitionFormatSelect}
+              onCompetitionValuesChange={setCompetitionValues}
               onHasScheduleChange={setHasSchedule}
               onTemplateSelect={handleTemplateSelect}
               onGroupingFieldChange={setGroupingField}
@@ -797,6 +823,8 @@ function StepRegistration({
   autoConfirm,
   hasResults,
   resultsPublic,
+  competitionFormatId,
+  competitionValues,
   hasSchedule,
   eventTypeId,
   selectedTemplateId,
@@ -810,6 +838,8 @@ function StepRegistration({
   onAutoConfirmChange,
   onHasResultsChange,
   onResultsPublicChange,
+  onCompetitionFormatSelect,
+  onCompetitionValuesChange,
   onHasScheduleChange,
   onTemplateSelect,
   onGroupingFieldChange,
@@ -821,6 +851,8 @@ function StepRegistration({
   autoConfirm: boolean
   hasResults: boolean
   resultsPublic: boolean
+  competitionFormatId: string | null
+  competitionValues: Record<string, CompetitionScalar>
   hasSchedule: boolean
   eventTypeId: string | null
   selectedTemplateId: string | null
@@ -834,6 +866,11 @@ function StepRegistration({
   onAutoConfirmChange: (checked: boolean) => void
   onHasResultsChange: (checked: boolean) => void
   onResultsPublicChange: (checked: boolean) => void
+  onCompetitionFormatSelect: (
+    id: string | null,
+    definition: CompetitionFormatDefinition | null,
+  ) => void
+  onCompetitionValuesChange: (values: Record<string, CompetitionScalar>) => void
   onHasScheduleChange: (checked: boolean) => void
   onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
   onGroupingFieldChange: (value: string) => void
@@ -966,12 +1003,22 @@ function StepRegistration({
               description="Pojawią się narzędzia organizatora oraz widok live dla uczestników."
             />
             {hasResults && (
-              <ToggleRow
-                checked={resultsPublic}
-                onChange={onResultsPublicChange}
-                title="Wyniki widoczne publicznie"
-                description="Odznacz, jeśli publikacja wyników ma nastąpić dopiero po zawodach."
-              />
+              <>
+                <ToggleRow
+                  checked={resultsPublic}
+                  onChange={onResultsPublicChange}
+                  title="Wyniki widoczne publicznie"
+                  description="Odznacz, jeśli publikacja wyników ma nastąpić dopiero po zawodach."
+                />
+                <div className="mt-5 border-t border-sage-100 pt-5">
+                  <CompetitionFormatPicker
+                    selectedId={competitionFormatId}
+                    values={competitionValues}
+                    onSelect={onCompetitionFormatSelect}
+                    onValuesChange={onCompetitionValuesChange}
+                  />
+                </div>
+              </>
             )}
           </div>
 

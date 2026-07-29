@@ -31,6 +31,11 @@ export interface DogEvent {
   track_distance_m: number | null
   live_phase: string | null
   form_template_id: string | null
+  competition_format_id: string | null
+  competition_config: import('./competition').CompetitionFormatDefinition | null
+  competition_values: Record<string, import('./competition').CompetitionScalar>
+  competition_config_revision: number
+  competition_config_locked_at: string | null
 }
 
 export interface Participant {
@@ -136,6 +141,25 @@ export interface CancellationRequest {
 export type AppRole = 'user' | 'organizer' | 'trainer' | 'organizer_trainer' | 'admin'
 export type RoleRequestKind = 'organizer' | 'trainer' | 'organizer_trainer'
 export type RoleRequestStatus = 'pending' | 'needs_info' | 'approved' | 'rejected'
+
+export type {
+  CompetitionAttemptInput,
+  CompetitionCalculatedRow,
+  CompetitionComputedFieldDefinition,
+  CompetitionEntrantInput,
+  CompetitionExpression,
+  CompetitionFieldDefinition,
+  CompetitionFieldType,
+  CompetitionFormatDefinition,
+  CompetitionGroupDefinition,
+  CompetitionRankingDefinition,
+  CompetitionScalar,
+  CompetitionStageDefinition,
+  CompetitionStatusDefinition,
+  CompetitionViewBlockDefinition,
+  CompetitionViewBlockType,
+  CompetitionViewDefinition,
+} from './competition'
 
 export interface RoleUpgradeRequest {
   id: string

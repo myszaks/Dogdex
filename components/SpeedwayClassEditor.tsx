@@ -72,6 +72,22 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
     ))
   }
 
+  function updateOverrideLabel(key: string, label: string) {
+    onChange({
+      ...definition,
+      groups: definition.groups.map(candidate =>
+        candidate.id === groupId
+          ? {
+              ...candidate,
+              overrides: candidate.overrides?.map(override =>
+                override.key === key ? { ...override, label } : override
+              ),
+            }
+          : candidate
+      ),
+    })
+  }
+
   function addClass() {
     const last = buckets.at(-1)
     const newMin = Math.min(200, Math.max(1, (last?.min ?? 0) + 10))
@@ -104,6 +120,32 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
           </p>
         </div>
       </div>
+
+      {group.overrides && group.overrides.length > 0 && (
+        <div className="mt-4 rounded-xl border border-orange-200 bg-white p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">
+            Klasy specjalne
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Zaznaczona przez uczestnika klasa Sport ma pierwszeństwo. Następnie
+            sprawdzana jest klasa chartów, a dopiero później przedział wzrostowy.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {group.overrides.map(override => (
+              <label key={override.key}>
+                <span className="form-label text-xs">
+                  {override.key === 'sport' ? 'Nazwa klasy sportowej' : 'Nazwa klasy chartów'}
+                </span>
+                <input
+                  className="form-input min-h-11"
+                  value={override.label}
+                  onChange={event => updateOverrideLabel(override.key, event.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 space-y-2">
         {buckets.map((bucket, index) => (

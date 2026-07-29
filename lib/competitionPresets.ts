@@ -243,6 +243,18 @@ export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
       id: 'size_class',
       label: 'Klasa wzrostowa',
       source: { op: 'ref', path: 'registration.dog_height_cm' },
+      overrides: [
+        {
+          key: 'sport',
+          label: 'Sport',
+          when: { op: 'ref', path: 'registration.speedway_sport' },
+        },
+        {
+          key: 'sighthounds',
+          label: 'Charty',
+          when: { op: 'ref', path: 'registration.speedway_sighthound' },
+        },
+      ],
       buckets: [
         { key: 'xs', label: 'XS', max: 30 },
         { key: 's', label: 'S', min: 30, max: 40 },

@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import CsvExportButton from '@/components/CsvExportButton'
 import type { Metadata } from 'next'
-import type { FormField } from '@/types'
+import type { FormField, Registration } from '@/types'
+import type { CompetitionFormatDefinition } from '@/types/competition'
 import RegistrationsClientList from '@/components/RegistrationsClientList'
 import CancellationRequestsPanel from '@/components/CancellationRequestsPanel'
 import Link from 'next/link'
@@ -126,15 +127,24 @@ export default async function RegistrationsPage({ params }: Props) {
       ) : (
         <>
           <CancellationRequestsPanel
-            requests={(cancellationRequests ?? []).map((r: any) => ({
+            requests={(cancellationRequests ?? []).map(r => ({
               ...r,
-              participant: r.registrations?.participants ?? null,
+              participant: Array.isArray(r.registrations)
+                ? r.registrations[0]?.participants?.[0] ?? null
+                : null,
             }))}
           />
           <RegistrationsClientList
-            initialRegistrations={registrations as any}
+            initialRegistrations={registrations as unknown as Registration[]}
             eventFormFields={eventFormFields}
             groupingField={event.grouping_field ?? null}
+            competitionDefinition={
+              event.competition_config
+              && typeof event.competition_config === 'object'
+              && !Array.isArray(event.competition_config)
+                ? event.competition_config as CompetitionFormatDefinition
+                : null
+            }
             eventId={eventId}
           />
         </>

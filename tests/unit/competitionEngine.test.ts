@@ -141,11 +141,16 @@ describe('competition engine', () => {
       checkedIn: boolean,
       run1: number | 'dns' | 'dnf',
       run2: number | 'dns' | 'dnf',
+      registrationFlags: Record<string, boolean> = {},
     ) => ({
       participantId,
       event: { distance_m: 50 },
       participant: {},
-      registration: { dog_height_cm: heightCm, checked_in: checkedIn },
+      registration: {
+        dog_height_cm: heightCm,
+        checked_in: checkedIn,
+        ...registrationFlags,
+      },
       attempts: [
         {
           stageId: 'main',
@@ -201,6 +206,38 @@ describe('competition engine', () => {
         speedwayEntrant('large-custom-class', 62, true, 4900, 4700),
       ])[0].groups.size_class,
     ).toBe('xl')
+
+    const specialClasses = calculateCompetitionResults(SPEEDWAY_FORMAT, [
+      speedwayEntrant(
+        'sport-dog',
+        25,
+        true,
+        4900,
+        4700,
+        { speedway_sport: true },
+      ),
+      speedwayEntrant(
+        'sighthound',
+        35,
+        true,
+        4900,
+        4700,
+        { speedway_sighthound: true },
+      ),
+      speedwayEntrant(
+        'sport-sighthound',
+        35,
+        true,
+        4900,
+        4700,
+        { speedway_sport: true, speedway_sighthound: true },
+      ),
+    ])
+    expect(specialClasses.map(row => row.groups.size_class)).toEqual([
+      'sport',
+      'sighthounds',
+      'sport',
+    ])
 
     const viewRows = rows.map(row => ({
       participant_id: row.participantId,

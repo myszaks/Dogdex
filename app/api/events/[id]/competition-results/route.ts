@@ -12,8 +12,7 @@ import type {
   CompetitionScalar,
 } from '@/types/competition'
 import {
-  extractHeightCmFromRegistration,
-  extractSizeClassFromRegistration,
+  buildSpeedwayRegistrationContext,
 } from '@/lib/speedway'
 import { isParticipantCompetitionComplete } from '@/lib/competitionProgress'
 
@@ -236,13 +235,10 @@ export async function POST(req: Request, { params }: Params) {
         id: row.id,
         form_data: formData,
         checked_in: Boolean(row.checked_in),
-        dog_height_cm: extractHeightCmFromRegistration(
+        ...buildSpeedwayRegistrationContext(
           formData,
           participantDogHeight(participant),
-        ),
-        size_class: extractSizeClassFromRegistration(
-          formData,
-          participantDogHeight(participant),
+          participant.dog_breed,
         ),
       },
       attempts: entriesByParticipant.get(row.participant_id as string) ?? [],

@@ -27,6 +27,22 @@ function isHeightSource(field: FormField): boolean {
     )
 }
 
+function isSpeedwaySportSource(field: FormField): boolean {
+  const text = normalizedFieldText(field)
+  return field.type === 'checkbox'
+    && (text.includes('sport_class') || text.includes('klasa sport'))
+}
+
+function isSpeedwaySighthoundSource(field: FormField): boolean {
+  const text = normalizedFieldText(field)
+  return field.type === 'checkbox'
+    && (
+      text.includes('sighthound_class')
+      || text.includes('klasa chart')
+      || text.includes('chart class')
+    )
+}
+
 function isCompleteSizeClassSource(field: FormField): boolean {
   if (!field.required || field.type !== 'select') {
     return false
@@ -41,6 +57,14 @@ export function hasSizeClassRegistrationSource(fields: FormField[]): boolean {
 
 export function hasDogHeightRegistrationSource(fields: FormField[]): boolean {
   return fields.some(isHeightSource)
+}
+
+export function hasSpeedwaySportRegistrationSource(fields: FormField[]): boolean {
+  return fields.some(isSpeedwaySportSource)
+}
+
+export function hasSpeedwaySighthoundRegistrationSource(fields: FormField[]): boolean {
+  return fields.some(isSpeedwaySighthoundSource)
 }
 
 function collectReferencePaths(value: unknown, references: Set<string>) {
@@ -74,6 +98,26 @@ export function validateEventCompetitionDependencies(
   const issues: EventCompetitionDependencyIssue[] = []
 
   for (const reference of references) {
+    if (reference === 'registration.speedway_sport') {
+      if (!hasSpeedwaySportRegistrationSource(fields)) {
+        issues.push({
+          path: reference,
+          message: 'Schemat zawiera klasę Sport. Formularz zapisów musi zawierać opcjonalne pole „Klasa sport”.',
+        })
+      }
+      continue
+    }
+
+    if (reference === 'registration.speedway_sighthound') {
+      if (!hasSpeedwaySighthoundRegistrationSource(fields)) {
+        issues.push({
+          path: reference,
+          message: 'Schemat zawiera klasę chartów. Formularz zapisów musi zawierać opcjonalne pole „Klasa chartów”.',
+        })
+      }
+      continue
+    }
+
     if (reference === 'registration.dog_height_cm') {
       if (!hasDogHeightRegistrationSource(fields)) {
         issues.push({
@@ -132,17 +176,35 @@ export function ensureEventTypeRegistrationDependencies(
   eventTypeId: string | null,
   fields: FormField[],
 ): FormField[] {
-  if (eventTypeId !== 'speedway' || hasSizeClassRegistrationSource(fields)) return fields
-  const defaultHeightField = getEventType('speedway')?.defaultFields.find(field =>
-    field.id === 'height_cm'
-  )
-  if (!defaultHeightField) return fields
+  if (eventTypeId !== 'speedway') return fields
+  const defaultFields = getEventType('speedway')?.defaultFields ?? []
+  let nextFields = fields
 
-  const conflictingIndex = fields.findIndex(field => field.id === defaultHeightField.id)
-  if (conflictingIndex >= 0) {
-    return fields.map((field, index) =>
-      index === conflictingIndex ? { ...defaultHeightField } : field
-    )
+  const defaultHeightField = defaultFields.find(field => field.id === 'height_cm')
+  if (defaultHeightField && !hasDogHeightRegistrationSource(nextFields)) {
+    const conflictingIndex = nextFields.findIndex(field => field.id === defaultHeightField.id)
+    nextFields = conflictingIndex >= 0
+      ? nextFields.map((field, index) =>
+          index === conflictingIndex ? { ...defaultHeightField } : field
+        )
+      : [{ ...defaultHeightField }, ...nextFields]
   }
-  return [{ ...defaultHeightField }, ...fields]
+
+  const specialDefaults = [
+    {
+      field: defaultFields.find(field => field.id === 'sport_class'),
+      present: hasSpeedwaySportRegistrationSource(nextFields),
+    },
+    {
+      field: defaultFields.find(field => field.id === 'sighthound_class'),
+      present: hasSpeedwaySighthoundRegistrationSource(nextFields),
+    },
+  ]
+  const missingSpecialFields = specialDefaults
+    .filter(candidate => candidate.field && !candidate.present)
+    .map(candidate => ({ ...candidate.field! }))
+
+  return missingSpecialFields.length > 0
+    ? [...nextFields, ...missingSpecialFields]
+    : nextFields
 }

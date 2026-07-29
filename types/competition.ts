@@ -64,6 +64,11 @@ export interface CompetitionGroupDefinition {
   id: string
   label: string
   source: CompetitionExpression
+  overrides?: Array<{
+    key: string
+    label: string
+    when: CompetitionExpression
+  }>
   values?: Array<{
     key: string
     label: string

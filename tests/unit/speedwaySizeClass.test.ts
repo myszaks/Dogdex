@@ -3,6 +3,9 @@ import {
   extractHeightCmFromRegistration,
   extractSizeClassFromFormData,
   extractSizeClassFromRegistration,
+  isSighthoundBreed,
+  isSpeedwaySighthoundRegistration,
+  isSpeedwaySportRegistration,
 } from '@/lib/speedway'
 
 describe('speedway size class extraction', () => {
@@ -33,5 +36,17 @@ describe('speedway size class extraction', () => {
   it('understands descriptive XS–XL option labels from registration forms', () => {
     expect(extractSizeClassFromFormData({ size_class: 'XS (< 30 cm)' })).toBe('XS')
     expect(extractSizeClassFromFormData({ category: 'XL (≥ 60 cm)' })).toBe('XL')
+  })
+
+  it('recognizes the optional Sport class from checkbox data', () => {
+    expect(isSpeedwaySportRegistration({ sport_class: 'true' })).toBe(true)
+    expect(isSpeedwaySportRegistration({ sport_class: '' })).toBe(false)
+  })
+
+  it('recognizes the sighthound class from checkbox or breed', () => {
+    expect(isSpeedwaySighthoundRegistration({ sighthound_class: true }, null)).toBe(true)
+    expect(isSpeedwaySighthoundRegistration({}, 'Whippet')).toBe(true)
+    expect(isSighthoundBreed('Chart afgański')).toBe(true)
+    expect(isSighthoundBreed('Border Collie')).toBe(false)
   })
 })

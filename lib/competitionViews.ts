@@ -30,18 +30,22 @@ export function sortCompetitionResultsForBlock<Row extends CompetitionResultView
   })
 }
 
-function configuredGroupValues(
+export function configuredCompetitionGroupValues(
   definition: CompetitionFormatDefinition['groups'][number] | undefined,
 ) {
-  return definition?.values ?? definition?.buckets ?? []
+  return [
+    ...(definition?.values ?? definition?.buckets ?? []),
+    ...(definition?.overrides ?? []).map(({ key, label }) => ({ key, label })),
+  ]
 }
 
-function groupValueLabel(
+export function competitionGroupValueLabel(
   definition: CompetitionFormatDefinition['groups'][number] | undefined,
   value: string | null,
 ) {
   if (value === null) return 'Bez grupy'
-  return configuredGroupValues(definition).find(candidate => candidate.key === value)?.label ?? value
+  return configuredCompetitionGroupValues(definition)
+    .find(candidate => candidate.key === value)?.label ?? value
 }
 
 export function groupCompetitionResultsForBlock<Row extends CompetitionResultViewRow>(
@@ -65,7 +69,7 @@ export function groupCompetitionResultsForBlock<Row extends CompetitionResultVie
       key,
       title: ranking.groupBy.map((groupId, index) => {
         const groupDefinition = groupsById.get(groupId)
-        return `${groupDefinition?.label ?? groupId}: ${groupValueLabel(groupDefinition, values[index])}`
+        return `${groupDefinition?.label ?? groupId}: ${competitionGroupValueLabel(groupDefinition, values[index])}`
       }).join(' · '),
       rows: [],
       values,
@@ -78,7 +82,7 @@ export function groupCompetitionResultsForBlock<Row extends CompetitionResultVie
     .sort((left, right) => {
       for (let index = 0; index < ranking.groupBy.length; index += 1) {
         const groupDefinition = groupsById.get(ranking.groupBy[index])
-        const configuredValues = configuredGroupValues(groupDefinition)
+        const configuredValues = configuredCompetitionGroupValues(groupDefinition)
         const leftIndex = configuredValues.findIndex(value => value.key === left.values[index])
         const rightIndex = configuredValues.findIndex(value => value.key === right.values[index])
         const normalizedLeftIndex = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex
@@ -86,8 +90,8 @@ export function groupCompetitionResultsForBlock<Row extends CompetitionResultVie
         if (normalizedLeftIndex !== normalizedRightIndex) {
           return normalizedLeftIndex - normalizedRightIndex
         }
-        const labelComparison = groupValueLabel(groupDefinition, left.values[index])
-          .localeCompare(groupValueLabel(groupDefinition, right.values[index]), 'pl')
+        const labelComparison = competitionGroupValueLabel(groupDefinition, left.values[index])
+          .localeCompare(competitionGroupValueLabel(groupDefinition, right.values[index]), 'pl')
         if (labelComparison !== 0) return labelComparison
       }
       return left.key.localeCompare(right.key)

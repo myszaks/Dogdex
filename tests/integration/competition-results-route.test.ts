@@ -112,7 +112,7 @@ describe('POST /api/events/[id]/competition-results', () => {
     const registrations = [{
       id: 'registration-1',
       participant_id: 'dog-1',
-      form_data: { height_cm: 25 },
+      form_data: { height_cm: 25, sport_class: 'true' },
       checked_in: true,
       participants: {
         id: 'dog-1',
@@ -195,7 +195,7 @@ describe('POST /api/events/[id]/competition-results', () => {
           speed_kmh: 36,
           __completed: false,
         }),
-        groups: { size_class: 'xs' },
+        groups: { size_class: 'sport' },
         ranks: { class: 1 },
       }),
     ], { onConflict: 'event_id,participant_id' })

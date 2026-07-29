@@ -467,6 +467,43 @@ export function validateCompetitionFormatDefinition(
           })
         }
       }
+      if (collectionName === 'groups' && item.overrides !== undefined) {
+        if (!Array.isArray(item.overrides) || item.overrides.length === 0) {
+          issues.push({
+            path: `${collectionName}[${index}].overrides`,
+            message: 'Klasy specjalne muszą być niepustą tablicą.',
+          })
+        } else {
+          const baseKeys = new Set([
+            ...(Array.isArray(item.values)
+              ? item.values.filter(isRecord).map(groupValue => groupValue.key)
+              : []),
+            ...(Array.isArray(item.buckets)
+              ? item.buckets.filter(isRecord).map(bucket => bucket.key)
+              : []),
+          ].filter((key): key is string => typeof key === 'string'))
+          const overrideKeys = new Set<string>()
+          item.overrides.forEach((override, overrideIndex) => {
+            const path = `${collectionName}[${index}].overrides[${overrideIndex}]`
+            if (!isRecord(override)) {
+              issues.push({ path, message: 'Klasa specjalna musi być obiektem.' })
+              return
+            }
+            validateIdentifier(override.key, `${path}.key`, issues)
+            validateLabel(override.label, `${path}.label`, issues)
+            if (typeof override.key === 'string') {
+              if (baseKeys.has(override.key) || overrideKeys.has(override.key)) {
+                issues.push({
+                  path: `${path}.key`,
+                  message: 'Klucz klasy specjalnej musi być unikalny.',
+                })
+              }
+              overrideKeys.add(override.key)
+            }
+            validateExpression(override.when, `${path}.when`, issues, { nodes: 0 })
+          })
+        }
+      }
     })
   }
 
@@ -648,9 +685,21 @@ export function validateCompetitionFormatDefinition(
   computedDefinitions.forEach((field, index) =>
     validateReferences(field.expression, `computedFields[${index}].expression`)
   )
-  ;(Array.isArray(value.groups) ? value.groups : []).filter(isRecord).forEach((group, index) =>
-    validateReferences(group.source, `groups[${index}].source`)
-  )
+  ;(Array.isArray(value.groups) ? value.groups : [])
+    .filter(isRecord)
+    .forEach((group, index) => {
+      validateReferences(group.source, `groups[${index}].source`)
+      if (Array.isArray(group.overrides)) {
+        group.overrides
+          .filter(isRecord)
+          .forEach((override, overrideIndex) =>
+            validateReferences(
+              override.when,
+              `groups[${index}].overrides[${overrideIndex}].when`,
+            ),
+          )
+      }
+    })
   rankings.filter(isRecord).forEach((ranking, rankingIndex) => {
     if (ranking.eligibility !== undefined) {
       validateReferences(ranking.eligibility, `rankings[${rankingIndex}].eligibility`)
@@ -814,10 +863,15 @@ export function evaluateCompetitionExpression(
   }
 }
 
-function groupValue(
+export function resolveCompetitionGroupValue(
   definition: CompetitionFormatDefinition['groups'][number],
   context: Record<string, unknown>,
 ): string | null {
+  const matchedOverride = definition.overrides?.find(override =>
+    Boolean(firstScalar(evaluateCompetitionExpression(override.when, context)))
+  )
+  if (matchedOverride) return matchedOverride.key
+
   const rawValue = firstScalar(evaluateCompetitionExpression(definition.source, context))
   if (definition.values?.length) {
     if (rawValue === null) return null
@@ -890,7 +944,7 @@ export function calculateCompetitionResults(
     definition.computedFields.forEach(field => resolveComputed(field.id))
 
     const groups = Object.fromEntries(
-      definition.groups.map(group => [group.id, groupValue(group, context)])
+      definition.groups.map(group => [group.id, resolveCompetitionGroupValue(group, context)])
     )
     context.groups = groups
     const row: CompetitionCalculatedRow = {

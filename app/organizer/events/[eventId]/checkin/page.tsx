@@ -1,11 +1,13 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import {
-  extractHeightCmFromRegistration,
+  buildSpeedwayRegistrationContext,
   extractSizeClassFromRegistration,
   SIZE_CLASSES,
   SIZE_CLASS_LABELS,
 } from '@/lib/speedway'
+import { resolveCompetitionGroupValue } from '@/lib/competitionEngine'
+import { configuredCompetitionGroupValues } from '@/lib/competitionViews'
 import CheckInClient from '@/components/CheckInClient'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import type { Metadata } from 'next'
@@ -55,10 +57,9 @@ export default async function CheckInPage({ params }: Props) {
     && group.source.path === 'registration.dog_height_cm'
     && Boolean(group.buckets?.length)
   )
-  const configuredClasses = heightGroup?.buckets?.map(bucket => ({
-    key: bucket.key,
-    label: bucket.label,
-  })) ?? null
+  const configuredClasses = heightGroup
+    ? configuredCompetitionGroupValues(heightGroup)
+    : null
   const classOptions = configuredClasses ?? SIZE_CLASSES.map(sizeClass => ({
     key: sizeClass,
     label: SIZE_CLASS_LABELS[sizeClass],
@@ -70,13 +71,18 @@ export default async function CheckInPage({ params }: Props) {
     const pid = participant.id ?? r.id
     const dogHeightCm = dog.height_cm
     const formData = r.form_data as Record<string, unknown>
-    const heightCm = extractHeightCmFromRegistration(formData, dogHeightCm)
-    const configuredClass = heightCm === null
-      ? null
-      : heightGroup?.buckets?.find(bucket =>
-          (bucket.min === undefined || heightCm >= bucket.min)
-          && (bucket.max === undefined || heightCm < bucket.max)
-        )?.key ?? null
+    const configuredClass = heightGroup
+      ? resolveCompetitionGroupValue(heightGroup, {
+          registration: {
+            form_data: formData,
+            ...buildSpeedwayRegistrationContext(
+              formData,
+              dogHeightCm,
+              participant.dog_breed,
+            ),
+          },
+        })
+      : null
     const sizeClass = configuredClass
       ?? (heightGroup ? null : extractSizeClassFromRegistration(formData, dogHeightCm))
       ?? '__unassigned'

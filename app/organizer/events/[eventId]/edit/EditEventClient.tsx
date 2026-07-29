@@ -38,8 +38,11 @@ import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
   hasDogHeightRegistrationSource,
+  hasSpeedwaySighthoundRegistrationSource,
+  hasSpeedwaySportRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
+import { SPEEDWAY_CLASS_GROUPING_FIELD } from '@/lib/speedway'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
@@ -177,7 +180,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const selectedType = EVENT_TYPES.find(type => type.id === eventTypeId)
   const selectedVisual = eventTypeVisual(eventTypeId)
   const groupableFields = useMemo(
-    () => formFields.filter(field => ['select', 'multiselect', 'multidate'].includes(field.type)),
+    () => formFields.filter(field => ['select', 'multiselect', 'multidate', 'checkbox'].includes(field.type)),
     [formFields],
   )
   const seatsLabel = maxParticipants ? `${maxParticipants} miejsc` : 'Bez limitu miejsc'
@@ -186,13 +189,21 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
     setFormFields(current => ensureEventTypeRegistrationDependencies(id, current))
+    setGroupingField(current =>
+      id === 'speedway'
+        ? current || SPEEDWAY_CLASS_GROUPING_FIELD
+        : current === SPEEDWAY_CLASS_GROUPING_FIELD ? '' : current
+    )
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
     const compatibleFields = ensureEventTypeRegistrationDependencies(eventTypeId, fields)
     setSelectedTemplateId(templateId)
     setFormFields(compatibleFields)
-    if (!compatibleFields.some(field => field.id === groupingField)) setGroupingField('')
+    if (
+      groupingField !== SPEEDWAY_CLASS_GROUPING_FIELD
+      && !compatibleFields.some(field => field.id === groupingField)
+    ) setGroupingField('')
   }
 
   function handleCompetitionFormatSelect(
@@ -484,14 +495,18 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 {eventTypeId === 'speedway' && (
                   <div className={`mb-5 flex gap-3 rounded-2xl border p-4 text-sm leading-relaxed ${
                     hasDogHeightRegistrationSource(formFields)
+                    && hasSpeedwaySportRegistrationSource(formFields)
+                    && hasSpeedwaySighthoundRegistrationSource(formFields)
                       ? 'border-green-200 bg-green-50 text-green-900'
                       : 'border-amber-200 bg-amber-50 text-amber-900'
                   }`}>
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <p>
                       {hasDogHeightRegistrationSource(formFields)
-                        ? 'Formularz zawiera wymagany wzrost psa używany do przydziału klasy Speedway.'
-                        : 'Dodaj wymagany wzrost psa w centymetrach.'}
+                        && hasSpeedwaySportRegistrationSource(formFields)
+                        && hasSpeedwaySighthoundRegistrationSource(formFields)
+                        ? 'Formularz zawiera wzrost psa oraz opcjonalne klasy Sport i Charty.'
+                        : 'Dodaj pola wzrostu psa, klasy Sport i klasy Chartów.'}
                     </p>
                   </div>
                 )}
@@ -506,7 +521,10 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                     value={formFields}
                     onChange={fields => {
                       setFormFields(fields)
-                      if (!fields.some(field => field.id === groupingField)) setGroupingField('')
+                      if (
+                        groupingField !== SPEEDWAY_CLASS_GROUPING_FIELD
+                        && !fields.some(field => field.id === groupingField)
+                      ) setGroupingField('')
                     }}
                     eventTypeId={eventTypeId || null}
                     hideTemplateActions
@@ -525,20 +543,27 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                     />
                   </div>
                 </details>
-                {groupableFields.length > 0 && (
-                  <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
-                    <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">
-                      Grupowanie listy zapisów (opcjonalnie)
-                      <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                    </summary>
-                    <div className="border-t border-sage-200 p-4">
-                      <select className="form-input min-h-11" value={groupingField} onChange={e => setGroupingField(e.target.value)}>
-                        <option value="">Brak grupowania</option>
-                        {groupableFields.map(field => <option key={field.id} value={field.id}>{field.label}</option>)}
-                      </select>
-                    </div>
-                  </details>
-                )}
+                <div className="mt-5 rounded-2xl border border-sage-200 bg-sage-50/60 p-4">
+                  <label className="form-label">Grupowanie listy zapisów</label>
+                  <select
+                    className="form-input min-h-11"
+                    value={groupingField}
+                    onChange={e => setGroupingField(e.target.value)}
+                  >
+                    <option value="">Bez grupowania — jedna lista</option>
+                    {eventTypeId === 'speedway' && (
+                      <option value={SPEEDWAY_CLASS_GROUPING_FIELD}>
+                        Klasa startowa Speedway (polecane)
+                      </option>
+                    )}
+                    {groupableFields.map(field => (
+                      <option key={field.id} value={field.id}>Odpowiedź: {field.label}</option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    Zmienia sposób wyświetlania listy zapisów organizatora, nie zasady rankingu.
+                  </p>
+                </div>
               </Panel>
 
               <div className="grid items-start gap-6 lg:grid-cols-2">

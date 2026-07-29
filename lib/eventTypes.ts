@@ -42,6 +42,20 @@ export const EVENT_TYPES: EventType[] = [
         placeholder: 'np. 45',
         description: 'Klasa startowa zostanie przydzielona automatycznie według progów ustawionych w kroku „Wyniki i live”.',
       },
+      {
+        id: 'sport_class',
+        label: 'Klasa sport',
+        type: 'checkbox',
+        required: false,
+        description: 'Zaznacz dla psa będącego w regularnym treningu sportowym. Ta klasa ma pierwszeństwo przed klasą wzrostową i klasą chartów.',
+      },
+      {
+        id: 'sighthound_class',
+        label: 'Klasa chartów',
+        type: 'checkbox',
+        required: false,
+        description: 'Zaznacz, jeśli pies ma startować w osobnej klasie chartów. Dogdex spróbuje też rozpoznać charta na podstawie rasy.',
+      },
     ],
   },
   {

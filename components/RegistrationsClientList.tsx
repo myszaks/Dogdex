@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DragDropContext,
   Droppable,
@@ -11,11 +11,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/componen
 import { formatDateShort } from '@/lib/utils'
 import { GripVertical, Mail, CalendarDays } from 'lucide-react'
 import type { FormField, Registration } from '@/types'
+import type { CompetitionFormatDefinition } from '@/types/competition'
+import {
+  buildSpeedwayRegistrationContext,
+  SPEEDWAY_CLASS_GROUPING_FIELD,
+} from '@/lib/speedway'
+import { resolveCompetitionGroupValue } from '@/lib/competitionEngine'
+import {
+  competitionGroupValueLabel,
+  configuredCompetitionGroupValues,
+} from '@/lib/competitionViews'
 
 interface Props {
   initialRegistrations: Registration[]
   eventFormFields: FormField[]
   groupingField: string | null
+  competitionDefinition: CompetitionFormatDefinition | null
   eventId: string
 }
 
@@ -23,6 +34,7 @@ export default function RegistrationsClientList({
   initialRegistrations,
   eventFormFields,
   groupingField,
+  competitionDefinition,
 }: Props) {
   const sorted = useMemo(() => [...initialRegistrations].sort((a, b) => {
     if (a.order_index != null && b.order_index != null) return a.order_index - b.order_index
@@ -31,10 +43,6 @@ export default function RegistrationsClientList({
 
   const [registrations, setRegistrations] = useState<Registration[]>(sorted)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setRegistrations(sorted)
-  }, [sorted])
 
   function formatFormValue(value: unknown, field?: FormField): string {
     if (typeof value === 'boolean') return value ? 'Tak' : 'Nie'
@@ -177,23 +185,59 @@ export default function RegistrationsClientList({
   if (groupingField) {
     const groupMap = new Map<string, Registration[]>()
     const field = eventFormFields.find(f => f.id === groupingField)
+    const speedwayGroup = groupingField === SPEEDWAY_CLASS_GROUPING_FIELD
+      ? competitionDefinition?.groups.find(group =>
+          group.source.op === 'ref'
+          && group.source.path === 'registration.dog_height_cm'
+        )
+      : null
     for (const reg of registrations) {
-      const val = (reg.form_data as Record<string, unknown>)?.[groupingField]
-      const keys: string[] = Array.isArray(val)
-        ? val.map(item => formatFormValue(item, field))
-        : val != null && val !== ''
-          ? [formatFormValue(val, field)]
-          : ['— brak —']
+      const formData = reg.form_data as Record<string, unknown>
+      const specialGroupValue = speedwayGroup
+        ? resolveCompetitionGroupValue(speedwayGroup, {
+            registration: {
+              form_data: formData,
+              ...buildSpeedwayRegistrationContext(
+                formData,
+                null,
+                reg.participants?.dog_breed,
+              ),
+            },
+          })
+        : null
+      const val = formData?.[groupingField]
+      const keys: string[] = speedwayGroup
+        ? [specialGroupValue
+            ? competitionGroupValueLabel(speedwayGroup, specialGroupValue)
+            : '— brak przypisanej klasy —']
+        : Array.isArray(val)
+          ? val.map(item => formatFormValue(item, field))
+          : val != null && val !== ''
+            ? [formatFormValue(val, field)]
+            : ['— brak —']
       for (const k of keys) {
         if (!groupMap.has(k)) groupMap.set(k, [])
         groupMap.get(k)!.push(reg)
       }
     }
 
+    const configuredGroupOrder = speedwayGroup
+      ? configuredCompetitionGroupValues(speedwayGroup).map(option => option.label)
+      : []
+
     return (
       <div className="space-y-6">
         {[...groupMap.entries()]
-          .sort(([a], [b]) => a.localeCompare(b, 'pl'))
+          .sort(([a], [b]) => {
+            if (configuredGroupOrder.length > 0) {
+              const left = configuredGroupOrder.indexOf(a)
+              const right = configuredGroupOrder.indexOf(b)
+              const normalizedLeft = left === -1 ? Number.MAX_SAFE_INTEGER : left
+              const normalizedRight = right === -1 ? Number.MAX_SAFE_INTEGER : right
+              if (normalizedLeft !== normalizedRight) return normalizedLeft - normalizedRight
+            }
+            return a.localeCompare(b, 'pl')
+          })
           .map(([group, regs]) => (
             <div key={group}>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1 mb-3">

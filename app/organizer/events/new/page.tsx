@@ -42,8 +42,11 @@ import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
   hasDogHeightRegistrationSource,
+  hasSpeedwaySighthoundRegistrationSource,
+  hasSpeedwaySportRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
+import { SPEEDWAY_CLASS_GROUPING_FIELD } from '@/lib/speedway'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
@@ -202,7 +205,7 @@ export default function NewEventPage() {
   const selectedType = EVENT_TYPES.find(t => t.id === eventTypeId)
   const selectedVisual = selectedType ? getEventVisual(selectedType.id, selectedType.name) : null
   const groupableFields = useMemo(
-    () => formFields.filter(f => ['select', 'multiselect', 'multidate'].includes(f.type)),
+    () => formFields.filter(f => ['select', 'multiselect', 'multidate', 'checkbox'].includes(f.type)),
     [formFields],
   )
   const locationSummary = [venueName.trim(), location.trim()].filter(Boolean).join(', ')
@@ -214,7 +217,7 @@ export default function NewEventPage() {
     setEventTypeId(id)
     setSelectedTemplateId(null)
     setFormFields(ensureEventTypeRegistrationDependencies(id, []))
-    setGroupingField('')
+    setGroupingField(id === 'speedway' ? SPEEDWAY_CLASS_GROUPING_FIELD : '')
   }
 
   function handleCompetitionFormatSelect(
@@ -233,7 +236,10 @@ export default function NewEventPage() {
     const compatibleFields = ensureEventTypeRegistrationDependencies(eventTypeId, fields)
     setSelectedTemplateId(templateId)
     setFormFields(compatibleFields)
-    if (!compatibleFields.some(f => f.id === groupingField)) setGroupingField('')
+    if (
+      groupingField !== SPEEDWAY_CLASS_GROUPING_FIELD
+      && !compatibleFields.some(f => f.id === groupingField)
+    ) setGroupingField('')
   }
 
   function handleMapLocation(newLat: number, newLng: number, address: string) {
@@ -500,7 +506,10 @@ export default function NewEventPage() {
               onTemplateSelect={handleTemplateSelect}
               onFormFieldsChange={fields => {
                 setFormFields(fields)
-                if (!fields.some(field => field.id === groupingField)) setGroupingField('')
+                if (
+                  groupingField !== SPEEDWAY_CLASS_GROUPING_FIELD
+                  && !fields.some(field => field.id === groupingField)
+                ) setGroupingField('')
               }}
               onGroupingFieldChange={setGroupingField}
             />
@@ -970,7 +979,11 @@ function StepRegistration({
   onGroupingFieldChange: (value: string) => void
 }) {
   const speedwayDependencyReady = eventTypeId !== 'speedway'
-    || hasDogHeightRegistrationSource(formFields)
+    || (
+      hasDogHeightRegistrationSource(formFields)
+      && hasSpeedwaySportRegistrationSource(formFields)
+      && hasSpeedwaySighthoundRegistrationSource(formFields)
+    )
 
   return (
     <div className="space-y-8">
@@ -989,11 +1002,11 @@ function StepRegistration({
               {speedwayDependencyReady ? (
                 <>
                   <strong>Zależność Speedway zabezpieczona:</strong> formularz zawiera wymagane źródło klasy:
-                  wzrost psa w centymetrach.
+                  wzrost psa oraz opcjonalne klasy Sport i Charty.
                 </>
               ) : (
                 <>
-                  <strong>Uzupełnij źródło klasy Speedway:</strong> dodaj wymagany wzrost psa w centymetrach.
+                  <strong>Uzupełnij źródła klas Speedway:</strong> potrzebne są pola wzrostu, klasy Sport i klasy Chartów.
                 </>
               )}
             </p>
@@ -1029,31 +1042,37 @@ function StepRegistration({
           </div>
         </details>
 
-        {groupableFields.length > 0 && (
-          <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
-            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">
-              Grupowanie listy zapisów (opcjonalnie)
-              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-            </summary>
-            <div className="border-t border-sage-200 p-4">
-              <label className="form-label">Grupuj zapisy według odpowiedzi na pytanie</label>
-              <select
-                className="form-input min-h-11"
-                value={groupingField}
-                onChange={e => onGroupingFieldChange(e.target.value)}
-              >
-                <option value="">Brak grupowania</option>
-                {groupableFields.map(field => (
-                  <option key={field.id} value={field.id}>{field.label}</option>
-                ))}
-              </select>
-              <p className="mt-2 text-xs text-slate-500">Przydatne np. dla poziomów, kategorii lub wybranych terminów.</p>
-            </div>
-          </details>
-        )}
+        <div className="mt-5 rounded-2xl border border-sage-200 bg-sage-50/60 p-4">
+          <label className="form-label">Grupowanie listy zapisów</label>
+          <select
+            className="form-input min-h-11"
+            value={groupingField}
+            onChange={e => onGroupingFieldChange(e.target.value)}
+          >
+            <option value="">Bez grupowania — jedna lista</option>
+            {eventTypeId === 'speedway' && (
+              <option value={SPEEDWAY_CLASS_GROUPING_FIELD}>
+                Klasa startowa Speedway (polecane)
+              </option>
+            )}
+            {groupableFields.map(field => (
+              <option key={field.id} value={field.id}>Odpowiedź: {field.label}</option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            To ustawienie zmienia widok listy zapisów organizatora. Nie zmienia sposobu liczenia rankingu.
+          </p>
+        </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <MetricTile label="Pytania dodatkowe" value={String(formFieldsCount)} />
-          <MetricTile label="Grupowanie" value={groupingField ? 'Tak' : 'Nie'} />
+          <MetricTile
+            label="Grupowanie"
+            value={
+              groupingField === SPEEDWAY_CLASS_GROUPING_FIELD
+                ? 'Klasa Speedway'
+                : groupingField ? 'Własne pole' : 'Nie'
+            }
+          />
         </div>
       </Panel>
 

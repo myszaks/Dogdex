@@ -17,6 +17,16 @@ describe('event form and competition schema dependencies', () => {
         type: 'number',
         required: true,
       }),
+      expect.objectContaining({
+        id: 'sport_class',
+        type: 'checkbox',
+        required: false,
+      }),
+      expect.objectContaining({
+        id: 'sighthound_class',
+        type: 'checkbox',
+        required: false,
+      }),
     ])
     expect(
       validateEventCompetitionDependencies(fields, cloneCompetitionPreset('speedway')),
@@ -35,6 +45,7 @@ describe('event form and competition schema dependencies', () => {
     definition.groups[0] = {
       ...definition.groups[0],
       source: { op: 'ref', path: 'registration.size_class' },
+      overrides: undefined,
       buckets: undefined,
       values: [
         { key: 'XS', label: 'XS' },
@@ -47,7 +58,12 @@ describe('event form and competition schema dependencies', () => {
     expect(
       validateEventCompetitionDependencies(fields, definition),
     ).toEqual([])
-    expect(ensureEventTypeRegistrationDependencies('speedway', fields)).toBe(fields)
+    expect(ensureEventTypeRegistrationDependencies('speedway', fields)).toEqual([
+      expect.objectContaining({ id: 'height_cm' }),
+      fields[0],
+      expect.objectContaining({ id: 'sport_class' }),
+      expect.objectContaining({ id: 'sighthound_class' }),
+    ])
   })
 
   it('detects when an organizer makes the automatic Speedway source optional', () => {

@@ -2,6 +2,7 @@
 
 export const SIZE_CLASSES = ['XS', 'S', 'M', 'L', 'XL'] as const
 export type SizeClass = (typeof SIZE_CLASSES)[number]
+export const SPEEDWAY_CLASS_GROUPING_FIELD = '__speedway_class'
 export const TRACK_DISTANCE_MIN_M = 1
 export const TRACK_DISTANCE_MAX_M = 500
 export const MAX_STORED_SPEED_KMH = 999.99
@@ -74,10 +75,7 @@ function parseHeightCm(value: unknown): number | null {
 }
 
 function isHeightFieldKey(key: string): boolean {
-  const normalized = key
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+  const normalized = normalizeText(key)
 
   return (
     normalized === 'height_cm' ||
@@ -86,6 +84,71 @@ function isHeightFieldKey(key: string): boolean {
     normalized.includes('wysokosc') ||
     normalized.includes('height')
   )
+}
+
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function formBooleanValue(
+  formData: Record<string, unknown> | null | undefined,
+  matches: (normalizedKey: string) => boolean,
+): boolean {
+  if (!formData) return false
+  const entry = Object.entries(formData).find(([key]) => matches(normalizeText(key)))
+  if (!entry) return false
+  const value = entry[1]
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value !== 'string') return false
+  return ['true', '1', 'tak', 'yes', 'on'].includes(normalizeText(value.trim()))
+}
+
+export function isSighthoundBreed(value: unknown): boolean {
+  if (typeof value !== 'string' || !value.trim()) return false
+  const breed = normalizeText(value)
+  return [
+    'chart',
+    'sighthound',
+    'greyhound',
+    'whippet',
+    'borzoi',
+    'saluki',
+    'azawakh',
+    'sloughi',
+    'deerhound',
+    'wolfhound',
+    'galgo',
+    'charcik wloski',
+    'magyar agar',
+    'ogar afgan',
+    'afghan hound',
+  ].some(name => breed.includes(name))
+}
+
+export function isSpeedwaySportRegistration(
+  formData: Record<string, unknown> | null | undefined,
+): boolean {
+  return formBooleanValue(formData, key =>
+    key === 'sport_class'
+    || key.startsWith('sport_class_')
+    || key.includes('klasa_sport')
+  )
+}
+
+export function isSpeedwaySighthoundRegistration(
+  formData: Record<string, unknown> | null | undefined,
+  dogBreed: unknown,
+): boolean {
+  return formBooleanValue(formData, key =>
+    key === 'sighthound_class'
+    || key.startsWith('sighthound_class_')
+    || key.includes('klasa_chart')
+    || key.includes('chart_class')
+  ) || isSighthoundBreed(dogBreed)
 }
 
 /** Wyznacza najlepszy czas (null jeśli oba brak) */
@@ -146,6 +209,19 @@ export function extractHeightCmFromRegistration(
   dogHeightCm: unknown,
 ): number | null {
   return extractHeightCmFromFormData(formData) ?? parseHeightCm(dogHeightCm)
+}
+
+export function buildSpeedwayRegistrationContext(
+  formData: Record<string, unknown> | null | undefined,
+  dogHeightCm: unknown,
+  dogBreed: unknown,
+): Record<string, unknown> {
+  return {
+    dog_height_cm: extractHeightCmFromRegistration(formData, dogHeightCm),
+    size_class: extractSizeClassFromRegistration(formData, dogHeightCm),
+    speedway_sport: isSpeedwaySportRegistration(formData),
+    speedway_sighthound: isSpeedwaySighthoundRegistration(formData, dogBreed),
+  }
 }
 
 export function extractSizeClassFromRegistration(

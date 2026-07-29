@@ -1,6 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
+import { GripVertical, Plus, X } from 'lucide-react'
 
 function genId() {
   return Math.random().toString(36).slice(2, 9)
@@ -66,7 +67,9 @@ export default function OptionReorder({
           {(provided) => (
             <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
               {items.length === 0 && (
-                <p className="text-xs text-slate-400 italic py-0.5">Brak opcji — dodaj poniżej</p>
+                <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Brak opcji. Dodaj przynajmniej jedną przed publikacją wydarzenia.
+                </p>
               )}
 
               {items.map((it, idx) => (
@@ -75,20 +78,26 @@ export default function OptionReorder({
                     <div
                       ref={prov.innerRef}
                       {...prov.draggableProps}
-                      className="flex items-center gap-2"
+                      className={`flex items-center gap-2 rounded-xl ${snap.isDragging ? 'bg-white shadow-lg' : ''}`}
                     >
-                      <div {...prov.dragHandleProps} className="px-2 text-slate-400 cursor-grab">☰</div>
+                      <div
+                        {...prov.dragHandleProps}
+                        className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-lg text-[#83907d] hover:bg-[#edf3e9]"
+                        aria-label="Przeciągnij, aby zmienić kolejność"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </div>
 
                       {type === 'multidate' ? (
                         <input
                           type="date"
-                          className="form-input flex-1 text-sm py-1"
+                          className="form-input min-h-11 flex-1 text-sm"
                           value={it.value}
                           onChange={e => updateValue(idx, e.target.value)}
                         />
                       ) : (
                         <input
-                          className="form-input flex-1 text-sm py-1"
+                          className="form-input min-h-11 flex-1 text-sm"
                           value={it.value}
                           onChange={e => updateValue(idx, e.target.value)}
                         />
@@ -97,10 +106,11 @@ export default function OptionReorder({
                       <button
                         type="button"
                         onClick={() => removeAt(idx)}
-                        className="text-red-400 hover:text-red-600 px-2 text-sm"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[#9a6251] hover:bg-red-50 hover:text-red-600"
                         title="Usuń"
+                        aria-label="Usuń opcję"
                       >
-                        ✕
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   )}
@@ -114,8 +124,13 @@ export default function OptionReorder({
       </DragDropContext>
 
       <div className="pt-2">
-        <button type="button" onClick={addNew} className="text-xs text-sky-600 hover:text-sky-800 font-medium">
-          + Dodaj opcję
+        <button
+          type="button"
+          onClick={addNew}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#d6e2d0] bg-white px-3 py-2 text-xs font-semibold text-[#53614d] hover:border-[#f2a37d] hover:bg-[#fff7f2]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {type === 'multidate' ? 'Dodaj termin' : 'Dodaj opcję'}
         </button>
       </div>
     </div>

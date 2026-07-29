@@ -51,6 +51,11 @@ export default async function EditEventPage({ params }: Props) {
           grouping_field: event.grouping_field ?? null,
           form_template_id: event.form_template_id ?? null,
           competition_format_id: event.competition_format_id ?? null,
+          competition_config: (
+            event.competition_config
+            && typeof event.competition_config === 'object'
+            && !Array.isArray(event.competition_config)
+          ) ? event.competition_config : null,
           competition_values: (
             event.competition_values
             && typeof event.competition_values === 'object'

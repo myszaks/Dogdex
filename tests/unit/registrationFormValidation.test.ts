@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { validateRegistrationFormData } from '@/lib/registrationFormValidation'
+import {
+  validateFormFieldDefinitions,
+  validateRegistrationFormData,
+} from '@/lib/registrationFormValidation'
 import type { FormField } from '@/types'
 
 const fields: FormField[] = [
@@ -26,6 +29,54 @@ const fields: FormField[] = [
 ]
 
 describe('registration form validation', () => {
+  it('blocks publishing a choice field that has no usable options', () => {
+    expect(validateFormFieldDefinitions([{
+      id: 'category',
+      label: 'Kategoria',
+      type: 'select',
+      required: true,
+      options: [],
+    }])).toEqual([{
+      fieldId: 'category',
+      message: 'Kategoria: dodaj co najmniej jedną opcję odpowiedzi.',
+    }])
+  })
+
+  it('allows an unfinished choice list only inside a reusable draft template', () => {
+    expect(validateFormFieldDefinitions([{
+      id: 'dates',
+      label: 'Terminy',
+      type: 'multidate',
+      required: true,
+      options: [],
+    }], { allowEmptyOptions: true })).toEqual([])
+  })
+
+  it('rejects duplicated ids, duplicated options and invalid dates', () => {
+    const issues = validateFormFieldDefinitions([
+      {
+        id: 'choice',
+        label: 'Poziom',
+        type: 'select',
+        required: false,
+        options: ['A1', 'A1'],
+      },
+      {
+        id: 'choice',
+        label: 'Termin',
+        type: 'multidate',
+        required: false,
+        options: ['jutro'],
+      },
+    ])
+
+    expect(issues.map(issue => issue.message)).toEqual(expect.arrayContaining([
+      'Poziom: każda opcja musi być unikalna.',
+      'Termin: identyfikator pola nie jest unikalny.',
+      'Termin: wszystkie terminy muszą być prawidłowymi datami.',
+    ]))
+  })
+
   it('normalizes valid values using the event form definition', () => {
     expect(validateRegistrationFormData(fields, {
       level: 'A1',

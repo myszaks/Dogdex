@@ -13,6 +13,17 @@ const SUPPORTED_TYPES = new Set<FormField['type']>([
   'checkbox',
 ])
 
+const OPTION_FIELD_TYPES = new Set<FormField['type']>([
+  'select',
+  'multiselect',
+  'multidate',
+])
+
+export interface FormFieldDefinitionIssue {
+  fieldId?: string
+  message: string
+}
+
 type ValidationResult =
   | { ok: true; data: Record<string, unknown> }
   | { ok: false; error: string }
@@ -38,6 +49,89 @@ function normalizeArray(value: unknown): string[] | null {
   const normalized = values.map(item => typeof item === 'string' ? item.trim() : '')
   if (normalized.some(item => !item || item.length > 500)) return null
   return [...new Set(normalized)]
+}
+
+export function validateFormFieldDefinitions(
+  fieldsValue: unknown,
+  options: { allowEmptyOptions?: boolean } = {},
+): FormFieldDefinitionIssue[] {
+  if (!Array.isArray(fieldsValue)) {
+    return [{ message: 'Pola formularza muszą być listą.' }]
+  }
+  if (fieldsValue.length > 100) {
+    return [{ message: 'Formularz może zawierać maksymalnie 100 pól.' }]
+  }
+
+  const issues: FormFieldDefinitionIssue[] = []
+  const seenIds = new Set<string>()
+
+  fieldsValue.forEach((value, index) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      issues.push({ message: `Pole ${index + 1} ma nieprawidłową konfigurację.` })
+      return
+    }
+
+    const field = value as Partial<FormField>
+    const fieldId = typeof field.id === 'string' ? field.id.trim() : ''
+    const label = typeof field.label === 'string' ? field.label.trim() : ''
+    const displayName = label || `Pole ${index + 1}`
+
+    if (!fieldId) {
+      issues.push({ message: `${displayName}: brakuje identyfikatora.` })
+    } else if (seenIds.has(fieldId)) {
+      issues.push({ fieldId, message: `${displayName}: identyfikator pola nie jest unikalny.` })
+    } else {
+      seenIds.add(fieldId)
+    }
+
+    if (!label) {
+      issues.push({ fieldId, message: `Pole ${index + 1}: wpisz nazwę widoczną dla uczestnika.` })
+    } else if (label.length > 120) {
+      issues.push({ fieldId, message: `${displayName}: nazwa może mieć maksymalnie 120 znaków.` })
+    }
+
+    if (!field.type || !SUPPORTED_TYPES.has(field.type)) {
+      issues.push({ fieldId, message: `${displayName}: wybierz obsługiwany typ pola.` })
+      return
+    }
+    if (typeof field.required !== 'boolean') {
+      issues.push({ fieldId, message: `${displayName}: ustaw, czy pole jest wymagane.` })
+    }
+    if (!OPTION_FIELD_TYPES.has(field.type)) return
+
+    const rawOptions = Array.isArray(field.options) ? field.options : []
+    const normalizedOptions = rawOptions
+      .filter((option): option is string => typeof option === 'string')
+      .map(option => option.trim())
+    const hasInvalidOption = rawOptions.length !== normalizedOptions.length
+      || normalizedOptions.some(option => !option || option.length > 500)
+
+    if (hasInvalidOption) {
+      issues.push({ fieldId, message: `${displayName}: usuń puste lub nieprawidłowe opcje.` })
+    }
+    if (new Set(normalizedOptions).size !== normalizedOptions.length) {
+      issues.push({ fieldId, message: `${displayName}: każda opcja musi być unikalna.` })
+    }
+    if (normalizedOptions.length > 100) {
+      issues.push({ fieldId, message: `${displayName}: można dodać maksymalnie 100 opcji.` })
+    }
+    if (!options.allowEmptyOptions && normalizedOptions.length === 0) {
+      issues.push({
+        fieldId,
+        message: field.type === 'multidate'
+          ? `${displayName}: dodaj co najmniej jeden dostępny termin.`
+          : `${displayName}: dodaj co najmniej jedną opcję odpowiedzi.`,
+      })
+    }
+    if (
+      field.type === 'multidate'
+      && normalizedOptions.some(option => !DATE_RE.test(option))
+    ) {
+      issues.push({ fieldId, message: `${displayName}: wszystkie terminy muszą być prawidłowymi datami.` })
+    }
+  })
+
+  return issues
 }
 
 export function validateRegistrationFormData(

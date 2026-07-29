@@ -1,6 +1,5 @@
 'use client'
 import type { FormField } from '@/types'
-import { formatDateShort } from '@/lib/utils'
 import OptionReorder from './OptionReorder'
 
 interface Props {
@@ -24,12 +23,12 @@ export default function TemplateFieldConfigurator({ fields, onChange }: Props) {
     <div className="space-y-3">
       {fixed.length > 0 && (
         <div>
-          <p className="text-xs text-slate-400 mb-1.5">Pola tekstowe (bez dodatkowej konfiguracji):</p>
+          <p className="mb-2 text-xs font-medium text-[#71806a]">Pytania gotowe bez dodatkowych ustawień:</p>
           <div className="flex flex-wrap gap-1.5">
             {fixed.map(f => (
               <span
                 key={f.id}
-                className={`text-xs rounded-full px-3 py-1 ${f.required ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'}`}
+                className={`rounded-full border px-3 py-1.5 text-xs ${f.required ? 'border-[#f2a37d] bg-[#fff3eb] text-[#9b4b26]' : 'border-[#d6e2d0] bg-white text-[#53614d]'}`}
               >
                 {f.required && <span className="mr-1 font-bold">*</span>}
                 {f.label}
@@ -41,7 +40,7 @@ export default function TemplateFieldConfigurator({ fields, onChange }: Props) {
 
       {configurable.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs text-slate-400">Uzupełnij opcje/daty dla pól:</p>
+          <p className="text-sm font-semibold text-[#43513d]">Sprawdź opcje i terminy</p>
           {configurable.map(field => (
             <FieldOptionsEditor
               key={field.id}
@@ -72,11 +71,11 @@ function FieldOptionsEditor({
       : '▾ Lista wyboru'
 
   return (
-    <div className="border border-slate-200 rounded-lg p-3 bg-white">
+    <div className="rounded-2xl border border-[#dfe8d8] bg-white p-4">
       <div className="flex items-center gap-2 mb-2">
         <span
-          className={`text-xs font-medium rounded-full px-2.5 py-0.5 ${
-            field.required ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-600'
+          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+            field.required ? 'border-[#f2a37d] bg-[#fff3eb] text-[#9b4b26]' : 'border-[#d6e2d0] bg-[#f4f7f1] text-[#53614d]'
           }`}
         >
           {field.required && '* '}
@@ -89,7 +88,7 @@ function FieldOptionsEditor({
         <p className="text-xs text-slate-400 mb-2">{field.description}</p>
       )}
 
-      <div className="space-y-1 pl-1 border-l-2 border-sky-200">
+      <div className="space-y-1 rounded-xl bg-[#f8faf6] p-3">
         <OptionReorder options={options} onChange={onChange} type={field.type} />
       </div>
     </div>

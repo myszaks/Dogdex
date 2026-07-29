@@ -12,6 +12,7 @@ import type {
   CompetitionScalar,
 } from '@/types/competition'
 import { extractSizeClassFromRegistration } from '@/lib/speedway'
+import { isParticipantCompetitionComplete } from '@/lib/competitionProgress'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -253,7 +254,13 @@ export async function POST(req: Request, { params }: Params) {
   const calculatedPayload = calculated.map(row => ({
     event_id: eventId,
     participant_id: row.participantId,
-    computed: row.computed,
+    computed: {
+      ...row.computed,
+      __completed: isParticipantCompetitionComplete(
+        definition,
+        entriesByParticipant.get(row.participantId) ?? [],
+      ),
+    },
     groups: row.groups,
     ranks: row.ranks,
     source_revision: sourceRevision,

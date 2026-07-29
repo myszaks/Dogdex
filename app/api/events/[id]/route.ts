@@ -18,6 +18,7 @@ import {
   validateCompetitionFieldValues,
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -86,8 +87,8 @@ export async function PATCH(req: Request, { params }: Params) {
   if ('competition_format_id' in body) {
     if (body.competition_format_id === null || body.competition_format_id === '') {
       nextCompetitionFormatId = null
-      nextCompetitionConfig = null
-      update.competition_values = {}
+      nextCompetitionConfig = 'competition_config' in body ? body.competition_config : null
+      if (nextCompetitionConfig === null) update.competition_values = {}
     } else if (typeof body.competition_format_id === 'string') {
       const { data: format, error: formatError } = await supabase
         .from('competition_formats')
@@ -199,6 +200,19 @@ export async function PATCH(req: Request, { params }: Params) {
   if (dateReplacements.length > 0) {
     const sourceFields = 'form_fields' in update ? update.form_fields : existingEvent.form_fields
     update.form_fields = syncMultidateFormFields(sourceFields, dateReplacements)
+  }
+
+  if (nextEventStatus !== 'draft') {
+    const nextFormFields = 'form_fields' in update
+      ? update.form_fields
+      : existingEvent.form_fields
+    const fieldIssues = validateFormFieldDefinitions(nextFormFields)
+    if (fieldIssues.length > 0) {
+      return NextResponse.json(
+        { error: fieldIssues[0].message, issues: fieldIssues },
+        { status: 400 },
+      )
+    }
   }
 
   // Detect significant changes (date or location)

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser, checkRoleForApi } from '@/lib/getServerUser'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 
 export async function GET(req: Request) {
   const { user: authUser } = await getServerUser()
@@ -48,6 +49,13 @@ export async function POST(req: Request) {
   }
   if (!Array.isArray(fields)) {
     return NextResponse.json({ error: 'fields musi być tablicą' }, { status: 400 })
+  }
+  const fieldIssues = validateFormFieldDefinitions(fields, { allowEmptyOptions: true })
+  if (fieldIssues.length > 0) {
+    return NextResponse.json(
+      { error: fieldIssues[0].message, issues: fieldIssues },
+      { status: 400 },
+    )
   }
 
   const supabase = await createAuthClient()

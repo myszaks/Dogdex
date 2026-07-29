@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { CheckCircle2, Search } from 'lucide-react'
 import type {
   CompetitionFormatDefinition,
   CompetitionScalar,
@@ -73,6 +74,8 @@ export default function CompetitionResultEntry({
   const [currentParticipantId, setCurrentParticipantId] = useState<string | null>(
     participants[0]?.participantId ?? null
   )
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all')
 
   const activeKey = (participantId: string) => selectedAttempt
     ? entryKey(participantId, selectedAttempt.stageId, selectedAttempt.attemptId)
@@ -81,9 +84,22 @@ export default function CompetitionResultEntry({
     if (!selectedAttempt) return 0
     return participants.filter(participant => {
       const entry = entries[activeKey(participant.participantId)]
-      return entry && (entry.status !== null || Object.keys(entry.values).length > 0)
+      return isEntryComplete(definition, entry)
     }).length
   }, [entries, participants, selectedAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
+  const visibleParticipants = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase('pl')
+    return participants.filter(participant => {
+      const matchesSearch = !normalizedSearch
+        || participant.dogName.toLocaleLowerCase('pl').includes(normalizedSearch)
+        || participant.ownerName.toLocaleLowerCase('pl').includes(normalizedSearch)
+      const complete = isEntryComplete(definition, entries[activeKey(participant.participantId)])
+      const matchesFilter = filter === 'all'
+        || (filter === 'completed' && complete)
+        || (filter === 'pending' && !complete)
+      return matchesSearch && matchesFilter
+    })
+  }, [definition, entries, filter, participants, search, selectedAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function getEntry(participantId: string): EntryState {
     return entries[activeKey(participantId)] ?? {
@@ -104,8 +120,8 @@ export default function CompetitionResultEntry({
     }))
   }
 
-  async function saveEntry(participantId: string) {
-    if (!selectedAttempt) return
+  async function saveEntry(participantId: string): Promise<boolean> {
+    if (!selectedAttempt) return false
     const entry = getEntry(participantId)
     patchEntry(participantId, { saving: true, saved: false, error: null })
     try {
@@ -132,12 +148,24 @@ export default function CompetitionResultEntry({
         saving: false,
         saved: true,
       })
+      return true
     } catch (err) {
       patchEntry(participantId, {
         saving: false,
         error: err instanceof Error ? err.message : 'Nie udało się zapisać wyniku.',
       })
+      return false
     }
+  }
+
+  async function saveAndNext(participantId: string) {
+    const saved = await saveEntry(participantId)
+    if (!saved) return
+    const currentIndex = participants.findIndex(participant =>
+      participant.participantId === participantId
+    )
+    const nextParticipant = participants[currentIndex + 1]
+    if (nextParticipant) await setCurrentParticipant(nextParticipant.participantId)
   }
 
   async function setCurrentParticipant(participantId: string) {
@@ -161,12 +189,12 @@ export default function CompetitionResultEntry({
 
   return (
     <div className="space-y-5">
-      <div className="card bg-sage-50">
+      <div className="card sticky top-2 z-20 bg-sage-50/95 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <label className="block min-w-64">
             <span className="form-label">Aktualna próba</span>
             <select
-              className="form-input"
+              className="form-input min-h-11"
               value={`${selectedAttempt.stageId}\u001f${selectedAttempt.attemptId}`}
               onChange={event => {
                 const [stageId, attemptId] = event.target.value.split('\u001f')
@@ -189,10 +217,40 @@ export default function CompetitionResultEntry({
             Uzupełniono {completed}/{participants.length}
           </p>
         </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto]">
+          <label className="relative block">
+            <span className="sr-only">Szukaj psa lub właściciela</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sage-500" />
+            <input
+              className="form-input min-h-11 pl-10"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Szukaj psa lub właściciela…"
+            />
+          </label>
+          <div className="flex rounded-xl border border-sage-200 bg-white p-1" aria-label="Filtr uczestników">
+            {([
+              ['all', 'Wszyscy'],
+              ['pending', 'Do wpisania'],
+              ['completed', 'Gotowe'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${
+                  filter === value ? 'bg-primary text-white' : 'text-sage-600 hover:bg-sage-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-3">
-        {participants.map(participant => {
+        {visibleParticipants.map(participant => {
           const entry = getEntry(participant.participantId)
           return (
             <article
@@ -210,7 +268,7 @@ export default function CompetitionResultEntry({
                   <button
                     type="button"
                     onClick={() => setCurrentParticipant(participant.participantId)}
-                    className="mt-2 text-xs font-semibold text-accent hover:underline"
+                    className="mt-2 min-h-10 rounded-xl px-3 text-xs font-semibold text-accent hover:bg-orange-50"
                   >
                     {currentParticipantId === participant.participantId ? '● Na starcie' : 'Ustaw na starcie'}
                   </button>
@@ -291,22 +349,56 @@ export default function CompetitionResultEntry({
                   </label>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => saveEntry(participant.participantId)}
-                  disabled={entry.saving}
-                  className="btn btn-primary min-w-28"
-                >
-                  {entry.saving ? 'Zapisuję…' : entry.saved ? '✓ Zapisano' : 'Zapisz'}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+                  <button
+                    type="button"
+                    onClick={() => saveEntry(participant.participantId)}
+                    disabled={entry.saving}
+                    className="btn btn-secondary min-h-11 min-w-28"
+                  >
+                    {entry.saving ? 'Zapisuję…' : entry.saved ? '✓ Zapisano' : 'Zapisz'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveAndNext(participant.participantId)}
+                    disabled={entry.saving}
+                    className="btn btn-primary min-h-11 whitespace-nowrap"
+                  >
+                    Zapisz i następny
+                  </button>
+                </div>
               </div>
               {entry.error && <p className="mt-3 text-xs text-red-600">{entry.error}</p>}
             </article>
           )
         })}
+        {visibleParticipants.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-sage-300 bg-sage-50 p-8 text-center">
+            <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-sage-500" />
+            <p className="font-semibold text-primary">
+              {filter === 'pending' && completed === participants.length
+                ? 'Wszystkie wyniki tej próby są uzupełnione.'
+                : 'Brak uczestników pasujących do filtra.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function isEntryComplete(
+  definition: CompetitionFormatDefinition,
+  entry: EntryState | undefined,
+): boolean {
+  if (!entry || !entry.id) return false
+  if (entry.status !== null) return true
+  return definition.resultFields
+    .filter(field => field.required)
+    .every(field => {
+      const value = entry.values[field.id]
+      return value !== null && value !== undefined && value !== ''
+    })
 }
 
 function getEntryFrom(entries: Record<string, EntryState>, key: string): EntryState {

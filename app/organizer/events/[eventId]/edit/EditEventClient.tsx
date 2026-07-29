@@ -27,14 +27,16 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
-import CompetitionFormatPicker from '@/components/CompetitionFormatPicker'
+import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
+import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
-import type { CompetitionScalar } from '@/types/competition'
+import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
   ssr: false,
@@ -45,6 +47,7 @@ const STEPS = [
   { label: 'Podstawowe informacje', shortLabel: 'Informacje', Icon: FileText },
   { label: 'Lokalizacja i czas', shortLabel: 'Lokalizacja', Icon: MapPin },
   { label: 'Rejestracja i limity', shortLabel: 'Rejestracja', Icon: Users },
+  { label: 'Wyniki i transmisja live', shortLabel: 'Wyniki i live', Icon: Trophy },
   { label: 'Podgląd i zapis', shortLabel: 'Podgląd', Icon: Eye },
 ]
 
@@ -76,6 +79,7 @@ interface Props {
     grouping_field: string | null
     form_template_id: string | null
     competition_format_id: string | null
+    competition_config: CompetitionFormatDefinition | null
     competition_values: Record<string, CompetitionScalar>
     competition_config_locked_at: string | null
   }
@@ -131,6 +135,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [competitionFormatId, setCompetitionFormatId] = useState<string | null>(
     initialData.competition_format_id ?? null,
   )
+  const [competitionDefinition, setCompetitionDefinition] = useState<CompetitionFormatDefinition | null>(
+    initialData.competition_config ?? null,
+  )
   const [competitionValues, setCompetitionValues] = useState<Record<string, CompetitionScalar>>(
     initialData.competition_values ?? {},
   )
@@ -181,6 +188,18 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     if (!fields.some(field => field.id === groupingField)) setGroupingField('')
   }
 
+  function handleCompetitionFormatSelect(
+    id: string | null,
+    definition: CompetitionFormatDefinition | null,
+  ) {
+    setCompetitionFormatId(id)
+    setCompetitionDefinition(definition)
+    const allowedIds = new Set(definition?.eventFields.map(field => field.id) ?? [])
+    setCompetitionValues(current => Object.fromEntries(
+      Object.entries(current).filter(([key]) => allowedIds.has(key))
+    ))
+  }
+
   function handleMapLocation(nextLat: number, nextLng: number, address: string) {
     setLat(nextLat)
     setLng(nextLng)
@@ -213,9 +232,29 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       }
     }
 
-    if (step === 2 && entryFeeEnabled && !entryFee.trim()) {
-      setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
-      return false
+    if (step === 2) {
+      if (entryFeeEnabled && !entryFee.trim()) {
+        setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
+        return false
+      }
+      if (publishing) {
+        const formIssues = validateFormFieldDefinitions(formFields)
+        if (formIssues.length > 0) {
+          setError(formIssues[0].message)
+          return false
+        }
+      }
+    }
+
+    if (step === 3 && publishing && hasResults && competitionDefinition) {
+      const valueIssues = validateCompetitionFieldValues(
+        competitionDefinition.eventFields,
+        competitionValues,
+      )
+      if (valueIssues.length > 0) {
+        setError(valueIssues[0].message)
+        return false
+      }
     }
 
     return true
@@ -289,6 +328,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       grouping_field: groupingField || null,
       ...(initialData.competition_config_locked_at ? {} : {
         competition_format_id: competitionFormatId,
+        competition_config: competitionFormatId ? undefined : competitionDefinition,
         competition_values: competitionValues,
       }),
     }
@@ -340,9 +380,17 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 description="Zaktualizuj nazwę, organizatora, opis, typ wydarzenia oraz zdjęcia."
               />
 
-              <div className="mx-auto max-w-2xl rounded-3xl border-2 border-dashed border-sage-200 bg-sage-50/60 p-3 sm:p-4">
-                <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
-              </div>
+              <details className="group rounded-3xl border border-sage-200 bg-sage-50/50">
+                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold text-primary marker:hidden">
+                  Zdjęcie główne (opcjonalnie)
+                  <ChevronRight className="h-5 w-5 transition-transform group-open:rotate-90" />
+                </summary>
+                <div className="mx-auto max-w-2xl border-t border-sage-200 p-4">
+                  <div className="rounded-3xl border-2 border-dashed border-sage-200 bg-white p-3">
+                    <ImageCropUploader currentUrl={imageUrl} onUrlChange={setImageUrl} />
+                  </div>
+                </div>
+              </details>
 
               <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <div className="space-y-5">
@@ -359,8 +407,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                     <textarea className="form-input min-h-44 bg-sage-50 text-base leading-7" value={description} onChange={e => setDescription(e.target.value)} />
                   </div>
 
-                  <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 flex items-center gap-3">
+                  <details className="group rounded-3xl border border-sage-200 bg-white shadow-sm">
+                    <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between p-5 marker:hidden">
+                    <div className="flex items-center gap-3">
                       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-accent">
                         <GalleryHorizontal className="h-5 w-5" />
                       </span>
@@ -369,8 +418,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                         <p className="text-sm text-muted-foreground">Dodatkowe zdjęcia wydarzenia dla strony publicznej.</p>
                       </div>
                     </div>
-                    <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
-                  </div>
+                    <ChevronRight className="h-5 w-5 transition-transform group-open:rotate-90" />
+                    </summary>
+                    <div className="border-t border-sage-200 p-5">
+                      <GalleryUploader images={galleryImages} onImagesChange={setGalleryImages} />
+                    </div>
+                  </details>
                 </div>
 
                 <EventTypePicker
@@ -409,6 +462,27 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
           {currentStep === 2 && (
             <div className="space-y-8">
+              <Panel Icon={FileText} title="Formularz zapisów">
+                <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
+                  Dane właściciela i psa są zawsze dostępne. Tutaj ustawiasz tylko dodatkowe pytania organizatora.
+                </p>
+                <FormTemplatePicker eventTypeId={eventTypeId || null} selectedTemplateId={selectedTemplateId} initialConfiguredFields={initialData.form_fields ?? []} onSelect={handleTemplateSelect} />
+                {groupableFields.length > 0 && (
+                  <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
+                    <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">
+                      Grupowanie listy zapisów (opcjonalnie)
+                      <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                    </summary>
+                    <div className="border-t border-sage-200 p-4">
+                      <select className="form-input min-h-11" value={groupingField} onChange={e => setGroupingField(e.target.value)}>
+                        <option value="">Brak grupowania</option>
+                        {groupableFields.map(field => <option key={field.id} value={field.id}>{field.label}</option>)}
+                      </select>
+                    </div>
+                  </details>
+                )}
+              </Panel>
+
               <div className="grid gap-6 lg:grid-cols-2">
                 <Panel Icon={Users} title="Limity uczestników">
                   <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
@@ -441,61 +515,52 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 </Panel>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-                <Panel Icon={FileText} title="Formularz zapisów">
-                  <FormTemplatePicker eventTypeId={eventTypeId || null} selectedTemplateId={selectedTemplateId} initialConfiguredFields={initialData.form_fields ?? []} onSelect={handleTemplateSelect} />
-                  {groupableFields.length > 0 && (
-                    <div className="mt-5">
-                      <label className="form-label">Grupuj zapisy według</label>
-                      <select className="form-input" value={groupingField} onChange={e => setGroupingField(e.target.value)}>
-                        <option value="">Brak grupowania</option>
-                        {groupableFields.map(field => <option key={field.id} value={field.id}>{field.label}</option>)}
-                      </select>
-                    </div>
-                  )}
-                </Panel>
-
-                <Panel Icon={Trophy} title="Wyniki i ranking">
-                  <div className="space-y-3">
-                    <ToggleRow
-                      checked={hasResults}
-                      onChange={checked => {
-                        setHasResults(checked)
-                        if (!checked) {
-                          setResultsPublic(true)
-                          setCompetitionFormatId(null)
-                          setCompetitionValues({})
-                        }
-                      }}
-                      title="Włącz wyniki i ranking"
-                      description="Pojawią się narzędzia organizatora oraz widok live."
-                    />
-                    {hasResults && (
-                      <>
-                        <ToggleRow checked={resultsPublic} onChange={setResultsPublic} title="Wyniki widoczne publicznie" description="Odznacz, jeśli chcesz opublikować wyniki później." />
-                        <div className="mt-5 border-t border-sage-100 pt-5">
-                          {initialData.competition_config_locked_at ? (
-                            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                              Format i parametry są zablokowane po zapisaniu pierwszego wyniku.
-                            </p>
-                          ) : (
-                            <CompetitionFormatPicker
-                              selectedId={competitionFormatId}
-                              values={competitionValues}
-                              onSelect={(id) => setCompetitionFormatId(id)}
-                              onValuesChange={setCompetitionValues}
-                            />
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </Panel>
-              </div>
             </div>
           )}
 
           {currentStep === 3 && (
+            initialData.competition_config_locked_at ? (
+              <div className="space-y-5">
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+                  <h2 className="font-heading text-xl font-bold">Schemat wyników jest zablokowany</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed">
+                    Po zapisaniu pierwszego wyniku nie można już zmieniać sposobu liczenia. Chroni to istniejące dane i klasyfikację. Widoczność wyników możesz nadal zmienić poniżej.
+                  </p>
+                </div>
+                <Panel Icon={Eye} title="Widoczność wyników">
+                  <ToggleRow
+                    checked={resultsPublic}
+                    onChange={setResultsPublic}
+                    title="Wyniki i live publiczne"
+                    description="Wyłącz, jeśli chcesz tymczasowo ukryć wyniki przed uczestnikami."
+                  />
+                </Panel>
+              </div>
+            ) : (
+              <EventResultsSetup
+                eventTypeId={eventTypeId || null}
+                enabled={hasResults}
+                resultsPublic={resultsPublic}
+                formatId={competitionFormatId}
+                definition={competitionDefinition}
+                values={competitionValues}
+                onEnabledChange={checked => {
+                  setHasResults(checked)
+                  if (!checked) {
+                    setResultsPublic(true)
+                    setCompetitionFormatId(null)
+                    setCompetitionDefinition(null)
+                    setCompetitionValues({})
+                  }
+                }}
+                onResultsPublicChange={setResultsPublic}
+                onFormatSelect={handleCompetitionFormatSelect}
+                onValuesChange={setCompetitionValues}
+              />
+            )
+          )}
+
+          {currentStep === 4 && (
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_390px]">
               <div className="space-y-6">
                 <div className="relative min-h-[360px] overflow-hidden rounded-[28px] bg-primary shadow-sm">
@@ -523,6 +588,19 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                   <SummaryTile Icon={MapPin} label="Lokalizacja" value={location || 'Lokalizacja do uzupełnienia'} detail={organizerName ? `Organizator: ${organizerName}` : 'Organizator nieuzupełniony'} />
                   <SummaryTile Icon={Wallet} label="Koszt uczestnictwa" value={feeLabel} detail={autoConfirm ? 'Zapisy auto-potwierdzane' : 'Zapisy wymagają akceptacji'} />
                   <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
+                </div>
+
+                <div className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm">
+                  <h2 className="section-title">Sprawdzenie konfiguracji</h2>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <MetricTile label="Pytania dodatkowe" value={String(formFields.length)} />
+                    <MetricTile label="Grafik startów" value={hasSchedule ? 'Włączony' : 'Wyłączony'} />
+                    <MetricTile label="Wyniki" value={hasResults ? 'Włączone' : 'Wyłączone'} />
+                    <MetricTile
+                      label="Schemat liczenia"
+                      value={hasResults ? competitionDefinition?.name ?? 'Proste wyniki' : 'Nie dotyczy'}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -584,22 +662,28 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
 function WizardStepper({ currentStep, onStepChange }: { currentStep: number; onStepChange: (step: number) => void }) {
   return (
-    <div className="border-b border-sage-200 bg-white px-4 py-5 sm:px-8 lg:px-10">
-      <div className="grid gap-3 md:grid-cols-4">
+    <div className="border-b border-sage-200 bg-white px-3 py-4 sm:px-8 lg:px-10">
+      <div className="grid grid-cols-5 gap-1 sm:gap-2">
         {STEPS.map(({ label, shortLabel, Icon }, index) => {
           const active = index === currentStep
           const complete = index < currentStep
 
           return (
-            <button key={label} type="button" onClick={() => onStepChange(index)} className="group flex items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-sage-50">
-              <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-colors', active && 'border-accent bg-white text-accent ring-4 ring-orange-100', complete && 'border-primary bg-primary text-white', !active && !complete && 'border-sage-200 bg-white text-sage-400')}>
+            <button
+              key={label}
+              type="button"
+              onClick={() => onStepChange(index)}
+              className="group flex min-w-0 flex-col items-center gap-1 rounded-2xl p-1 text-center transition-colors hover:bg-sage-50 sm:flex-row sm:gap-2 sm:p-2 sm:text-left"
+              title={label}
+              aria-label={`Krok ${index + 1}: ${label}`}
+            >
+              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-colors sm:h-10 sm:w-10', active && 'border-accent bg-white text-accent ring-4 ring-orange-100', complete && 'border-primary bg-primary text-white', !active && !complete && 'border-sage-200 bg-white text-sage-400')}>
                 {complete ? <Check className="h-4 w-4" /> : active ? index + 1 : <Icon className="h-4 w-4" />}
               </span>
               <span className="min-w-0">
-                <span className={cn('block text-[11px] font-bold uppercase tracking-[0.18em]', active ? 'text-accent' : complete ? 'text-primary' : 'text-sage-400')}>Krok {index + 1}</span>
-                <span className={cn('block truncate text-sm font-semibold', active ? 'text-primary' : 'text-sage-500')}>
-                  <span className="hidden lg:inline">{label}</span>
-                  <span className="lg:hidden">{shortLabel}</span>
+                <span className={cn('hidden text-[10px] font-bold uppercase tracking-[0.12em] sm:block', active ? 'text-accent' : complete ? 'text-primary' : 'text-sage-400')}>Krok {index + 1}</span>
+                <span className={cn('block max-w-full truncate text-[10px] font-semibold sm:text-xs lg:text-sm', active ? 'text-primary' : 'text-sage-500')}>
+                  <span>{shortLabel}</span>
                 </span>
               </span>
             </button>
@@ -692,6 +776,15 @@ function SummaryTile({ Icon, label, value, detail, accent }: { Icon: LucideIcon;
           <p className="mt-1 text-sm text-muted-foreground wrap-anywhere">{detail}</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+function MetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-sage-200 bg-sage-50 p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-sage-500">{label}</p>
+      <p className="mt-1 break-words font-semibold text-primary">{value}</p>
     </div>
   )
 }

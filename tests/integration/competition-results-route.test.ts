@@ -193,6 +193,7 @@ describe('POST /api/events/[id]/competition-results', () => {
         computed: expect.objectContaining({
           best_time_ms: 5000,
           speed_kmh: 36,
+          __completed: false,
         }),
         groups: { size_class: 'XS' },
         ranks: { class: 1 },

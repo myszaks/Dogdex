@@ -571,7 +571,7 @@ export default function CompetitionFormatStudio({
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           {!formatId && !initialDefinition && (
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
@@ -624,7 +624,12 @@ export default function CompetitionFormatStudio({
           )}
           <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
             <label className="form-label">Nazwa formatu</label>
-            <input className="form-input" value={name} onChange={event => setName(event.target.value)} />
+            <input
+              className="form-input min-h-11"
+              value={name}
+              onChange={event => setName(event.target.value)}
+              title={name}
+            />
             <label className="form-label mt-4">Opis</label>
             <textarea
               className="form-input min-h-24"

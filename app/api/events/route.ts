@@ -6,6 +6,7 @@ import {
   validateCompetitionFieldValues,
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -44,6 +45,15 @@ export async function POST(req: Request) {
 
   if (!normalizedTitle) {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
+  }
+  if (nextStatus !== 'draft') {
+    const fieldIssues = validateFormFieldDefinitions(Array.isArray(form_fields) ? form_fields : [])
+    if (fieldIssues.length > 0) {
+      return NextResponse.json(
+        { error: fieldIssues[0].message, issues: fieldIssues },
+        { status: 400 },
+      )
+    }
   }
 
   // Generate a unique slug

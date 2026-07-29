@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import FormBuilder from './FormBuilder'
 import TemplateFieldConfigurator from './TemplateFieldConfigurator'
 import { getEventType } from '@/lib/eventTypes'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
+import { Check, FilePlus2, Pencil, Trash2, X } from 'lucide-react'
 import type { FormField } from '@/types'
 
 interface TemplateMeta {
@@ -50,6 +52,14 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
   }, [])
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
+  useEffect(() => {
+    if (!showModal) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [showModal])
 
   function openCreateModal() {
     setModalMode('create')
@@ -87,20 +97,23 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
 
   async function saveTemplate() {
     if (!modalName.trim()) return
+    const fieldIssues = validateFormFieldDefinitions(modalFields, { allowEmptyOptions: true })
+    if (fieldIssues.length > 0) {
+      setSaveError(fieldIssues[0].message)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
       if (modalMode === 'edit' && editingId) {
-        const delRes = await fetch(`/api/form-templates/${editingId}`, { method: 'DELETE' })
-        if (!delRes.ok) throw new Error('Błąd usuwania starego szablonu')
-        const res = await fetch('/api/form-templates', {
-          method: 'POST',
+        const res = await fetch(`/api/form-templates/${editingId}`, {
+          method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ name: modalName.trim(), event_type_id: eventTypeId, fields: modalFields }),
         })
         if (!res.ok) { const j = await res.json(); throw new Error(j.error ?? 'Błąd serwera') }
         const updated: TemplateMeta = await res.json()
-        setTemplates(prev => prev.filter(t => t.id !== editingId).concat(updated))
+        setTemplates(prev => prev.map(t => t.id === editingId ? updated : t))
         if (selectedTemplateId === editingId) {
           const fresh = updated.fields.map(f => ({ ...f }))
           setConfiguredFields(fresh)
@@ -153,13 +166,16 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
 
   return (
     <>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {loading && <p className="text-sm text-slate-400">Ładowanie szablonów...</p>}
 
         {!loading && templates.length === 0 && (
-          <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
-            <p className="text-2xl mb-2">📋</p>
-            <p className="text-slate-500 text-sm mb-4">Nie masz jeszcze żadnych szablonów.</p>
+          <div className="rounded-2xl border-2 border-dashed border-[#d6e2d0] bg-[#fafcf8] px-5 py-8 text-center">
+            <FilePlus2 className="mx-auto mb-3 h-7 w-7 text-[#7b8b73]" />
+            <p className="font-semibold text-[#43513d]">Zacznij od własnego formularza</p>
+            <p className="mx-auto mb-4 mt-1 max-w-md text-sm leading-relaxed text-[#71806a]">
+              Pola z danymi właściciela i psa są już gotowe. Dodaj tylko pytania potrzebne przy tym rodzaju wydarzenia.
+            </p>
             <button type="button" onClick={openCreateModal} className="btn btn-primary">
               + Stwórz pierwszy szablon
             </button>
@@ -172,7 +188,7 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
               <button
                 type="button"
                 onClick={() => { setConfiguredFields([]); onSelect(null, []) }}
-                className="text-xs text-slate-400 hover:text-slate-600 underline"
+                className="min-h-10 rounded-xl px-3 text-sm font-medium text-[#66735f] hover:bg-[#f4f7f1]"
               >
                 Usuń wybór (brak dodatkowych pól)
               </button>
@@ -216,20 +232,20 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
               </>
             )}
 
-            <button type="button" onClick={openCreateModal} className="btn btn-secondary w-full text-sm mt-1">
+            <button type="button" onClick={openCreateModal} className="btn btn-secondary min-h-11 w-full text-sm mt-1">
               + Stwórz nowy szablon
             </button>
           </>
         )}
 
         {selectedTemplate && (
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+          <div className="rounded-2xl border border-[#d6e2d0] bg-[#f8faf6] p-4 space-y-3">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Uzupełnij pola — {selectedTemplate.name}
+              <p className="font-semibold text-[#43513d]">
+                Opcje dla tego wydarzenia
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Pola stałe (imię właściciela, e-mail, imię psa, rasa) są zawsze dostępne.
+              <p className="mt-1 text-sm leading-relaxed text-[#71806a]">
+                Wybrano „{selectedTemplate.name}”. Sprawdź daty i opcje odpowiedzi — możesz je zmienić bez modyfikowania szablonu.
               </p>
             </div>
             {configuredFields.length > 0 ? (
@@ -249,27 +265,34 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
 
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
           onClick={e => { if (e.target === e.currentTarget) closeModal() }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="form-template-modal-title"
         >
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-xl max-h-[92dvh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-              <h2 className="font-semibold text-slate-800">
+          <div className="flex max-h-[94dvh] w-full flex-col rounded-t-3xl bg-white shadow-xl sm:max-w-3xl sm:rounded-3xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-[#e4ebe0] px-5 py-4">
+              <div>
+              <h2 id="form-template-modal-title" className="font-semibold text-[#34402f]">
                 {modalMode === 'edit' ? 'Edytuj szablon' : 'Nowy szablon formularza'}
               </h2>
+              <p className="mt-0.5 text-xs text-[#71806a]">Ten szablon będzie widoczny tylko na Twoim koncie organizatora.</p>
+              </div>
               <button
                 type="button"
                 onClick={closeModal}
-                className="text-slate-400 hover:text-slate-700 text-xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-[#71806a] hover:bg-[#f4f7f1]"
+                aria-label="Zamknij"
               >
-                ×
+                <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div>
                 <label className="form-label">Nazwa szablonu *</label>
                 <input
-                  className="form-input"
+                  className="form-input min-h-11"
                   value={modalName}
                   onChange={e => setModalName(e.target.value)}
                   placeholder="np. Agility A1–A3, Rejestracja standardowa..."
@@ -284,7 +307,7 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
                 templateMode
               />
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 space-y-2 shrink-0">
+            <div className="shrink-0 space-y-2 border-t border-[#e4ebe0] bg-white px-5 py-4">
               {saveError && <p className="text-sm text-red-600">⚠ {saveError}</p>}
               <div className="flex gap-3">
                 <button type="button" onClick={closeModal} className="btn btn-secondary flex-1">Anuluj</button>
@@ -303,20 +326,6 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, in
       )}
     </>
   )
-}
-
-function fieldTypeLabel(type: FormField['type']): string {
-  const map: Record<FormField['type'], string> = {
-    text: 'tekst',
-    number: 'liczba',
-    email: 'e-mail',
-    select: 'lista',
-    multiselect: 'wielokrotny wybór',
-    multidate: 'daty (wielokrotny wybór)',
-    textarea: 'długi tekst',
-    checkbox: 'checkbox',
-  }
-  return map[type] ?? type
 }
 
 function TemplateCard({
@@ -342,20 +351,20 @@ function TemplateCard({
     <div
       className={`rounded-xl border-2 transition-colors ${
         selected
-          ? 'border-sky-500 bg-sky-50'
+          ? 'border-[#ef7a42] bg-[#fff7f2]'
           : dimmed
-          ? 'border-slate-100 bg-white opacity-60 hover:opacity-100 hover:border-slate-200'
-          : 'border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/40'
+          ? 'border-[#e9eee6] bg-white opacity-60 hover:opacity-100 hover:border-[#d6e2d0]'
+          : 'border-[#dfe8d8] bg-white hover:border-[#aebda7] hover:bg-[#fafcf8]'
       }`}
     >
       <button
         type="button"
         onClick={onSelect}
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        className="flex min-h-16 w-full items-center justify-between px-4 py-3 text-left"
       >
         <div className="min-w-0">
-          <p className="font-medium text-slate-800 truncate">{template.name}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="truncate font-semibold text-[#43513d]">{template.name}</p>
+          <p className="mt-0.5 text-xs text-[#71806a]">
             {template.fields.length > 0
               ? `${template.fields.length} pól dodatkowych`
               : 'Tylko pola podstawowe'}
@@ -365,28 +374,31 @@ function TemplateCard({
           </p>
         </div>
         {selected ? (
-          <span className="text-sky-500 text-xl ml-3 shrink-0">✓</span>
+          <span className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#ef7a42] text-white">
+            <Check className="h-4 w-4" />
+          </span>
         ) : (
-          <span className="text-slate-300 text-sm ml-3 shrink-0">Wybierz</span>
+          <span className="text-sm ml-3 shrink-0 text-[#83907d]">Wybierz</span>
         )}
       </button>
-      <div className="flex gap-1 px-3 pb-2">
+      <div className="flex flex-wrap gap-2 px-3 pb-3">
         <button
           type="button"
           onClick={onEdit}
-          className="text-xs text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded px-2 py-1 transition-colors"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#66735f] transition-colors hover:bg-[#f4f7f1]"
         >
-          Edytuj
+          <Pencil className="h-3.5 w-3.5" /> Edytuj
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className={`text-xs rounded px-2 py-1 transition-colors ${
+          className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
             deletingConfirm
               ? 'text-white bg-red-500 hover:bg-red-600'
-              : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+              : 'text-[#8a6b60] hover:text-red-600 hover:bg-red-50'
           }`}
         >
+          <Trash2 className="h-3.5 w-3.5" />
           {deletingConfirm ? 'Kliknij ponownie, aby usunąć' : 'Usuń'}
         </button>
       </div>

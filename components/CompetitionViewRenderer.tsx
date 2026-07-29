@@ -258,9 +258,7 @@ function CompetitionViewBlock({
   }
 
   if (block.type === 'progress') {
-    const completed = results.filter(result =>
-      Object.values(result.ranks).some(rank => rank !== null)
-    ).length
+    const completed = results.filter(result => result.computed.__completed === true).length
     const percent = participants.length > 0 ? Math.round((completed / participants.length) * 100) : 0
     return (
       <section className="card">

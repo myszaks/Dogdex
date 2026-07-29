@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import type { FormField } from '@/types'
 import OptionReorder from './OptionReorder'
 
@@ -50,50 +51,50 @@ function FieldCard({
   onMoveDown,
   templateMode,
 }: FieldCardProps) {
-  function addOption() {
-    const newOpt = field.type === 'multidate'
-      ? new Date().toISOString().slice(0, 10)
-      : 'Nowa opcja'
-    onUpdate(index, { options: [...(field.options ?? []), newOpt] })
-  }
-
   return (
-    <div className="border border-slate-200 rounded-lg p-3 bg-white shadow-sm">
-      <div className="flex gap-2 items-start">
+    <div className="rounded-2xl border border-[#dfe8d8] bg-white p-4 shadow-sm">
+      <div className="flex gap-3 items-start">
         {/* Move buttons */}
-        <div className="flex flex-col gap-1 pt-1 shrink-0">
+        <div className="flex flex-col gap-1 shrink-0">
           <button
             type="button"
             onClick={() => onMoveUp(index)}
             disabled={isFirst}
-            className="text-slate-400 hover:text-slate-700 disabled:opacity-20 leading-none text-xs px-1"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#dfe8d8] text-[#66735f] hover:bg-[#f4f7f1] disabled:opacity-25"
             title="Przesuń w górę"
+            aria-label="Przesuń pole w górę"
           >
-            ▲
+            <ChevronUp className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => onMoveDown(index)}
             disabled={isLast}
-            className="text-slate-400 hover:text-slate-700 disabled:opacity-20 leading-none text-xs px-1"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#dfe8d8] text-[#66735f] hover:bg-[#f4f7f1] disabled:opacity-25"
             title="Przesuń w dół"
+            aria-label="Przesuń pole w dół"
           >
-            ▼
+            <ChevronDown className="h-4 w-4" />
           </button>
         </div>
 
         {/* Main content */}
         <div className="flex-1 space-y-2 min-w-0">
           {/* Label + type row */}
-          <div className="flex gap-2">
-            <input
-              className="form-input flex-1 text-sm"
-              value={field.label}
-              onChange={e => onUpdate(index, { label: e.target.value })}
-              placeholder="Nazwa pola"
-            />
-            <select
-              className="form-input text-sm w-36 shrink-0"
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+            <label className="block">
+              <span className="form-label">Nazwa pytania</span>
+              <input
+                className="form-input min-h-11 text-sm"
+                value={field.label}
+                onChange={e => onUpdate(index, { label: e.target.value })}
+                placeholder="Np. Poziom zaawansowania"
+              />
+            </label>
+            <label className="block">
+              <span className="form-label">Sposób odpowiedzi</span>
+              <select
+              className="form-input min-h-11 text-sm"
               value={field.type}
               onChange={e => {
                 const t = e.target.value as FormField['type']
@@ -103,7 +104,9 @@ function FieldCard({
                     (t === 'select' || t === 'multiselect' || t === 'multidate')
                       ? field.options?.length
                         ? field.options
-                        : ['Opcja 1', 'Opcja 2']
+                        : t === 'multidate'
+                          ? []
+                          : ['Opcja 1', 'Opcja 2']
                       : undefined,
                 })
               }}
@@ -113,13 +116,14 @@ function FieldCard({
                   {t.label}
                 </option>
               ))}
-            </select>
+              </select>
+            </label>
           </div>
 
           {/* Placeholder */}
           {field.type !== 'checkbox' && field.type !== 'select' && (
             <input
-              className="form-input text-sm"
+              className="form-input min-h-11 text-sm"
               value={field.placeholder ?? ''}
               onChange={e => onUpdate(index, { placeholder: e.target.value })}
               placeholder="Tekst podpowiedzi (opcjonalnie)"
@@ -128,7 +132,7 @@ function FieldCard({
 
           {/* Description */}
           <input
-            className="form-input text-sm"
+            className="form-input min-h-11 text-sm"
             value={field.description ?? ''}
             onChange={e =>
               onUpdate(index, { description: e.target.value || undefined })
@@ -138,29 +142,30 @@ function FieldCard({
 
           {/* Select options */}
           {(field.type === 'select' || field.type === 'multiselect' || field.type === 'multidate') && (
-            templateMode ? (
-              <p className="text-xs text-slate-400 italic pl-1 border-l-2 border-slate-200 py-1">
-                Opcje uzupełniane przy tworzeniu/edycji wydarzenia
+            <div className="space-y-2 rounded-xl border border-[#dfe8d8] bg-[#f8faf6] p-3">
+              <p className="text-sm font-semibold text-[#43513d]">
+                {field.type === 'multidate' ? 'Dostępne terminy' : 'Opcje odpowiedzi'}
               </p>
-            ) : (
-            <div className="space-y-1 pl-1 border-l-2 border-sky-200">
-              <p className="text-xs font-medium text-slate-500">Opcje listy:</p>
+              {templateMode && (
+                <p className="text-xs leading-relaxed text-[#71806a]">
+                  Możesz wpisać domyślne opcje teraz. Przy konkretnym wydarzeniu da się je jeszcze zmienić.
+                </p>
+              )}
                   <OptionReorder
                     options={field.options ?? []}
                     onChange={next => onUpdate(index, { options: next })}
                     type={field.type}
                   />
             </div>
-            )
           )}
 
           {/* Required toggle */}
-          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+          <label className="flex min-h-11 items-center gap-3 rounded-xl bg-[#f4f7f1] px-3 text-sm font-medium text-[#43513d] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={field.required}
               onChange={e => onUpdate(index, { required: e.target.checked })}
-              className="rounded"
+              className="h-5 w-5 rounded border-[#aebda7] text-[#f26a2e]"
             />
             Pole wymagane
           </label>
@@ -170,10 +175,11 @@ function FieldCard({
         <button
           type="button"
           onClick={() => onRemove(index)}
-          className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded p-1 shrink-0"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#8a9684] hover:bg-red-50 hover:text-red-600"
           title="Usuń pole"
+          aria-label="Usuń pole"
         >
-          🗑️
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     </div>
@@ -332,15 +338,22 @@ interface Props {
 export default function FormBuilder({ value, onChange, eventTypeId, hideTemplateActions, templateMode }: Props) {
   const [showSave, setShowSave] = useState(false)
   const [showLoad, setShowLoad] = useState(false)
+  const idPrefix = useId().replace(/:/g, '')
+  const nextFieldNumber = useRef(0)
 
   function addField(type: FormField['type']) {
     const needsOptions = type === 'select' || type === 'multiselect' || type === 'multidate'
+    nextFieldNumber.current += 1
     const newField: FormField = {
-      id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: `field_${idPrefix}_${nextFieldNumber.current}`,
       label: DEFAULT_LABELS[type],
       type,
       required: false,
-      options: !templateMode && needsOptions ? ['Opcja 1', 'Opcja 2'] : undefined,
+      options: needsOptions
+        ? type === 'multidate'
+          ? []
+          : ['Opcja 1', 'Opcja 2']
+        : undefined,
     }
     onChange([...value, newField])
   }
@@ -372,9 +385,12 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
   return (
     <div className="space-y-3">
       {/* Fixed base fields */}
-      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-          Pola stałe (zawsze wymagane)
+      <div className="rounded-2xl border border-[#dfe8d8] bg-[#f4f7f1] p-4">
+        <p className="text-sm font-semibold text-[#43513d] mb-1">
+          Dane podstawowe są już dodane
+        </p>
+        <p className="mb-3 text-xs leading-relaxed text-[#71806a]">
+          Nie musisz ponownie pytać o dane właściciela i psa.
         </p>
         <div className="flex flex-wrap gap-2">
           {[
@@ -385,7 +401,7 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
           ].map(f => (
             <span
               key={f}
-              className="text-xs bg-slate-200 text-slate-600 rounded-full px-3 py-1"
+              className="rounded-full border border-[#d6e2d0] bg-white px-3 py-1.5 text-xs text-[#53614d]"
             >
               {f}
             </span>
@@ -396,8 +412,8 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
       {/* Custom fields */}
       {value.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Pola dodatkowe
+          <p className="text-sm font-semibold text-[#43513d]">
+            Twoje pytania dodatkowe
           </p>
           {value.map((field, i) => (
             <FieldCard
@@ -418,8 +434,11 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
 
       {/* Add field buttons */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-          Dodaj pole
+        <p className="mb-1 text-sm font-semibold text-[#43513d]">
+          Dodaj kolejne pytanie
+        </p>
+        <p className="mb-3 text-xs text-[#71806a]">
+          Wybierz sposób, w jaki uczestnik ma odpowiedzieć.
         </p>
         <div className="flex flex-wrap gap-2">
           {FIELD_TYPES.map(({ value: type, label }) => (
@@ -427,9 +446,9 @@ export default function FormBuilder({ value, onChange, eventTypeId, hideTemplate
               key={type}
               type="button"
               onClick={() => addField(type)}
-              className="text-xs btn btn-secondary py-1 px-3"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[#d6e2d0] bg-white px-3 py-2 text-xs font-semibold text-[#53614d] hover:border-[#f2a37d] hover:bg-[#fff7f2]"
             >
-              + {label}
+              <Plus className="h-3.5 w-3.5" /> {label}
             </button>
           ))}
         </div>

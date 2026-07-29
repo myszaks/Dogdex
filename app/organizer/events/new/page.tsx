@@ -37,6 +37,7 @@ import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
+import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
@@ -262,6 +263,11 @@ export default function NewEventPage() {
     if (step === 2) {
       if (entryFeeEnabled && !entryFee.trim()) {
         setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
+        return false
+      }
+      const formIssues = validateFormFieldDefinitions(formFields)
+      if (formIssues.length > 0) {
+        setError(formIssues[0].message)
         return false
       }
     }
@@ -518,6 +524,7 @@ export default function NewEventPage() {
               feeLabel={feeLabel}
               autoConfirm={autoConfirm}
               hasResults={hasResults}
+              competitionName={competitionDefinition?.name ?? null}
               resultsPublic={resultsPublic}
               hasSchedule={hasSchedule}
               galleryCount={galleryImages.length}
@@ -573,8 +580,8 @@ function WizardStepper({
   onStepChange: (step: number) => void
 }) {
   return (
-    <div className="border-b border-sage-200 bg-white px-4 py-5 sm:px-8 lg:px-10">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="border-b border-sage-200 bg-white px-3 py-4 sm:px-8 lg:px-10">
+      <div className="grid grid-cols-5 gap-1 sm:gap-2">
         {STEPS.map(({ label, shortLabel, Icon }, index) => {
           const active = index === currentStep
           const complete = index < currentStep
@@ -584,11 +591,13 @@ function WizardStepper({
               key={label}
               type="button"
               onClick={() => onStepChange(index)}
-              className="group flex items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-sage-50"
+              className="group flex min-w-0 flex-col items-center gap-1 rounded-2xl p-1 text-center transition-colors hover:bg-sage-50 sm:flex-row sm:gap-2 sm:p-2 sm:text-left"
+              title={label}
+              aria-label={`Krok ${index + 1}: ${label}`}
             >
               <span
                 className={cn(
-                  'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-bold transition-colors',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-colors sm:h-10 sm:w-10',
                   active && 'border-accent bg-white text-accent ring-4 ring-orange-100',
                   complete && 'border-primary bg-primary text-white',
                   !active && !complete && 'border-sage-200 bg-white text-sage-400',
@@ -599,15 +608,14 @@ function WizardStepper({
               <span className="min-w-0">
                 <span
                   className={cn(
-                    'block text-[11px] font-bold uppercase tracking-[0.18em]',
+                    'hidden text-[10px] font-bold uppercase tracking-[0.12em] sm:block',
                     active ? 'text-accent' : complete ? 'text-primary' : 'text-sage-400',
                   )}
                 >
                   Krok {index + 1}
                 </span>
-                <span className={cn('block truncate text-sm font-semibold', active ? 'text-primary' : 'text-sage-500')}>
-                  <span className="hidden lg:inline">{label}</span>
-                  <span className="lg:hidden">{shortLabel}</span>
+                <span className={cn('block max-w-full truncate text-[10px] font-semibold sm:text-xs lg:text-sm', active ? 'text-primary' : 'text-sage-500')}>
+                  <span>{shortLabel}</span>
                 </span>
               </span>
             </button>
@@ -650,15 +658,11 @@ function StepBasicInfo({
   return (
     <div className="space-y-8">
       <SectionHeader
-        Icon={ImagePlus}
-        eyebrow="Miniaturka wydarzenia"
-        title="Pierwsze wrażenie i najważniejsze informacje"
-        description="Dodaj zdjęcie, nazwę, organizatora i wybierz typ wydarzenia. Galeria jest zachowana jako część obecnego kreatora."
+        Icon={FileText}
+        eyebrow="Najważniejsze informacje"
+        title="Co organizujesz?"
+        description="Najpierw podaj nazwę i wybierz rodzaj wydarzenia. Zdjęcia są opcjonalne i możesz dodać je później."
       />
-
-      <div data-tutorial-id="event-cover" className="mx-auto max-w-2xl rounded-3xl border-2 border-dashed border-sage-200 bg-sage-50/60 p-3 sm:p-4">
-        <ImageCropUploader currentUrl={imageUrl} onUrlChange={onImageUrlChange} />
-      </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div data-tutorial-id="event-details" className="space-y-5">
@@ -690,35 +694,22 @@ function StepBasicInfo({
           </div>
 
           <div>
-            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Szczegółowy opis</label>
+            <label className="form-label uppercase tracking-[0.16em] text-sage-500">Opis wydarzenia</label>
             <textarea
-              className="form-input min-h-44 bg-sage-50 text-base leading-7"
+              className="form-input min-h-36 bg-sage-50 text-base leading-7"
               name="description"
               value={description}
               onChange={e => onDescriptionChange(e.target.value)}
-              placeholder="Opisz misję, zasady, kategorie i unikalne cechy Twojego wydarzenia..."
+              placeholder="Napisz, dla kogo jest wydarzenie i czego uczestnicy mogą się spodziewać..."
             />
-          </div>
-
-          <div className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-accent">
-                <GalleryHorizontal className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="section-title mb-0">Galeria zdjęć</h2>
-                <p className="text-sm text-muted-foreground">Dodatkowe zdjęcia wydarzenia dla strony publicznej.</p>
-              </div>
-            </div>
-            <GalleryUploader images={galleryImages} onImagesChange={onGalleryImagesChange} />
           </div>
         </div>
 
         <div data-tutorial-id="event-type" className="space-y-4">
           <div>
-            <p className="form-label uppercase tracking-[0.16em] text-sage-500">Kategorie specjalne *</p>
+            <p className="form-label uppercase tracking-[0.16em] text-sage-500">Rodzaj wydarzenia *</p>
             <p className="mb-4 text-sm text-muted-foreground">
-              Wybierz typ wydarzenia. Wszystkie dotychczasowe typy zostały przeniesione do kart.
+              Wybór podpowie pasujące formularze i sposoby liczenia wyników.
             </p>
           </div>
 
@@ -732,17 +723,17 @@ function StepBasicInfo({
                   type="button"
                   onClick={() => onEventTypeChange(type.id)}
                   className={cn(
-                    'group min-h-36 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-md',
+                    'group min-h-28 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-md',
                     selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200',
                   )}
                 >
                   <span
                     className={cn(
-                      'mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors',
+                      'mb-2 flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
                       selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent',
                     )}
                   >
-                    <visual.Icon className="h-6 w-6" />
+                    <visual.Icon className="h-5 w-5" />
                   </span>
                   <span className="block font-semibold text-primary">{visual.label}</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{visual.description}</span>
@@ -761,6 +752,41 @@ function StepBasicInfo({
           </div>
         </div>
       </div>
+
+      <details
+        data-tutorial-id="event-cover"
+        className="group rounded-3xl border border-sage-200 bg-sage-50/40"
+      >
+        <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-accent shadow-sm">
+              <ImagePlus className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-semibold text-primary">Zdjęcia wydarzenia <span className="font-normal text-sage-500">(opcjonalnie)</span></p>
+              <p className="text-sm text-muted-foreground">Dodaj okładkę i galerię, jeśli masz już materiały.</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 shrink-0 text-sage-500 transition-transform group-open:rotate-90" />
+        </summary>
+        <div className="grid gap-6 border-t border-sage-200 p-5 sm:p-6 lg:grid-cols-2">
+          <div>
+            <p className="mb-3 text-sm font-semibold text-primary">Zdjęcie główne</p>
+            <div className="rounded-3xl border-2 border-dashed border-sage-200 bg-white p-3">
+              <ImageCropUploader currentUrl={imageUrl} onUrlChange={onImageUrlChange} />
+            </div>
+          </div>
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <GalleryHorizontal className="h-4 w-4 text-accent" />
+              <p className="text-sm font-semibold text-primary">Galeria</p>
+            </div>
+            <div className="rounded-3xl border border-sage-200 bg-white p-4">
+              <GalleryUploader images={galleryImages} onImagesChange={onGalleryImagesChange} />
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
   )
 }
@@ -909,6 +935,54 @@ function StepRegistration({
 }) {
   return (
     <div className="space-y-8">
+      <Panel Icon={FileText} title="Formularz zapisów" tutorialId="registration-form">
+        <p className="mb-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+          Dane właściciela i psa są dodawane automatycznie. Wybierz swój schemat, aby dodać pytania potrzebne tylko przy tym wydarzeniu.
+        </p>
+        <FormTemplatePicker
+          eventTypeId={eventTypeId}
+          selectedTemplateId={selectedTemplateId}
+          onSelect={onTemplateSelect}
+        />
+
+        {groupableFields.length > 0 && (
+          <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-primary marker:hidden">
+              Grupowanie listy zapisów (opcjonalnie)
+              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="border-t border-sage-200 p-4">
+              <label className="form-label">Grupuj zapisy według odpowiedzi na pytanie</label>
+              <select
+                className="form-input min-h-11"
+                value={groupingField}
+                onChange={e => onGroupingFieldChange(e.target.value)}
+              >
+                <option value="">Brak grupowania</option>
+                {groupableFields.map(field => (
+                  <option key={field.id} value={field.id}>{field.label}</option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-slate-500">Przydatne np. dla poziomów, kategorii lub wybranych terminów.</p>
+            </div>
+          </details>
+        )}
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <MetricTile label="Pytania dodatkowe" value={String(formFieldsCount)} />
+          <MetricTile label="Grupowanie" value={groupingField ? 'Tak' : 'Nie'} />
+        </div>
+      </Panel>
+
+      <div>
+        <SectionHeader
+          Icon={ShieldCheck}
+          eyebrow="Ustawienia zapisów"
+          title="Limity, terminy i automatyzacja"
+          description="Te opcje są niezależne od pytań w formularzu i możesz wrócić do nich później."
+          compact
+        />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel Icon={Users} title="Limity uczestników" tutorialId="registration-limits">
           <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
@@ -997,39 +1071,6 @@ function StepRegistration({
         </Panel>
       </div>
 
-      <div>
-        <Panel Icon={FileText} title="Formularz zapisów" tutorialId="registration-form">
-          <p className="mb-4 text-sm text-muted-foreground">
-            Wybierz szablon pól dodatkowych albo utwórz nowy. Pola stałe uczestnika pozostają dostępne jak wcześniej.
-          </p>
-          <FormTemplatePicker
-            eventTypeId={eventTypeId}
-            selectedTemplateId={selectedTemplateId}
-            onSelect={onTemplateSelect}
-          />
-
-          {groupableFields.length > 0 && (
-            <div className="mt-5">
-              <label className="form-label">Grupuj zapisy według</label>
-              <select
-                className="form-input"
-                value={groupingField}
-                onChange={e => onGroupingFieldChange(e.target.value)}
-              >
-                <option value="">Brak grupowania</option>
-                {groupableFields.map(field => (
-                  <option key={field.id} value={field.id}>{field.label}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-400">Listy zapisów będą pogrupowane według tego pola.</p>
-            </div>
-          )}
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <MetricTile label="Pola formularza" value={String(formFieldsCount)} />
-            <MetricTile label="Grupowanie" value={groupingField ? 'Tak' : 'Nie'} />
-          </div>
-        </Panel>
-      </div>
     </div>
   )
 }
@@ -1048,6 +1089,7 @@ function StepPreview({
   feeLabel,
   autoConfirm,
   hasResults,
+  competitionName,
   resultsPublic,
   hasSchedule,
   galleryCount,
@@ -1067,6 +1109,7 @@ function StepPreview({
   feeLabel: string
   autoConfirm: boolean
   hasResults: boolean
+  competitionName: string | null
   resultsPublic: boolean
   hasSchedule: boolean
   galleryCount: number
@@ -1119,6 +1162,9 @@ function StepPreview({
             <MetricTile label="Grafik startów" value={hasSchedule ? 'Włączony' : 'Wyłączony'} />
             <MetricTile label="Grupowanie" value={groupingEnabled ? 'Włączone' : 'Brak'} />
             <MetricTile label="Wyniki" value={hasResults ? 'Włączone' : 'Wyłączone'} />
+            {hasResults && (
+              <MetricTile label="Schemat liczenia" value={competitionName ?? 'Proste wyniki'} />
+            )}
             <MetricTile
               label="Widok live"
               value={getLiveVisibilityLabel(hasResults, resultsPublic)}

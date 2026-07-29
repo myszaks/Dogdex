@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Calculator,
   Check,
@@ -64,6 +64,15 @@ export default function EventResultsSetup({
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!studioOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [studioOpen])
 
   const activePresetKey = useMemo(() => {
     if (formatId || !definition) return null
@@ -186,7 +195,7 @@ export default function EventResultsSetup({
 
           <section data-tutorial-id="results-method" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Krok 1</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Sposób liczenia</p>
               <h2 className="mt-1 text-xl font-heading font-bold text-primary">Jak liczymy wyniki?</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Wybierz najbliższy wariant. Nie musisz znać technicznych zasad systemu.
@@ -242,28 +251,11 @@ export default function EventResultsSetup({
             <section className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Krok 2</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Ustawienia wybranego schematu</p>
                   <h2 className="mt-1 text-xl font-heading font-bold text-primary">{definition.name}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {definition.resultFields.length} pól wyniku · {definition.computedFields.length} obliczeń · {definition.views.length} widoki
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setStudioOpen(true)} className="btn btn-secondary btn-sm">
-                    <Pencil className="h-4 w-4" />
-                    Dostosuj zasady i widoki
-                  </button>
-                  {!formatId && (
-                    <button
-                      type="button"
-                      onClick={saveAsOwnTemplate}
-                      disabled={savingTemplate}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      <Save className="h-4 w-4" />
-                      {savingTemplate ? 'Zapisywanie…' : 'Zapisz jako mój schemat'}
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -272,6 +264,36 @@ export default function EventResultsSetup({
                 values={values}
                 onChange={onValuesChange}
               />
+
+              <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-primary marker:hidden">
+                  <span className="flex items-center gap-2">
+                    <Pencil className="h-4 w-4 text-accent" />
+                    Ustawienia zaawansowane
+                  </span>
+                  <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="flex flex-wrap gap-3 border-t border-sage-200 p-4">
+                  <button type="button" onClick={() => setStudioOpen(true)} className="btn btn-secondary min-h-11">
+                    <Pencil className="h-4 w-4" />
+                    Zmień zasady i widoki
+                  </button>
+                  {!formatId && (
+                    <button
+                      type="button"
+                      onClick={saveAsOwnTemplate}
+                      disabled={savingTemplate}
+                      className="btn btn-secondary min-h-11"
+                    >
+                      <Save className="h-4 w-4" />
+                      {savingTemplate ? 'Zapisywanie…' : 'Zapisz jako mój schemat'}
+                    </button>
+                  )}
+                  <p className="w-full text-xs leading-relaxed text-muted-foreground">
+                    Te opcje są potrzebne tylko wtedy, gdy gotowy schemat nie odzwierciedla zasad Twoich zawodów.
+                  </p>
+                </div>
+              </details>
 
               {message && (
                 <p className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</p>
@@ -283,7 +305,7 @@ export default function EventResultsSetup({
           )}
 
           <section data-tutorial-id="results-visibility" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Krok 3</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Widoczność</p>
             <h2 className="mt-1 text-xl font-heading font-bold text-primary">Co widzą uczestnicy?</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <VisibilityCard
@@ -306,9 +328,15 @@ export default function EventResultsSetup({
       )}
 
       {studioOpen && definition && (
-        <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/50 p-3 backdrop-blur-sm sm:p-6">
-          <div className="mx-auto min-h-full max-w-7xl rounded-3xl border border-sage-200 bg-background p-5 shadow-2xl sm:p-8">
-            <div className="mb-3 flex justify-end">
+        <div
+          className="fixed inset-0 z-[120] flex items-stretch justify-center overflow-hidden bg-black/50 p-0 backdrop-blur-sm sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edytor zasad i widoków wyników"
+        >
+          <div className="flex h-full w-full max-w-7xl flex-col overflow-hidden bg-background shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-3xl sm:border sm:border-sage-200">
+            <div className="flex shrink-0 items-center justify-between border-b border-sage-200 px-5 py-3">
+              <p className="font-semibold text-primary">Zasady i widoki wyników</p>
               <button
                 type="button"
                 onClick={() => setStudioOpen(false)}
@@ -318,17 +346,19 @@ export default function EventResultsSetup({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <CompetitionFormatStudio
-              embedded
-              initialName={definition.name}
-              initialDefinition={definition}
-              onCancel={() => setStudioOpen(false)}
-              onApply={nextDefinition => {
-                onFormatSelect(null, nextDefinition)
-                setStudioOpen(false)
-                setMessage('Dostosowane zasady zastosowano do tego wydarzenia.')
-              }}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              <CompetitionFormatStudio
+                embedded
+                initialName={definition.name}
+                initialDefinition={definition}
+                onCancel={() => setStudioOpen(false)}
+                onApply={nextDefinition => {
+                  onFormatSelect(null, nextDefinition)
+                  setStudioOpen(false)
+                  setMessage('Dostosowane zasady zastosowano do tego wydarzenia.')
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

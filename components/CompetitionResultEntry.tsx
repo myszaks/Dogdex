@@ -219,7 +219,11 @@ export default function CompetitionResultEntry({
                 <div className="grid flex-[2] gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {definition.resultFields.map(field => (
                     <label key={field.id}>
-                      <span className="form-label text-xs">{field.label}</span>
+                      <span className="form-label text-xs">
+                        {field.label}
+                        {field.unit && field.type !== 'duration_ms' ? ` (${field.unit})` : ''}
+                        {field.type === 'duration_ms' ? ' (sekundy)' : ''}
+                      </span>
                       {field.type === 'boolean' ? (
                         <input
                           type="checkbox"
@@ -235,7 +239,17 @@ export default function CompetitionResultEntry({
                         <input
                           className="form-input"
                           type={field.type === 'text' ? 'text' : 'number'}
-                          step={field.type === 'duration_ms' ? 0.01 : field.precision ? 10 ** -field.precision : 'any'}
+                          min={field.type === 'duration_ms' && field.min !== undefined
+                            ? field.min / 1000
+                            : field.min}
+                          max={field.type === 'duration_ms' && field.max !== undefined
+                            ? field.max / 1000
+                            : field.max}
+                          step={field.type === 'duration_ms'
+                            ? 10 ** -(field.precision ?? 2)
+                            : field.precision !== undefined
+                              ? 10 ** -field.precision
+                              : 'any'}
                           value={
                             entry.values[field.id] === null || entry.values[field.id] === undefined
                               ? ''

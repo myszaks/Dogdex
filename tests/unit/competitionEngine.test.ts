@@ -5,7 +5,16 @@ import {
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
 import { groupCompetitionResultsForBlock } from '@/lib/competitionViews'
-import { SPEEDWAY_FORMAT, TIME_TRIAL_FORMAT } from '@/lib/competitionPresets'
+import {
+  SPEEDWAY_FORMAT,
+  TIME_TRIAL_FORMAT,
+  VERSATILE_DOG_CUP_FORMAT,
+} from '@/lib/competitionPresets'
+import {
+  buildWeightedScoreExpression,
+  parseWeightedScoreExpression,
+} from '@/lib/competitionFormulaBuilder'
+import type { WeightedScoreRecipe } from '@/lib/competitionFormulaBuilder'
 
 describe('competition engine', () => {
   it('evaluates formulas without executing organizer-provided code', () => {
@@ -198,5 +207,74 @@ describe('competition engine', () => {
     ])
     expect(viewGroups[0].rows.map(row => row.ranks.class)).toEqual([1, 1, 3])
     expect(viewGroups[1].rows.map(row => row.ranks.class)).toEqual([1, null, null])
+  })
+
+  it('builds an editable weighted score recipe without exposing expression JSON', () => {
+    const recipe: WeightedScoreRecipe = {
+      precision: 1,
+      terms: [
+        { fieldId: 'skill', aggregation: 'sum', operation: 'add', multiplier: 1.5 },
+        { fieldId: 'penalty', aggregation: 'sum', operation: 'subtract', multiplier: 2 },
+      ],
+    }
+    const expression = buildWeightedScoreExpression(recipe)
+
+    expect(parseWeightedScoreExpression(expression)).toEqual(recipe)
+    expect(evaluateCompetitionExpression(expression, {
+      valid_attempts: [
+        { values: { skill: 20, penalty: 2 } },
+        { values: { skill: 10, penalty: 1 } },
+      ],
+    })).toBe(39)
+  })
+
+  it('handles a complex organizer-created points event with threshold and tie-breakers', () => {
+    const entrant = (
+      participantId: string,
+      values: Record<string, number>,
+    ) => ({
+      participantId,
+      event: {},
+      participant: {},
+      registration: {},
+      attempts: [{
+        stageId: 'main',
+        attemptId: 'scorecard',
+        status: null,
+        values,
+      }],
+    })
+    const rows = calculateCompetitionResults(VERSATILE_DOG_CUP_FORMAT, [
+      entrant('dog-a', {
+        agility_points: 90,
+        obedience_points: 80,
+        nosework_points: 70,
+        teamwork_bonus: 10,
+        penalty_points: 5,
+      }),
+      entrant('dog-b', {
+        agility_points: 80,
+        obedience_points: 90,
+        nosework_points: 70,
+        teamwork_bonus: 10,
+        penalty_points: 4,
+      }),
+      entrant('dog-c', {
+        agility_points: 40,
+        obedience_points: 40,
+        nosework_points: 40,
+        teamwork_bonus: 0,
+        penalty_points: 5,
+      }),
+    ])
+    const byId = Object.fromEntries(rows.map(row => [row.participantId, row]))
+
+    expect(validateCompetitionFormatDefinition(VERSATILE_DOG_CUP_FORMAT).success).toBe(true)
+    expect(byId['dog-a'].computed.total_points).toBe(79)
+    expect(byId['dog-b'].computed.total_points).toBe(79)
+    expect(byId['dog-b'].ranks.overall).toBe(1)
+    expect(byId['dog-a'].ranks.overall).toBe(2)
+    expect(byId['dog-c'].computed.total_points).toBe(31)
+    expect(byId['dog-c'].ranks.overall).toBeNull()
   })
 })

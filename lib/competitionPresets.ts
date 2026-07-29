@@ -1,4 +1,5 @@
 import type { CompetitionFormatDefinition } from '@/types/competition'
+import { buildWeightedScoreExpression } from '@/lib/competitionFormulaBuilder'
 
 /**
  * A neutral time-trial preset used by the format creator and engine tests.
@@ -316,6 +317,213 @@ export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
           title: 'Pełne wyniki',
           rankingId: 'class',
           fields: ['computed.best_time_ms', 'computed.speed_kmh'],
+        },
+      ],
+    },
+  ],
+}
+
+/**
+ * A deliberately more advanced preset used to exercise the organizer-facing
+ * builder: weighted disciplines, bonuses, penalties, qualification threshold,
+ * and deterministic tie-breakers.
+ */
+export const VERSATILE_DOG_CUP_FORMAT: CompetitionFormatDefinition = {
+  schemaVersion: 1,
+  name: 'Puchar wszechstronnego psa',
+  eventFields: [],
+  resultFields: [
+    {
+      id: 'agility_points',
+      label: 'Agility',
+      type: 'number',
+      required: true,
+      unit: 'pkt',
+      min: 0,
+      max: 100,
+      precision: 1,
+    },
+    {
+      id: 'obedience_points',
+      label: 'Posłuszeństwo',
+      type: 'number',
+      required: true,
+      unit: 'pkt',
+      min: 0,
+      max: 100,
+      precision: 1,
+    },
+    {
+      id: 'nosework_points',
+      label: 'Nosework',
+      type: 'number',
+      required: true,
+      unit: 'pkt',
+      min: 0,
+      max: 100,
+      precision: 1,
+    },
+    {
+      id: 'teamwork_bonus',
+      label: 'Bonus za współpracę',
+      type: 'number',
+      required: true,
+      unit: 'pkt',
+      min: 0,
+      max: 10,
+      precision: 1,
+    },
+    {
+      id: 'penalty_points',
+      label: 'Punkty karne',
+      type: 'number',
+      required: true,
+      unit: 'pkt',
+      min: 0,
+      max: 50,
+      precision: 1,
+    },
+  ],
+  stages: [
+    {
+      id: 'main',
+      label: 'Ocena konkurencji',
+      attempts: [{ id: 'scorecard', label: 'Karta punktowa' }],
+    },
+  ],
+  statuses: [
+    { id: 'dns', label: 'DNS', kind: 'excluded' },
+    { id: 'dnf', label: 'DNF', kind: 'excluded' },
+    { id: 'dsq', label: 'Dyskwalifikacja', kind: 'excluded' },
+  ],
+  computedFields: [
+    {
+      id: 'agility_score',
+      label: 'Wynik Agility',
+      type: 'number',
+      expression: {
+        op: 'sum',
+        args: [{ op: 'ref', path: 'valid_attempts.values.agility_points' }],
+      },
+      unit: 'pkt',
+      precision: 1,
+    },
+    {
+      id: 'obedience_score',
+      label: 'Wynik posłuszeństwa',
+      type: 'number',
+      expression: {
+        op: 'sum',
+        args: [{ op: 'ref', path: 'valid_attempts.values.obedience_points' }],
+      },
+      unit: 'pkt',
+      precision: 1,
+    },
+    {
+      id: 'penalty_score',
+      label: 'Suma kar',
+      type: 'number',
+      expression: {
+        op: 'sum',
+        args: [{ op: 'ref', path: 'valid_attempts.values.penalty_points' }],
+      },
+      unit: 'pkt',
+      precision: 1,
+    },
+    {
+      id: 'total_points',
+      label: 'Punkty końcowe',
+      type: 'number',
+      expression: buildWeightedScoreExpression({
+        precision: 1,
+        terms: [
+          { fieldId: 'agility_points', aggregation: 'sum', operation: 'add', multiplier: 0.4 },
+          { fieldId: 'obedience_points', aggregation: 'sum', operation: 'add', multiplier: 0.3 },
+          { fieldId: 'nosework_points', aggregation: 'sum', operation: 'add', multiplier: 0.2 },
+          { fieldId: 'teamwork_bonus', aggregation: 'sum', operation: 'add', multiplier: 1 },
+          { fieldId: 'penalty_points', aggregation: 'sum', operation: 'subtract', multiplier: 1 },
+        ],
+      }),
+      unit: 'pkt',
+      precision: 1,
+    },
+  ],
+  groups: [],
+  rankings: [
+    {
+      id: 'overall',
+      label: 'Klasyfikacja generalna',
+      groupBy: [],
+      eligibility: {
+        op: 'gte',
+        left: { op: 'ref', path: 'computed.total_points' },
+        right: { op: 'literal', value: 50 },
+      },
+      orderBy: [
+        {
+          expression: { op: 'ref', path: 'computed.total_points' },
+          direction: 'desc',
+          nulls: 'last',
+        },
+        {
+          expression: { op: 'ref', path: 'computed.obedience_score' },
+          direction: 'desc',
+          nulls: 'last',
+        },
+        {
+          expression: { op: 'ref', path: 'computed.penalty_score' },
+          direction: 'asc',
+          nulls: 'last',
+        },
+      ],
+      ties: 'competition',
+    },
+  ],
+  views: [
+    {
+      id: 'live',
+      label: 'Puchar live',
+      kind: 'live',
+      blocks: [
+        { id: 'current', type: 'current_entry', title: 'Aktualnie oceniany zespół' },
+        { id: 'progress', type: 'progress', title: 'Postęp oceniania' },
+        {
+          id: 'leaderboard',
+          type: 'leaderboard',
+          title: 'Klasyfikacja live',
+          rankingId: 'overall',
+          fields: [
+            'computed.total_points',
+            'computed.agility_score',
+            'computed.obedience_score',
+            'computed.penalty_score',
+          ],
+        },
+      ],
+    },
+    {
+      id: 'results',
+      label: 'Wyniki Pucharu',
+      kind: 'results',
+      blocks: [
+        {
+          id: 'podium',
+          type: 'podium',
+          title: 'Podium',
+          rankingId: 'overall',
+          limit: 3,
+        },
+        {
+          id: 'results_table',
+          type: 'result_table',
+          title: 'Pełna klasyfikacja',
+          rankingId: 'overall',
+          fields: [
+            'computed.total_points',
+            'computed.agility_score',
+            'computed.obedience_score',
+            'computed.penalty_score',
+          ],
         },
       ],
     },

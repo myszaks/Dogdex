@@ -1,8 +1,8 @@
 # Dogdex database schema
 
 `schema.sql` is the generated, complete database snapshot for a **new Supabase
-project**. It contains all numbered migrations in chronological order. Do not edit
-it manually.
+project**. It contains all numbered migrations in dependency-safe order. Do not
+edit it manually.
 
 ## Making a schema change
 
@@ -21,6 +21,10 @@ CI fails when the generated snapshot is not current.
   re-run the full snapshot over an existing database.
 - Use either the full snapshot or the migration history when provisioning a new
   project, not both.
+
+To reproduce the current production schema first and then upgrade it to the
+active development branch, use the two generated files described in
+`development/README.md`.
 
 The snapshot expects the standard Supabase `auth`, `storage`, and `extensions`
 schemas to exist. Legacy migration files without a 14-digit timestamp remain for

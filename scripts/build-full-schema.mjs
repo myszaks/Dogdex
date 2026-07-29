@@ -2,6 +2,7 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { orderDatabaseMigrations } from "./database-migration-plan.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
@@ -10,14 +11,15 @@ const outputPath = path.join(repositoryRoot, "supabase", "schema.sql");
 const numberedMigrationPattern = /^\d{14}_.+\.sql$/;
 const checkOnly = process.argv.includes("--check");
 
-const migrationFiles = (await readdir(migrationsDirectory, {
-  withFileTypes: true,
-}))
-  .filter(
-    (entry) => entry.isFile() && numberedMigrationPattern.test(entry.name),
-  )
-  .map((entry) => entry.name)
-  .sort((left, right) => left.localeCompare(right, "en"));
+const migrationFiles = orderDatabaseMigrations(
+  (await readdir(migrationsDirectory, {
+    withFileTypes: true,
+  }))
+    .filter(
+      (entry) => entry.isFile() && numberedMigrationPattern.test(entry.name),
+    )
+    .map((entry) => entry.name),
+);
 
 if (migrationFiles.length === 0) {
   throw new Error(

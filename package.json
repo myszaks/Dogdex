@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "schema:build": "node scripts/build-full-schema.mjs",
     "schema:check": "node scripts/build-full-schema.mjs --check",
-    "ci": "npm run schema:check && npm run lint && npm run test && npm run typecheck && npm run build"
+    "db:dev:build": "node scripts/build-dev-database-sql.mjs",
+    "db:dev:check": "node scripts/build-dev-database-sql.mjs --check",
+    "ci": "npm run schema:check && npm run db:dev:check && npm run lint && npm run test && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

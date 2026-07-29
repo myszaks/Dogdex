@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser, canManageTrainerResource } from '@/lib/getServerUser'
+import { isValidTrainingTimeRange } from '@/lib/trainingAvailability'
 
 export async function POST(req: Request) {
   const { user, role } = await getServerUser()
@@ -28,12 +29,20 @@ export async function POST(req: Request) {
   }
 
   // Validate time inputs
-  if (!day_of_week || typeof day_of_week !== 'number' || day_of_week < 0 || day_of_week > 6) {
+  if (
+    typeof day_of_week !== 'number'
+    || !Number.isInteger(day_of_week)
+    || day_of_week < 0
+    || day_of_week > 6
+  ) {
     return NextResponse.json({ error: 'Nieprawidłowy dzień tygodnia (0-6)' }, { status: 400 })
   }
 
-  if (!start_time || !end_time) {
-    return NextResponse.json({ error: 'Godziny rozpoczęcia i zakończenia są wymagane' }, { status: 400 })
+  if (!isValidTrainingTimeRange(start_time, end_time)) {
+    return NextResponse.json(
+      { error: 'Podaj prawidłowy zakres godzin; zakończenie musi być później niż rozpoczęcie' },
+      { status: 400 },
+    )
   }
 
   const { data, error } = await supabase

@@ -3,6 +3,15 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async redirects() {
+    return [
+      {
+        source: '/tranings/:path*',
+        destination: '/trainings/:path*',
+        permanent: true,
+      },
+    ]
+  },
   images: {
     remotePatterns: [
       {

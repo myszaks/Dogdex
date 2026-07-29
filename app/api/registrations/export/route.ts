@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export async function GET(req: Request) {
@@ -10,18 +10,24 @@ export async function GET(req: Request) {
   const eventId = searchParams.get('eventId')
   if (!eventId) return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
-  const [{ data: event }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('title, form_fields').eq('id', eventId).single(),
-    supabase
-      .from('registrations')
-      .select('*, participants(*)')
-      .eq('event_id', eventId)
-      .order('created_at', { ascending: true }),
-  ])
+  const { data: event } = await supabase
+    .from('events')
+    .select('title, form_fields, created_by')
+    .eq('id', eventId)
+    .single()
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  const { data: registrations } = await supabase
+    .from('registrations')
+    .select('*, participants(*)')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: true })
 
   const formFields: Array<{ id: string; label: string }> = Array.isArray(event.form_fields)
     ? event.form_fields
@@ -51,7 +57,8 @@ export async function GET(req: Request) {
       }
       return String(value)
     }
-    const str = Array.isArray(val) ? val.map(formatValue).join('; ') : formatValue(val)
+    const raw = Array.isArray(val) ? val.map(formatValue).join('; ') : formatValue(val)
+    const str = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
     if (str.includes(',') || str.includes('"') || str.includes('\n')) {
       return `"${str.replace(/"/g, '""')}"`
     }

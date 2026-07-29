@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export async function PATCH(req: Request) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   let body: { items?: { id: string; order_index: number }[] }
   try {
@@ -15,15 +15,46 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  if (!Array.isArray(body.items) || body.items.length === 0) {
+  if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > 1000) {
     return NextResponse.json({ error: 'items musi być niepustą tablicą' }, { status: 400 })
   }
 
   // Validate each item
   for (const item of body.items) {
-    if (typeof item.id !== 'string' || typeof item.order_index !== 'number') {
+    if (
+      typeof item.id !== 'string'
+      || !Number.isInteger(item.order_index)
+      || item.order_index < 0
+    ) {
       return NextResponse.json({ error: 'Każdy item musi mieć id (string) i order_index (number)' }, { status: 400 })
     }
+  }
+
+  const ids = [...new Set(body.items.map(item => item.id))]
+  if (ids.length !== body.items.length) {
+    return NextResponse.json({ error: 'Lista zawiera powtórzone identyfikatory' }, { status: 400 })
+  }
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, event_id, events(created_by)')
+    .in('id', ids)
+
+  if (registrationsError) {
+    return NextResponse.json({ error: 'Nie udało się zweryfikować zapisów' }, { status: 500 })
+  }
+  if ((registrations ?? []).length !== ids.length) {
+    return NextResponse.json({ error: 'Nie znaleziono części zapisów' }, { status: 404 })
+  }
+
+  const unauthorized = (registrations ?? []).some(registration => {
+    const event = Array.isArray(registration.events)
+      ? registration.events[0]
+      : registration.events
+    return authResult.role !== 'admin' && event?.created_by !== authResult.user.id
+  })
+  if (unauthorized) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
   // Update each registration's order_index in parallel

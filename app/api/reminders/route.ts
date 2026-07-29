@@ -9,8 +9,7 @@ import { formatEmailDate } from '@/lib/emailDate'
  *
  * Sends 24h-before reminder emails. Should be called by a cron job once per day.
  *
- * Security: requires `Authorization: Bearer <CRON_SECRET>` header
- * or `?secret=<CRON_SECRET>` query param.
+ * Security: requires `Authorization: Bearer <CRON_SECRET>` header.
  *
  * Logic:
  *  1. Regular events: start_at falls within the next 20–28h window.
@@ -21,14 +20,14 @@ import { formatEmailDate } from '@/lib/emailDate'
 export async function GET(req: Request) {
   // Auth guard
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const { searchParams } = new URL(req.url)
-    const authHeader = req.headers.get('authorization') ?? ''
-    const querySecret = searchParams.get('secret') ?? ''
-    const provided = authHeader.replace(/^Bearer\s+/i, '') || querySecret
-    if (provided !== cronSecret) {
-      return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET nie jest skonfigurowany' }, { status: 503 })
+  }
+
+  const authHeader = req.headers.get('authorization') ?? ''
+  const provided = authHeader.replace(/^Bearer\s+/i, '')
+  if (provided !== cronSecret) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
   }
 
   const supabase = createServerClient()

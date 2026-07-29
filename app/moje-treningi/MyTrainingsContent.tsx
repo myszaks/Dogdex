@@ -10,11 +10,13 @@ import type { TrainingBooking } from '@/types'
 interface MyTrainingsContentProps {
   embedded?: boolean
   paymentStatus?: string | null
+  paymentBookingId?: string | null
 }
 
 export default function MyTrainingsContent({
   embedded = false,
   paymentStatus = null,
+  paymentBookingId = null,
 }: MyTrainingsContentProps) {
   const [bookings, setBookings] = useState<TrainingBooking[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,19 +26,51 @@ export default function MyTrainingsContent({
 
   useEffect(() => {
     if (paymentStatus === 'success') {
-      setSuccessMessage('Platnosc powiodla sie. Twoja rezerwacja jest potwierdzona.')
+      setSuccessMessage('Płatność została przyjęta. Potwierdzenie rezerwacji może potrwać chwilę.')
       setTimeout(() => setSuccessMessage(null), 5000)
       return
     }
 
     if (paymentStatus === 'cancelled') {
-      setError('Platnosc zostala anulowana. Rezerwacja pozostala w systemie, ale wymaga platnosci.')
-      setTimeout(() => setError(null), 5000)
-      return
+      if (!paymentBookingId) {
+        setError('Płatność została anulowana.')
+        setTimeout(() => setError(null), 5000)
+        return
+      }
+
+      let disposed = false
+      void fetch(`/api/training-bookings/${encodeURIComponent(paymentBookingId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancellation_reason: 'Anulowano płatność w Stripe',
+        }),
+      })
+        .then(async response => {
+          const data = await response.json().catch(() => null)
+          if (!response.ok) {
+            throw new Error(data?.error || 'Nie udało się zwolnić terminu')
+          }
+          if (disposed) return
+          setBookings(current => current.map(booking =>
+            booking.id === paymentBookingId
+              ? { ...booking, status: 'cancelled' }
+              : booking
+          ))
+          setError('Płatność anulowano, a termin został zwolniony.')
+        })
+        .catch(cancelError => {
+          if (!disposed) setError((cancelError as Error).message)
+        })
+
+      return () => {
+        disposed = true
+      }
     }
 
     setSuccessMessage(null)
-  }, [paymentStatus])
+  }, [paymentBookingId, paymentStatus])
 
   useEffect(() => {
     let cancelled = false

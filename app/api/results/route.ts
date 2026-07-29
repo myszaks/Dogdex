@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
+import { isOrganizerRole } from '@/lib/roles'
 import {
   bestMs as computeBestMs,
   computeStoredSpeedKmh,
@@ -9,44 +10,56 @@ import {
 } from '@/lib/speedway'
 
 export async function GET(req: Request) {
-  const supabase = await createAuthClient()
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
+  if (!eventId) {
+    return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
+  }
 
-  let query = supabase
+  const supabase = createServerClient()
+  const { data: event } = await supabase
+    .from('events')
+    .select('id, event_type_id, created_by, status, results_public')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+
+  const { user, role } = await getServerUser()
+  const canManage = Boolean(
+    user
+    && isOrganizerRole(role)
+    && (role === 'admin' || event.created_by === user.id)
+  )
+  if ((event.status === 'draft' || !event.results_public) && !canManage) {
+    return NextResponse.json({ error: 'Nie znaleziono wyników' }, { status: 404 })
+  }
+
+  const query = supabase
     .from('results')
     .select('*, participants(dog_name, owner_name, dog_breed)')
+    .eq('event_id', eventId)
     .order('rank', { ascending: true })
-
-  if (eventId) query = query.eq('event_id', eventId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  if (eventId) {
-    const { data: event } = await supabase
-      .from('events')
-      .select('event_type_id')
-      .eq('id', eventId)
-      .maybeSingle()
+  if (event.event_type_id === 'speedway') {
+    const { data: checkedInRegistrations, error: checkedInError } = await supabase
+      .from('registrations')
+      .select('participant_id')
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .eq('checked_in', true)
 
-    if (event?.event_type_id === 'speedway') {
-      const { data: checkedInRegistrations, error: checkedInError } = await supabase
-        .from('registrations')
-        .select('participant_id')
-        .eq('event_id', eventId)
-        .eq('status', 'confirmed')
-        .eq('checked_in', true)
+    if (checkedInError) return NextResponse.json({ error: checkedInError.message }, { status: 500 })
 
-      if (checkedInError) return NextResponse.json({ error: checkedInError.message }, { status: 500 })
-
-      const checkedInParticipantIds = new Set(
-        (checkedInRegistrations ?? []).map(reg => reg.participant_id as string)
-      )
-      return NextResponse.json((data ?? []).filter((row: any) =>
-        checkedInParticipantIds.has(row.participant_id as string)
-      ))
-    }
+    const checkedInParticipantIds = new Set(
+      (checkedInRegistrations ?? []).map(reg => reg.participant_id as string)
+    )
+    return NextResponse.json((data ?? []).filter((row: any) =>
+      checkedInParticipantIds.has(row.participant_id as string)
+    ))
   }
 
   return NextResponse.json(data)

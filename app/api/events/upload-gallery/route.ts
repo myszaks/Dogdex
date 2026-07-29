@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   }
 
   const ext = file.type === 'image/webp' ? 'webp' : file.type === 'image/png' ? 'png' : 'jpg'
-  const filename = `${FOLDER}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const filename = `${authResult.user.id}/${FOLDER}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)

@@ -1,5 +1,3 @@
-import { notFound } from 'next/navigation'
-import { INDIVIDUAL_TRAININGS_ENABLED } from '@/lib/features'
 import { requireRole } from '@/lib/getServerUser'
 
 interface LayoutProps {

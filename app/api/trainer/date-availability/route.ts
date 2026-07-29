@@ -1,14 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
 import { isTrainerRole } from '@/lib/roles'
+import { createAuthClient } from '@/lib/supabaseServer'
+import {
+  isValidTrainingDate,
+  isValidTrainingTimeRange,
+} from '@/lib/trainingAvailability'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { user, role } = await getServerUser()
     if (!user) {
@@ -18,6 +17,8 @@ export async function GET(request: NextRequest) {
     if (!isTrainerRole(role)) {
       return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
     }
+
+    const supabase = await createAuthClient()
 
     // Fetch trainer's date availability slots
     const { data, error } = await supabase
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(data || [])
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
@@ -54,20 +55,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { available_date, start_time, end_time } = body
 
-    if (!available_date || !start_time || !end_time) {
+    if (!isValidTrainingDate(available_date)) {
       return NextResponse.json(
-        { error: 'Brakuje wymaganych pól' },
+        { error: 'Nieprawidłowa data' },
         { status: 400 }
       )
     }
 
-    // Validate times
-    if (start_time >= end_time) {
+    if (!isValidTrainingTimeRange(start_time, end_time)) {
       return NextResponse.json(
-        { error: 'Czas zakończenia musi być po czasie rozpoczęcia' },
+        { error: 'Nieprawidłowy zakres godzin' },
         { status: 400 }
       )
     }
+
+    const supabase = await createAuthClient()
 
     // Insert new availability slot
     const { data, error } = await supabase
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(data)
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
@@ -115,19 +117,21 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { id, start_time, end_time } = body
 
-    if (!id || !start_time || !end_time) {
+    if (!id || typeof id !== 'string') {
       return NextResponse.json(
         { error: 'Brakuje wymaganych pól' },
         { status: 400 }
       )
     }
 
-    if (start_time >= end_time) {
+    if (!isValidTrainingTimeRange(start_time, end_time)) {
       return NextResponse.json(
-        { error: 'Czas zakończenia musi być po czasie rozpoczęcia' },
+        { error: 'Nieprawidłowy zakres godzin' },
         { status: 400 }
       )
     }
+
+    const supabase = await createAuthClient()
 
     const { data: slot, error: fetchError } = await supabase
       .from('trainer_date_availability')
@@ -158,7 +162,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json(data)
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }
@@ -180,9 +184,11 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json()
     const { id } = body
 
-    if (!id) {
+    if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: 'Brakuje identyfikatora' }, { status: 400 })
     }
+
+    const supabase = await createAuthClient()
 
     // Verify the slot belongs to the trainer
     const { data: slot, error: fetchError } = await supabase
@@ -207,7 +213,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }

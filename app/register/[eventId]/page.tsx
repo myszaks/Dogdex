@@ -91,7 +91,7 @@ export default async function RegisterPage({ params }: Props) {
         )}
       </div>
 
-      <RegisterForm eventId={eventId} formFields={formFields} />
+      <RegisterForm eventId={event.id} formFields={formFields} />
     </div>
   )
 }

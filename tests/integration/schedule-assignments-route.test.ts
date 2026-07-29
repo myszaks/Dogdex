@@ -118,3 +118,87 @@ describe('GET /api/events/[id]/schedule-assignments', () => {
     ])
   })
 })
+
+describe('POST /api/events/[id]/schedule-assignments', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  it('rejects registrations that belong to another event', async () => {
+    checkRoleForApi.mockResolvedValue({
+      user: { id: 'organizer-1' },
+      role: 'organizer',
+    })
+
+    createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'events') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: { created_by: 'organizer-1', form_fields: [] },
+                }),
+              }),
+            }),
+          }
+        }
+
+        if (table === 'registrations') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: 'reg-foreign',
+                    event_id: 'event-2',
+                    status: 'confirmed',
+                    form_data: {},
+                  },
+                }),
+              }),
+            }),
+          }
+        }
+
+        if (table === 'time_slots') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: 'slot-1',
+                    event_id: 'event-1',
+                    slot_date: '2026-08-10',
+                    max_participants: 10,
+                  },
+                }),
+              }),
+            }),
+          }
+        }
+
+        throw new Error(`Unexpected table ${table}`)
+      }),
+    })
+
+    const { POST } = await import('@/app/api/events/[id]/schedule-assignments/route')
+    const response = await POST(new Request('http://localhost/api/events/event-1/schedule-assignments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        registration_id: 'reg-foreign',
+        time_slot_id: 'slot-1',
+        item_date: '2026-08-10',
+      }),
+    }), {
+      params: Promise.resolve({ id: 'event-1' }),
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining('tego wydarzenia'),
+    })
+  })
+})

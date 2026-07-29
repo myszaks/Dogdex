@@ -3,21 +3,39 @@ import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail } from '@/lib/email'
 import { isEventRegistrationOpen } from '@/lib/eventStatus'
+import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
+import { validateRegistrationFormData } from '@/lib/registrationFormValidation'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_FORM_DATA_BYTES = 50_000
 
 export async function GET(req: Request) {
   const auth = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in auth) return auth.error
 
-  const supabase = await createAuthClient()
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
+  if (!eventId) {
+    return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
+  }
 
-  let query = supabase
+  const supabase = createServerClient()
+  const { data: event } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  if (auth.role !== 'admin' && event.created_by !== auth.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  const query = supabase
     .from('registrations')
     .select('*, participants(*)')
+    .eq('event_id', eventId)
     .order('created_at', { ascending: true })
-
-  if (eventId) query = query.eq('event_id', eventId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -25,9 +43,6 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  // Public endpoint — uses service role to bypass RLS so unauthenticated users can register
-  const supabase = createServerClient()
-
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -46,12 +61,63 @@ export async function POST(req: Request) {
       extraFields?: Record<string, unknown>
     }
 
-  if (!eventId || !dogName?.trim() || !ownerName?.trim()) {
+  if (!eventId || !dogName?.trim() || !ownerName?.trim() || !ownerEmail?.trim()) {
     return NextResponse.json(
-      { error: 'Wymagane pola: eventId, ownerName, dogName' },
+      { error: 'Wymagane pola: eventId, ownerName, ownerEmail, dogName' },
       { status: 400 }
     )
   }
+
+  const ownerEmailNorm = ownerEmail.trim().toLowerCase()
+  const dogNameTrim = dogName.trim()
+  if (!EMAIL_RE.test(ownerEmailNorm)) {
+    return NextResponse.json({ error: 'Nieprawidłowy adres e-mail' }, { status: 400 })
+  }
+  if (
+    ownerName.trim().length > 120
+    || ownerEmailNorm.length > 254
+    || dogNameTrim.length > 120
+    || (dogBreed?.trim().length ?? 0) > 120
+  ) {
+    return NextResponse.json({ error: 'Przekroczono maksymalną długość pola' }, { status: 400 })
+  }
+  if (Buffer.byteLength(JSON.stringify(extraFields ?? {}), 'utf8') > MAX_FORM_DATA_BYTES) {
+    return NextResponse.json({ error: 'Dane formularza są zbyt duże' }, { status: 413 })
+  }
+
+  const rateLimit = await enforcePublicRateLimits([
+    {
+      scope: 'registration-ip',
+      identifier: getRequestIp(req),
+      limit: 15,
+      windowSeconds: 10 * 60,
+    },
+    {
+      scope: 'registration-email-event',
+      identifier: `${ownerEmailNorm}:${eventId}`,
+      limit: 5,
+      windowSeconds: 60 * 60,
+    },
+  ])
+
+  if (!rateLimit.allowed) {
+    if (rateLimit.reason === 'limited') {
+      return NextResponse.json(
+        { error: 'Zbyt wiele prób zapisu. Spróbuj ponownie później.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        },
+      )
+    }
+    return NextResponse.json(
+      { error: 'Zapisy są chwilowo niedostępne. Spróbuj ponownie później.' },
+      { status: 503 },
+    )
+  }
+
+  // Public endpoint — service role is used only after validation and rate limiting.
+  const supabase = createServerClient()
 
   // Verify event exists and is open
   const { data: event } = await supabase
@@ -64,6 +130,12 @@ export async function POST(req: Request) {
   if (!isEventRegistrationOpen(event)) {
     return NextResponse.json({ error: 'Zapisy na to wydarzenie są zamknięte' }, { status: 409 })
   }
+
+  const formValidation = validateRegistrationFormData(event.form_fields, extraFields)
+  if (!formValidation.ok) {
+    return NextResponse.json({ error: formValidation.error }, { status: 400 })
+  }
+  const normalizedExtraFields = formValidation.data
 
   // Check max_participants limit
   if (event.max_participants) {
@@ -78,8 +150,6 @@ export async function POST(req: Request) {
   }
 
   // Prevent duplicate registration: same owner_email + dog_name for the same event
-  const ownerEmailNorm = ownerEmail?.trim().toLowerCase() || null
-  const dogNameTrim = dogName.trim()
   const dogIdNorm = typeof dogId === 'string' && dogId.trim() ? dogId.trim() : null
   const { user } = await getServerUser()
 
@@ -114,26 +184,24 @@ export async function POST(req: Request) {
     ? user.id
     : null
 
-  if (ownerEmailNorm) {
-    const { data: matchingParticipants } = await supabase
-      .from('participants')
-      .select('id')
-      .ilike('owner_email', ownerEmailNorm)
-      .ilike('dog_name', dogNameTrim)
+  const { data: matchingParticipants } = await supabase
+    .from('participants')
+    .select('id')
+    .ilike('owner_email', ownerEmailNorm)
+    .ilike('dog_name', dogNameTrim)
 
-    if (matchingParticipants && matchingParticipants.length > 0) {
-      const participantIds = matchingParticipants.map(p => p.id)
-      const { data: existingRegs } = await supabase
-        .from('registrations')
-        .select('id, status')
-        .in('participant_id', participantIds)
-        .eq('event_id', eventId)
-        .in('status', ['pending', 'confirmed']) // Ignore cancelled registrations
-        .limit(1)
+  if (matchingParticipants && matchingParticipants.length > 0) {
+    const participantIds = matchingParticipants.map(p => p.id)
+    const { data: existingRegs } = await supabase
+      .from('registrations')
+      .select('id, status')
+      .in('participant_id', participantIds)
+      .eq('event_id', eventId)
+      .in('status', ['pending', 'confirmed']) // Ignore cancelled registrations
+      .limit(1)
 
-      if (existingRegs && existingRegs.length > 0) {
-        return NextResponse.json({ error: 'Istnieje już zapis dla tego e-maila i imienia psa na to wydarzenie' }, { status: 409 })
-      }
+    if (existingRegs && existingRegs.length > 0) {
+      return NextResponse.json({ error: 'Istnieje już zapis dla tego e-maila i imienia psa na to wydarzenie' }, { status: 409 })
     }
   }
 
@@ -159,26 +227,13 @@ export async function POST(req: Request) {
     )
   }
 
-  // Create registration — store dynamic form fields in form_data
-  // Normalize extraFields: accept arrays or CSV strings (compatibility)
-  const normalized: Record<string, unknown> = {}
-  if (extraFields && typeof extraFields === 'object') {
-    for (const [k, v] of Object.entries(extraFields as Record<string, unknown>)) {
-      if (typeof v === 'string' && v.includes(',')) {
-        normalized[k] = (v as string).split(',').map(s => s.trim()).filter(Boolean)
-      } else {
-        normalized[k] = v
-      }
-    }
-  }
-
   const { data: registration, error: rError } = await supabase
     .from('registrations')
     .insert([{
       event_id: eventId,
       participant_id: participant.id,
       status: event.auto_confirm ? 'confirmed' : 'pending',
-      form_data: Object.keys(normalized).length ? normalized : (extraFields ?? {}),
+      form_data: normalizedExtraFields,
     }])
     .select()
     .single()
@@ -188,6 +243,15 @@ export async function POST(req: Request) {
       .from('participants')
       .delete()
       .eq('id', participant.id)
+    if (rError?.message?.includes('event_capacity_reached')) {
+      return NextResponse.json({ error: 'Brak wolnych miejsc na to wydarzenie' }, { status: 409 })
+    }
+    if (rError?.message?.includes('duplicate_active_registration')) {
+      return NextResponse.json(
+        { error: 'Istnieje już zapis dla tego e-maila i imienia psa na to wydarzenie' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: rError?.message ?? 'Błąd tworzenia zapisu' },
       { status: 500 }
@@ -195,19 +259,17 @@ export async function POST(req: Request) {
   }
 
   // Send email notification before returning so serverless runtimes do not stop it mid-flight.
-  if (ownerEmailNorm) {
-    await sendRegistrationEmail({
-      to: ownerEmailNorm,
-      ownerName: ownerName.trim(),
-      dogName: dogName.trim(),
-      eventTitle: event.title,
-      eventDate: event.start_at ?? null,
-      eventLocation: event.location ?? null,
-      status: event.auto_confirm ? 'confirmed' : 'pending',
-      formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
-      formData: registration.form_data ?? {},
-    })
-  }
+  await sendRegistrationEmail({
+    to: ownerEmailNorm,
+    ownerName: ownerName.trim(),
+    dogName: dogName.trim(),
+    eventTitle: event.title,
+    eventDate: event.start_at ?? null,
+    eventLocation: event.location ?? null,
+    status: event.auto_confirm ? 'confirmed' : 'pending',
+    formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
+    formData: registration.form_data ?? {},
+  })
 
   return NextResponse.json(registration, { status: 201 })
 }

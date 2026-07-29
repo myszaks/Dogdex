@@ -17,10 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = createServerClient()
   const { data } = await supabase
     .from('events')
-    .select('title')
+    .select('title, status')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .maybeSingle()
-  return { title: `Grafik – ${data?.title ?? 'Wydarzenie'}` }
+  const title = data && data.status !== 'draft' ? data.title : 'Wydarzenie'
+  return { title: `Grafik – ${title}` }
 }
 
 export default async function PublicSchedulePage({ params }: Props) {
@@ -29,11 +30,11 @@ export default async function PublicSchedulePage({ params }: Props) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, start_at, location, slug, form_fields')
+    .select('id, title, start_at, location, slug, form_fields, status')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
     .maybeSingle()
 
-  if (!event) notFound()
+  if (!event || event.status === 'draft') notFound()
 
   const { user } = await getServerUser()
 

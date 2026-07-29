@@ -14,11 +14,9 @@ import {
   Settings2,
   PawPrint,
   LogIn,
-  Search,
   HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { INDIVIDUAL_TRAININGS_ENABLED } from '@/lib/features'
 
 function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
@@ -46,12 +44,15 @@ export default function Navigation() {
   const navLinks = [
     { href: '/', label: 'Główna', Icon: Home },
     { href: '/archive', label: 'Archiwum', Icon: Archive },
+    { href: '/trainings', label: 'Treningi', Icon: PawPrint },
   ]
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
   if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
-  if (user) navLinks.push({ href: '/trainings', label: 'Treningi indywidualne', Icon: PawPrint })
   if (isTrainer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
   if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', Icon: Settings2 })
+  const mobileNavLinks = navLinks.filter(link =>
+    link.href !== '/trainer' && link.href !== '/organizer'
+  )
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -74,7 +75,7 @@ export default function Navigation() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navLinks.map(({ href, label, Icon }) => (
+          {mobileNavLinks.map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}
@@ -145,19 +146,6 @@ export default function Navigation() {
               <span className="leading-none">{label}</span>
             </Link>
           ))}
-          {/* Profile shortcut on mobile */}
-          {user && (
-            <Link
-              href="/profile"
-              className={cn(
-                'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
-                pathname?.startsWith('/profile') ? 'text-accent' : 'text-muted-foreground'
-              )}
-            >
-              <Search className="w-5 h-5 text-muted-foreground/70" />
-              <span>Profil</span>
-            </Link>
-          )}
         </div>
       </nav>
 

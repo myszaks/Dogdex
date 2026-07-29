@@ -79,9 +79,9 @@ export default async function RegistrationsPage({ params }: Props) {
               <p className="text-sm text-sky-600 mt-0.5">📅 {formatDate(event.start_at)}</p>
             )}
           </div>
-          {/*<div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <CsvExportButton eventId={eventId} />
-          </div>*/}
+          </div>
         </div>
       </div>
 

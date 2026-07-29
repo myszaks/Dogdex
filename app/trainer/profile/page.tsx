@@ -116,18 +116,9 @@ export default function TrainerProfilePage() {
     }
   }
 
-  const handleStripeConnect = async () => {
+  const handleStripeConnect = () => {
     setStripeConnecting(true)
-    try {
-      const response = await fetch('/api/stripe/connect')
-      if (!response.ok) {
-        throw new Error('Błąd przy łączeniu ze Stripe')
-      }
-      // Redirect happens automatically
-    } catch (err) {
-      setError((err as Error).message)
-      setStripeConnecting(false)
-    }
+    window.location.assign('/api/stripe/connect')
   }
 
   if (loading) {
@@ -164,6 +155,7 @@ export default function TrainerProfilePage() {
                 value={formData.full_name}
                 onChange={handleChange}
                 required
+                maxLength={120}
                 className="form-input"
                 placeholder="Jan Kowalski"
               />
@@ -178,6 +170,7 @@ export default function TrainerProfilePage() {
                 onChange={handleChange}
                 className="form-input resize-none"
                 rows={4}
+                maxLength={5000}
                 placeholder="Opowiedz o sobie, doświadczeniu i specjalizacjach…"
               />
             </div>
@@ -191,6 +184,7 @@ export default function TrainerProfilePage() {
                 value={formData.location_city}
                 onChange={handleChange}
                 className="form-input"
+                maxLength={120}
                 placeholder="Warszawa"
               />
             </div>
@@ -204,6 +198,7 @@ export default function TrainerProfilePage() {
                 value={formData.location_details}
                 onChange={handleChange}
                 className="form-input"
+                maxLength={500}
                 placeholder="np. Park Lazienki, Dąb Park"
               />
             </div>            

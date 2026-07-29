@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { sendTrainingBookingConfirmation, sendTrainingBookingToTrainer } from '@/lib/email'
 import { formatEmailDateTime } from '@/lib/emailDate'
 import { getServerUser } from '@/lib/getServerUser'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import {
   bookingFitsAvailability,
   bookingsOverlap,
@@ -51,6 +51,9 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
   }
+  if (!hasServiceRoleKey()) {
+    return NextResponse.json({ error: 'Brak konfiguracji serwera rezerwacji' }, { status: 503 })
+  }
 
   let body: Record<string, unknown>
   try {
@@ -60,32 +63,77 @@ export async function POST(req: Request) {
   }
 
   const { training_type_id, dog_id, scheduled_at, duration_min, notes_user } = body
-  if (!training_type_id || !scheduled_at) {
+  if (
+    typeof training_type_id !== 'string'
+    || !training_type_id
+    || typeof scheduled_at !== 'string'
+    || !scheduled_at
+  ) {
     return NextResponse.json({ error: 'Typ treningu i czas są wymagane' }, { status: 400 })
+  }
+  if (dog_id != null && typeof dog_id !== 'string') {
+    return NextResponse.json({ error: 'Nieprawidłowy identyfikator psa' }, { status: 400 })
+  }
+  if (notes_user != null && (typeof notes_user !== 'string' || notes_user.length > 2000)) {
+    return NextResponse.json({ error: 'Notatka może mieć maksymalnie 2000 znaków' }, { status: 400 })
   }
 
   const supabase = await createAuthClient()
+  const serviceClient = createServerClient()
 
-  const { data: trainingType } = await supabase
+  const { data: trainingType } = await serviceClient
     .from('training_types')
     .select('*')
     .eq('id', training_type_id)
+    .eq('is_active', true)
     .single()
 
   if (!trainingType) {
     return NextResponse.json({ error: 'Nie znaleziono typu treningu' }, { status: 404 })
   }
 
-  const { data: trainerProfile } = await supabase
+  const [{ data: trainerProfile }, { data: trainerPaymentProfile }] = await Promise.all([
+    serviceClient
     .from('trainer_profiles')
     .select('*')
     .eq('trainer_id', trainingType.trainer_id)
-    .single()
+      .eq('is_active', true)
+      .single(),
+    serviceClient
+      .from('profiles')
+      .select('stripe_account_id, stripe_onboarded')
+      .eq('id', trainingType.trainer_id)
+      .maybeSingle(),
+  ])
+
+  if (!trainerProfile) {
+    return NextResponse.json({ error: 'Trener nie przyjmuje obecnie rezerwacji' }, { status: 409 })
+  }
 
   const actualDuration = resolveBookingDuration(duration_min, trainingType.duration_min)
+  const stripeAccountId = trainerPaymentProfile?.stripe_onboarded
+    ? trainerPaymentProfile.stripe_account_id
+    : null
+  const priceAmount = Number(trainingType.price_per_hour) * actualDuration / 60
+  if (!Number.isFinite(priceAmount) || priceAmount < 0) {
+    return NextResponse.json({ error: 'Nieprawidłowa cena treningu' }, { status: 500 })
+  }
+  if (priceAmount > 0 && !stripeAccountId) {
+    return NextResponse.json(
+      { error: 'Trener nie skonfigurował jeszcze płatności dla tej oferty' },
+      { status: 409 },
+    )
+  }
+  if (priceAmount > 0 && !stripe) {
+    return NextResponse.json({ error: 'Płatności nie są skonfigurowane' }, { status: 503 })
+  }
+
   const scheduledDate = new Date(scheduled_at as string)
   if (Number.isNaN(scheduledDate.getTime()) || actualDuration <= 0) {
     return NextResponse.json({ error: 'Nieprawidłowy termin lub czas trwania' }, { status: 400 })
+  }
+  if (scheduledDate.getTime() <= Date.now()) {
+    return NextResponse.json({ error: 'Termin treningu musi być w przyszłości' }, { status: 409 })
   }
 
   if (dog_id) {
@@ -103,7 +151,7 @@ export async function POST(req: Request) {
 
   const endTime = new Date(scheduledDate.getTime() + actualDuration * 60000)
 
-  const { data: trainerTrainingTypes, error: trainerTrainingTypesError } = await supabase
+  const { data: trainerTrainingTypes, error: trainerTrainingTypesError } = await serviceClient
     .from('training_types')
     .select('id')
     .eq('trainer_id', trainingType.trainer_id)
@@ -113,7 +161,7 @@ export async function POST(req: Request) {
   }
 
   const trainerTrainingTypeIds = (trainerTrainingTypes || []).map(type => type.id)
-  const { data: existingBookings, error: conflictsError } = await supabase
+  const { data: existingBookings, error: conflictsError } = await serviceClient
     .from('training_bookings')
     .select('id, scheduled_at, duration_min')
     .in('training_type_id', trainerTrainingTypeIds)
@@ -141,7 +189,7 @@ export async function POST(req: Request) {
   }
 
   const { date: bookingDate } = getBookingDateTimeParts(scheduledDate)
-  const { data: availabilitySlot } = await supabase
+  const { data: availabilitySlot } = await serviceClient
     .from('trainer_date_availability')
     .select('*')
     .eq('trainer_id', trainingType.trainer_id)
@@ -163,7 +211,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const { data: booking, error } = await supabase
+  const { data: booking, error } = await serviceClient
     .from('training_bookings')
     .insert([{
       training_type_id,
@@ -178,6 +226,12 @@ export async function POST(req: Request) {
     .single()
 
   if (error) {
+    if (error.message?.includes('training_booking_conflict')) {
+      return NextResponse.json(
+        { error: 'Ten termin został właśnie zarezerwowany. Wybierz inny czas.' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 })
   }
 
@@ -185,41 +239,20 @@ export async function POST(req: Request) {
   const userName = user.user_metadata?.full_name || 'Użytkownik'
   const formattedDate = formatEmailDateTime(scheduledDate.toISOString())
 
-  await sendTrainingBookingConfirmation({
-    to: userEmail,
-    userName,
-    trainerName: trainerProfile?.full_name || 'Trener',
-    trainingType: trainingType.name,
-    trainingDate: formattedDate,
-    duration: actualDuration,
-    price: trainingType.price_per_hour,
-  })
-
-  const { data: { user: trainerUser } } = await supabase.auth.admin.getUserById(trainingType.trainer_id)
-
-  if (trainerUser?.email) {
-    await sendTrainingBookingToTrainer({
-      to: trainerUser.email,
-      trainerName: trainerProfile?.full_name || 'Trener',
-      userName,
-      trainingType: trainingType.name,
-      trainingDate: formattedDate,
-      duration: actualDuration,
-      userNotes: (notes_user as string | null) || undefined,
-      bookingId: booking.id,
-    })
-  }
-
   let checkoutUrl: string | null = null
-  if (stripe && trainerProfile?.stripe_account_id && trainingType.price_per_hour) {
+  if (stripe && stripeAccountId && Number.isFinite(priceAmount) && priceAmount > 0) {
     try {
-      const baseMyTrainingsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/moje-zapisy?tab=trainings`
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        ?? process.env.NEXT_PUBLIC_SITE_URL
+        ?? new URL(req.url).origin
+      const baseMyTrainingsUrl = new URL('/moje-zapisy?tab=trainings', appUrl).toString()
 
       const session = await stripe.checkout.sessions.create(
         {
           payment_method_types: ['card'],
           mode: 'payment',
           customer_email: userEmail,
+          expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
           line_items: [{
             price_data: {
               currency: 'pln',
@@ -227,7 +260,7 @@ export async function POST(req: Request) {
                 name: trainingType.name,
                 description: `Trening z ${trainerProfile.full_name}`,
               },
-              unit_amount: Math.round(trainingType.price_per_hour * 100),
+              unit_amount: Math.round(priceAmount * 100),
             },
             quantity: 1,
           }],
@@ -235,7 +268,12 @@ export async function POST(req: Request) {
           cancel_url: `${baseMyTrainingsUrl}&payment=cancelled&booking_id=${booking.id}`,
           payment_intent_data: {
             application_fee_amount: 0,
-            on_behalf_of: trainerProfile.stripe_account_id,
+            on_behalf_of: stripeAccountId,
+            metadata: {
+              booking_id: booking.id,
+              trainer_id: trainingType.trainer_id,
+              user_id: user.id,
+            },
           },
           metadata: {
             booking_id: booking.id,
@@ -244,21 +282,56 @@ export async function POST(req: Request) {
           },
         },
         {
-          stripeAccount: trainerProfile.stripe_account_id,
+          stripeAccount: stripeAccountId,
         }
       )
+      if (!session.url) throw new Error('Stripe nie zwrócił adresu płatności')
       checkoutUrl = session.url
 
-      await supabase.from('training_payments').insert([{
+      const { error: paymentError } = await serviceClient.from('training_payments').insert([{
         booking_id: booking.id,
-        amount: trainingType.price_per_hour,
+        amount: priceAmount,
         currency: 'PLN',
         stripe_session_id: session.id,
-        stripe_account_id: trainerProfile.stripe_account_id,
+        stripe_account_id: stripeAccountId,
         status: 'pending',
       }])
+      if (paymentError) {
+        await stripe.checkout.sessions.expire(session.id, { stripeAccount: stripeAccountId })
+        throw new Error('Nie udało się zapisać płatności')
+      }
     } catch (err) {
       console.error('[Stripe] Error creating checkout session:', err)
+      await serviceClient.from('training_bookings').delete().eq('id', booking.id)
+      return NextResponse.json({ error: 'Nie udało się rozpocząć płatności' }, { status: 502 })
+    }
+  }
+
+  // Paid bookings are announced only after Stripe confirms payment in the webhook.
+  if (priceAmount === 0) {
+    await sendTrainingBookingConfirmation({
+      to: userEmail,
+      userName,
+      trainerName: trainerProfile.full_name,
+      trainingType: trainingType.name,
+      trainingDate: formattedDate,
+      duration: actualDuration,
+    })
+
+    const { data: { user: trainerUser } } = await serviceClient.auth.admin
+      .getUserById(trainingType.trainer_id)
+
+    if (trainerUser?.email) {
+      await sendTrainingBookingToTrainer({
+        to: trainerUser.email,
+        trainerName: trainerProfile.full_name,
+        userName,
+        trainingType: trainingType.name,
+        trainingDate: formattedDate,
+        duration: actualDuration,
+        userNotes: (notes_user as string | null) || undefined,
+        bookingId: booking.id,
+      })
     }
   }
 

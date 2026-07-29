@@ -30,7 +30,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
   const { event } = await resolveArchiveEvent(eventId)
-  return { title: event?.title ?? 'Wydarzenie' }
+  const isArchived = event && ['finished', 'cancelled'].includes(effectiveStatus(event))
+  return { title: isArchived ? event.title : 'Wydarzenie' }
 }
 
 export const revalidate = 120
@@ -39,15 +40,18 @@ export default async function EventArchivePage({ params }: Props) {
   const { eventId } = await params
   const { event, redirectTo } = await resolveArchiveEvent(eventId)
   if (!event) notFound()
-  if (event.status === 'draft') notFound()
+  const dispStatus = effectiveStatus(event)
+  if (!['finished', 'cancelled'].includes(dispStatus)) notFound()
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()
-  const { data: rawResults } = await supabase
-    .from('results')
-    .select('*, participants(dog_name, owner_name, dog_breed)')
-    .eq('event_id', event.id)
-    .order('class_rank', { ascending: true, nullsFirst: false })
+  const { data: rawResults } = event.results_public
+    ? await supabase
+        .from('results')
+        .select('*, participants(dog_name, owner_name, dog_breed)')
+        .eq('event_id', event.id)
+        .order('class_rank', { ascending: true, nullsFirst: false })
+    : { data: [] }
 
   const isSpeedway = event.event_type_id === 'speedway'
   let results = rawResults ?? []
@@ -68,7 +72,6 @@ export default async function EventArchivePage({ params }: Props) {
 
   const distanceM: number | null = event.track_distance_m ?? null
 
-  const dispStatus = effectiveStatus(event)
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
 
   return (

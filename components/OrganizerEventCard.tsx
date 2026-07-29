@@ -69,7 +69,7 @@ export default function OrganizerEventCard({
             <button
               type="button"
               disabled
-                title="Edycja jest niedostępna po rozpoczęciu wydarzenia"
+              title="Edycja jest niedostępna po rozpoczęciu wydarzenia"
               className="btn btn-secondary btn-sm opacity-50 cursor-not-allowed"
             >
               <Pencil className="w-3.5 h-3.5" />

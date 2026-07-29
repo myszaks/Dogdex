@@ -8,6 +8,8 @@ import { pl } from 'date-fns/locale'
 import type { Dog, TrainingType } from '@/types'
 import DogForm from '@/components/DogForm'
 import Modal from '@/components/Modal'
+import AuthModal from '@/components/AuthModal'
+import useUser from '@/hooks/useUser'
 import {
   Select,
   SelectContent,
@@ -36,6 +38,7 @@ function timeToMinutes(time: string) {
 }
 
 export default function BookTrainingPage({ params }: Props) {
+  const { user } = useUser()
   const [trainerSlug, setTrainerSlug] = useState<string | null>(null)
   const [typeSlug, setTypeSlug] = useState<string | null>(null)
   const [trainingType, setTrainingType] = useState<TrainingType | null>(null)
@@ -52,6 +55,7 @@ export default function BookTrainingPage({ params }: Props) {
   const [selectedDogId, setSelectedDogId] = useState<string>('')
   const [dogModalOpen, setDogModalOpen] = useState(false)
   const [notes, setNotes] = useState<string>('')
+  const [authOpen, setAuthOpen] = useState(false)
 
   useEffect(() => {
     params.then(p => {
@@ -81,6 +85,15 @@ export default function BookTrainingPage({ params }: Props) {
   }, [trainerSlug, typeSlug])
 
   useEffect(() => {
+    if (!user) {
+      setDogs([])
+      setSelectedDogId('')
+      setCanManageDogs(false)
+      setDogsLoading(false)
+      return
+    }
+
+    setDogsLoading(true)
     fetch('/api/dogs')
       .then(async response => {
         if (response.status === 401) {
@@ -100,7 +113,7 @@ export default function BookTrainingPage({ params }: Props) {
         setDogs([])
       })
       .finally(() => setDogsLoading(false))
-  }, [])
+  }, [user])
 
   // Generate full-hour slots based on date availability.
   const getAvailableSlotsForDate = (date: Date) => {
@@ -114,10 +127,7 @@ export default function BookTrainingPage({ params }: Props) {
     const [endHour, endMin] = dateSlot.end_time.split(':').map(Number)
 
     const currentTime = new Date(date)
-    currentTime.setHours(startHour, 0, 0, 0)
-    if (startMin > 0) {
-      currentTime.setHours(currentTime.getHours() + 1)
-    }
+    currentTime.setHours(startHour, startMin, 0, 0)
 
     const endTime = new Date(date)
     endTime.setHours(endHour, endMin, 0, 0)
@@ -126,7 +136,7 @@ export default function BookTrainingPage({ params }: Props) {
 
     while (currentTime.getTime() + duration * 60000 <= endTime.getTime()) {
       slots.push(format(currentTime, 'HH:mm'))
-      currentTime.setHours(currentTime.getHours() + 1)
+      currentTime.setMinutes(currentTime.getMinutes() + 30)
     }
 
     const bookedSlots = dateSlot.booked_slots ?? []
@@ -150,6 +160,11 @@ export default function BookTrainingPage({ params }: Props) {
   }
 
   const handleBooking = async () => {
+    if (!user) {
+      setAuthOpen(true)
+      return
+    }
+
     if (!selectedDate || !selectedTime || !trainingType) {
       setError('Wybierz datę i godzinę')
       return
@@ -285,6 +300,7 @@ export default function BookTrainingPage({ params }: Props) {
                         : 'border-border bg-secondary/50 text-muted-foreground/40 cursor-not-allowed'
                   }`}
                   title={hasSlots ? undefined : 'Brak dostępnych godzin w tym dniu'}
+                  aria-label={`${format(date, 'EEEE, d MMMM yyyy', { locale: pl })}${hasSlots ? '' : ' — brak wolnych godzin'}`}
                 >
                   <div className="text-xs">{dateStr}</div>
                   <div className="font-semibold text-sm">{dayStr}</div>
@@ -315,6 +331,7 @@ export default function BookTrainingPage({ params }: Props) {
                 {availableSlots.map(slot => (
                   <button
                     key={slot}
+                    type="button"
                     onClick={() => setSelectedTime(slot)}
                     className={`p-3 rounded-lg border-2 transition-all font-semibold ${
                       selectedTime === slot
@@ -410,6 +427,7 @@ export default function BookTrainingPage({ params }: Props) {
             placeholder="Dodaj informacje dla trenera (problemy behawioralne, cele treningowe itp)"
             className="form-input resize-none"
             rows={3}
+            maxLength={2000}
           />
         </div>
 
@@ -444,13 +462,18 @@ export default function BookTrainingPage({ params }: Props) {
           disabled={!selectedDate || !selectedTime || booking}
           className="w-full btn btn-primary"
         >
-          {booking ? 'Rezerwowanie…' : 'Zarezerwuj trening'}
+          {booking
+            ? 'Rezerwowanie…'
+            : user
+              ? 'Zarezerwuj trening'
+              : 'Zaloguj się, aby zarezerwować'}
         </button>
       </div>
 
       <Modal open={dogModalOpen} onClose={() => setDogModalOpen(false)} title="Dodaj psa">
         <DogForm onSave={handleAddDog} onCancel={() => setDogModalOpen(false)} />
       </Modal>
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   )
 }

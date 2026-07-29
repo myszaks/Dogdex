@@ -39,6 +39,14 @@ function links(value: unknown): string[] {
     .filter(Boolean)
     .slice(0, 10)
     .map(item => item.slice(0, 500))
+    .filter(item => {
+      try {
+        const url = new URL(item)
+        return url.protocol === 'https:' || url.protocol === 'http:'
+      } catch {
+        return false
+      }
+    })
 }
 
 function normalizePayload(body: Record<string, unknown>): { data?: NormalizedRoleRequest; error?: string } {

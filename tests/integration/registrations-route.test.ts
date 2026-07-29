@@ -5,6 +5,7 @@ const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
 const getServerUser = vi.fn()
 const sendRegistrationEmail = vi.fn()
+const enforcePublicRateLimits = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
   createServerClient,
@@ -20,12 +21,41 @@ vi.mock('@/lib/email', () => ({
   sendRegistrationEmail,
 }))
 
+vi.mock('@/lib/publicRateLimit', () => ({
+  enforcePublicRateLimits,
+  getRequestIp: () => '127.0.0.1',
+}))
+
 describe('POST /api/registrations', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
     getServerUser.mockResolvedValue({ user: null, role: null })
     sendRegistrationEmail.mockResolvedValue(undefined)
+    enforcePublicRateLimits.mockResolvedValue({ allowed: true })
+  })
+
+  it('rejects a request rejected by the public rate limiter', async () => {
+    enforcePublicRateLimits.mockResolvedValue({
+      allowed: false,
+      reason: 'limited',
+      retryAfterSeconds: 600,
+    })
+
+    const { POST } = await import('@/app/api/registrations/route')
+    const response = await POST(new Request('http://localhost/api/registrations', {
+      method: 'POST',
+      body: JSON.stringify({
+        eventId: 'event-1',
+        ownerName: 'Jan Kowalski',
+        ownerEmail: 'jan@example.com',
+        dogName: 'Burek',
+      }),
+    }))
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('600')
+    expect(createServerClient).not.toHaveBeenCalled()
   })
 
   it('rejects registration when the deadline is already past', async () => {
@@ -64,6 +94,7 @@ describe('POST /api/registrations', () => {
       body: JSON.stringify({
         eventId: 'event-1',
         ownerName: 'Jan Kowalski',
+        ownerEmail: 'jan@example.com',
         dogName: 'Burek',
       }),
     }))
@@ -90,7 +121,7 @@ describe('POST /api/registrations', () => {
                     auto_confirm: true,
                     max_participants: null,
                     title: 'Spacer',
-                    start_at: '2026-07-20T10:00:00.000Z',
+                    start_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     end_at: null,
                     location: 'Park',
                     form_fields: [],
@@ -178,7 +209,7 @@ describe('POST /api/registrations', () => {
                     auto_confirm: true,
                     max_participants: null,
                     title: 'Spacer',
-                    start_at: '2026-07-20T08:00:00.000Z',
+                    start_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                     end_at: null,
                     location: 'Park',
                     form_fields: [],

@@ -36,7 +36,7 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
     redirect('/')
   }
 
-  const { tab, payment } = await searchParams
+  const { tab, payment, booking_id: paymentBookingId } = await searchParams
   const activeTab = tab === 'trainings' ? 'trainings' : 'events'
 
   let registrations: Array<Record<string, unknown>> = []
@@ -141,7 +141,11 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
       </div>
 
       {activeTab === 'trainings' ? (
-        <MyTrainingsContent embedded paymentStatus={payment ?? null} />
+        <MyTrainingsContent
+          embedded
+          paymentStatus={payment ?? null}
+          paymentBookingId={paymentBookingId ?? null}
+        />
       ) : (
         <>
           {eventDates.length > 0 && (

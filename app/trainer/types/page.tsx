@@ -19,11 +19,7 @@ export default function TrainingTypesPage() {
     duration_min: '60',
   })
 
-  useEffect(() => {
-    loadTypes()
-  }, [])
-
-  const loadTypes = async () => {
+  async function loadTypes() {
     try {
       const response = await fetch('/api/training-types')
       if (!response.ok) throw new Error('Błąd przy ładowaniu')
@@ -35,6 +31,10 @@ export default function TrainingTypesPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    void loadTypes()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,7 +71,7 @@ export default function TrainingTypesPage() {
   }
 
   const handleDelete = async (typeId: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten typ treningu?')) return
+    if (!confirm('Czy na pewno chcesz wyłączyć tę ofertę? Historia rezerwacji zostanie zachowana.')) return
 
     setDeleting(typeId)
     try {
@@ -227,6 +227,7 @@ export default function TrainingTypesPage() {
                     href={`/trainer/types/${type.id}`}
                     className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                     title="Edytuj"
+                    aria-label={`Edytuj: ${type.name}`}
                   >
                     <Edit2 className="w-4 h-4 text-slate-600" />
                   </Link>
@@ -234,7 +235,8 @@ export default function TrainingTypesPage() {
                     onClick={() => handleDelete(type.id)}
                     disabled={deleting === type.id}
                     className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-600"
-                    title="Usuń"
+                    title="Wyłącz ofertę"
+                    aria-label={`Wyłącz ofertę: ${type.name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

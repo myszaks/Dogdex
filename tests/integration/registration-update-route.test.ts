@@ -86,6 +86,38 @@ describe('PATCH /api/registrations/[id]', () => {
     })
   })
 
+  it('rejects an organizer who does not own the registration event', async () => {
+    createAuthClient.mockResolvedValue({
+      from: vi.fn((table: string) => {
+        if (table !== 'registrations') throw new Error(`Unexpected table ${table}`)
+        return registrationFetch({
+          id: 'reg-foreign',
+          event_id: 'event-2',
+          status: 'pending',
+          participants: {
+            id: 'participant-foreign',
+            owner_email: 'participant@example.com',
+          },
+          events: {
+            id: 'event-2',
+            created_by: 'organizer-2',
+          },
+        })
+      }),
+    })
+
+    const { PATCH } = await import('@/app/api/registrations/[id]/route')
+    const response = await PATCH(
+      new Request('http://localhost/api/registrations/reg-foreign', {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'confirmed' }),
+      }),
+      { params: Promise.resolve({ id: 'reg-foreign' }) },
+    )
+
+    expect(response.status).toBe(403)
+  })
+
   it('blocks reactivating a cancelled registration when event capacity is full', async () => {
     const reg = {
       id: 'reg-3',
@@ -100,6 +132,7 @@ describe('PATCH /api/registrations/[id]', () => {
       },
       events: {
         id: 'event-1',
+        created_by: 'organizer-1',
         max_participants: 2,
       },
     }
@@ -153,6 +186,7 @@ describe('PATCH /api/registrations/[id]', () => {
       },
       events: {
         id: 'event-1',
+        created_by: 'organizer-1',
         max_participants: 10,
       },
     }

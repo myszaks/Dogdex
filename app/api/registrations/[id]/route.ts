@@ -10,12 +10,10 @@ interface Params {
 
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
-  const supabase = await createAuthClient()
 
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
-
-  const isOrganizerOrAdmin = isOrganizerRole(role)
+  const supabase = await createAuthClient()
 
   let body: Record<string, unknown>
   try {
@@ -33,8 +31,17 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (!reg) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
-  const participantEmail = ((reg as Record<string, unknown>).participants as Record<string, string> | null)?.owner_email ?? null
-  const isOwner = participantEmail && participantEmail.toLowerCase() === user.email?.toLowerCase()
+  const participant = (reg as Record<string, unknown>).participants as Record<string, string | null> | null
+  const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+  const participantEmail = participant?.owner_email ?? null
+  const isOwner = (
+    participant?.user_id === user.id
+    || Boolean(participantEmail && participantEmail.toLowerCase() === user.email?.toLowerCase())
+  )
+  const isOrganizerOrAdmin = isOrganizerRole(role) && (
+    role === 'admin'
+    || event?.created_by === user.id
+  )
 
   if (!isOrganizerOrAdmin && !isOwner) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
@@ -46,7 +53,6 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   if (isOwner && !isOrganizerOrAdmin && body.status === 'cancelled') {
-    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
     const startAt = event?.start_at as string | null
     const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000)
     if (startAt && new Date(startAt) <= cutoff) {
@@ -70,7 +76,6 @@ export async function PATCH(req: Request, { params }: Params) {
   const targetIsActive = targetStatus === 'pending' || targetStatus === 'confirmed'
 
   if (isOrganizerOrAdmin && targetIsActive) {
-    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
     const participant = (reg as Record<string, unknown>).participants as Record<string, unknown> | null
     const activeStatuses = ['pending', 'confirmed']
     const matchingParticipantIds = new Set<string>()

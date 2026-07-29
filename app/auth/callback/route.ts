@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { safeInternalPath } from '@/lib/safeRedirect'
 
 /**
  * Handles Supabase auth redirects (email confirm, magic link, password reset).
@@ -18,9 +19,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as 'signup' | 'recovery' | 'magiclink' | 'email_change' | null
-  const next = searchParams.get('next') ?? '/'
+  const next = safeInternalPath(searchParams.get('next'))
 
-  const redirectResponse = NextResponse.redirect(`${origin}${next}`)
+  const redirectResponse = NextResponse.redirect(new URL(next, origin))
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

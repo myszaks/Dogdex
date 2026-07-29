@@ -38,7 +38,100 @@ export async function GET(req: Request, { params }: Params) {
   return NextResponse.json(data)
 }
 
-export async function DELETE(req: Request, { params }: Params) {
+export async function PATCH(req: Request, { params }: Params) {
+  const { user, role } = await getServerUser()
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
+  }
+
+  const { id } = await params
+  const supabase = await createAuthClient()
+  const { data: type, error: typeError } = await supabase
+    .from('training_types')
+    .select('trainer_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (typeError) {
+    return NextResponse.json({ error: 'Nie udało się sprawdzić typu treningu' }, { status: 500 })
+  }
+  if (!type) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  if (!canManageTrainerResource(user.id, type.trainer_id, role)) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  const updates: Record<string, unknown> = {}
+
+  if ('name' in body) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 120) {
+      return NextResponse.json({ error: 'Nazwa musi mieć od 1 do 120 znaków' }, { status: 400 })
+    }
+    updates.name = body.name.trim()
+  }
+  if ('description' in body) {
+    if (body.description != null && (
+      typeof body.description !== 'string'
+      || body.description.length > 2000
+    )) {
+      return NextResponse.json({ error: 'Opis może mieć maksymalnie 2000 znaków' }, { status: 400 })
+    }
+    updates.description = typeof body.description === 'string'
+      ? body.description.trim() || null
+      : null
+  }
+  if ('price_per_hour' in body) {
+    if (body.price_per_hour != null && (
+      typeof body.price_per_hour !== 'number'
+      || !Number.isFinite(body.price_per_hour)
+      || body.price_per_hour < 0
+      || body.price_per_hour > 100_000
+    )) {
+      return NextResponse.json({ error: 'Nieprawidłowa cena treningu' }, { status: 400 })
+    }
+    updates.price_per_hour = body.price_per_hour
+  }
+  if ('duration_min' in body) {
+    if (
+      typeof body.duration_min !== 'number'
+      || !Number.isInteger(body.duration_min)
+      || body.duration_min < 15
+      || body.duration_min > 480
+    ) {
+      return NextResponse.json({ error: 'Czas treningu musi wynosić od 15 do 480 minut' }, { status: 400 })
+    }
+    updates.duration_min = body.duration_min
+  }
+  if ('is_active' in body) {
+    if (typeof body.is_active !== 'boolean') {
+      return NextResponse.json({ error: 'Nieprawidłowy status typu treningu' }, { status: 400 })
+    }
+    updates.is_active = body.is_active
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'Brak pól do aktualizacji' }, { status: 400 })
+  }
+
+  updates.updated_at = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('training_types')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: 'Nie udało się zaktualizować typu treningu' }, { status: 500 })
+  }
+  return NextResponse.json(data)
+}
+
+export async function DELETE(_req: Request, { params }: Params) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
@@ -58,9 +151,9 @@ export async function DELETE(req: Request, { params }: Params) {
 
   const { error } = await supabase
     .from('training_types')
-    .delete()
+    .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq('id', id)
 
-  if (error) return NextResponse.json({ error: 'Nie udało się usunąć typu treningu' }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Nie udało się wyłączyć typu treningu' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

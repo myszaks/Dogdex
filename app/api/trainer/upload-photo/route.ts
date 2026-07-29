@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { randomUUID } from 'node:crypto'
+import {
+  createAuthClient,
+  createServerClient,
+  hasServiceRoleKey,
+} from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { isTrainerRole } from '@/lib/roles'
 
@@ -28,11 +33,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = await createAuthClient()
-    const fileName = `trainer-${user.id}-${Date.now()}.${file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp'}`
+    const extension = file.type === 'image/jpeg'
+      ? 'jpg'
+      : file.type === 'image/png'
+        ? 'png'
+        : 'webp'
+    const fileName = `${user.id}/${randomUUID()}.${extension}`
     const buffer = await file.arrayBuffer()
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('trainers')
       .upload(fileName, buffer, {
         contentType: file.type,
@@ -67,13 +77,38 @@ export async function DELETE(req: NextRequest) {
   try {
     const supabase = await createAuthClient()
     
-    // Extract filename from URL
-    const fileName = url.split('/').pop()
-    if (!fileName) throw new Error('Nieprawidłowy URL')
+    const marker = '/storage/v1/object/public/trainers/'
+    const markerIndex = url.indexOf(marker)
+    const fileName = markerIndex >= 0
+      ? decodeURIComponent(url.slice(markerIndex + marker.length))
+      : ''
+    if (!fileName || fileName.includes('..')) {
+      return NextResponse.json({ error: 'Nieprawidłowy URL' }, { status: 400 })
+    }
 
-    await supabase.storage
+    let storageClient = supabase
+    if (!fileName.startsWith(`${user.id}/`)) {
+      const isLegacyOwnFile = fileName.startsWith(`trainer-${user.id}-`)
+      const { data: profile } = await supabase
+        .from('trainer_profiles')
+        .select('profile_image_url')
+        .eq('trainer_id', user.id)
+        .maybeSingle()
+
+      if (!isLegacyOwnFile || profile?.profile_image_url !== url) {
+        return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+      }
+      if (!hasServiceRoleKey()) {
+        return NextResponse.json({ error: 'Usuwanie pliku jest chwilowo niedostępne' }, { status: 503 })
+      }
+      storageClient = createServerClient()
+    }
+
+    const { error } = await storageClient.storage
       .from('trainers')
       .remove([fileName])
+
+    if (error) throw new Error('Nie udało się usunąć zdjęcia')
 
     return NextResponse.json({ success: true })
   } catch (err) {

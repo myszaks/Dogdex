@@ -2,7 +2,16 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import useUser from '@/hooks/useUser'
-import { ClipboardCheck, User, Settings, Shield, LogOut, ChevronDown } from 'lucide-react'
+import {
+  ClipboardCheck,
+  User,
+  Settings,
+  Shield,
+  LogOut,
+  ChevronDown,
+  CalendarCog,
+  Dumbbell,
+} from 'lucide-react'
 import { ROLE_LABELS, isAppRole } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
@@ -11,7 +20,7 @@ interface Props {
 }
 
 export default function UserMenu({ sidebar = false }: Props) {
-  const { user, role, isAdmin, logout } = useUser()
+  const { user, role, isAdmin, isOrganizer, isTrainer, logout } = useUser()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -59,6 +68,12 @@ export default function UserMenu({ sidebar = false }: Props) {
             </p>
             <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
             <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
+            {isTrainer && (
+              <DropdownItem href="/trainer" icon={<Dumbbell className="w-4 h-4" />} label="Panel trenera" onClose={() => setOpen(false)} accent />
+            )}
+            {isOrganizer && (
+              <DropdownItem href="/organizer" icon={<CalendarCog className="w-4 h-4" />} label="Panel organizatora" onClose={() => setOpen(false)} accent />
+            )}
             {isAdmin && (
               <>
                 <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
@@ -96,6 +111,12 @@ export default function UserMenu({ sidebar = false }: Props) {
           </p>
           <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
           <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
+          {isTrainer && (
+            <DropdownItem href="/trainer" icon={<Dumbbell className="w-4 h-4" />} label="Panel trenera" onClose={() => setOpen(false)} accent />
+          )}
+          {isOrganizer && (
+            <DropdownItem href="/organizer" icon={<CalendarCog className="w-4 h-4" />} label="Panel organizatora" onClose={() => setOpen(false)} accent />
+          )}
           {isAdmin && (
             <>
               <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />

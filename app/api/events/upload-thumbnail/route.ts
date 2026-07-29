@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 export const runtime = 'nodejs'
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   }
 
   const ext = file.type === 'image/webp' ? 'webp' : file.type === 'image/png' ? 'png' : 'jpg'
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const filename = `${authResult.user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
@@ -67,7 +67,24 @@ export async function DELETE(req: Request) {
   if (parts.length < 2) return NextResponse.json({ error: 'Nieprawidłowy url' }, { status: 400 })
   const path = parts[1].split('?')[0]
 
-  const { error } = await supabase.storage.from(BUCKET).remove([path])
+  const isOwnedPath = path.startsWith(`${authResult.user.id}/`)
+  let canDeleteLegacyPath = false
+  if (authResult.role !== 'admin' && !isOwnedPath) {
+    const { data: ownedEvent } = await supabase
+      .from('events')
+      .select('id')
+      .eq('created_by', authResult.user.id)
+      .eq('image_url', url)
+      .limit(1)
+      .maybeSingle()
+    canDeleteLegacyPath = Boolean(ownedEvent)
+    if (!canDeleteLegacyPath) {
+      return NextResponse.json({ error: 'Brak uprawnień do tego pliku' }, { status: 403 })
+    }
+  }
+
+  const storageClient = isOwnedPath ? supabase : createServerClient()
+  const { error } = await storageClient.storage.from(BUCKET).remove([path])
   if (error) return NextResponse.json({ error: 'Nie udało się usunąć zdjęcia' }, { status: 500 })
 
   return NextResponse.json({ ok: true })

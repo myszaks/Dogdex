@@ -1,14 +1,20 @@
-import { NextResponse } from 'next/server'
+import { randomBytes } from 'node:crypto'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
 import { isTrainerRole } from '@/lib/roles'
 
-export async function GET() {
+const STATE_COOKIE = 'dogdex_stripe_connect_state'
+
+export async function GET(request: NextRequest) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
   if (!isTrainerRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   const clientId = process.env.STRIPE_CLIENT_ID
-  const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/callback`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? process.env.NEXT_PUBLIC_SITE_URL
+    ?? request.nextUrl.origin
+  const returnUrl = new URL('/api/stripe/callback', appUrl).toString()
 
   if (!clientId) {
     return NextResponse.json(
@@ -18,13 +24,22 @@ export async function GET() {
   }
 
   // Build Stripe Connect OAuth URL
+  const state = randomBytes(32).toString('hex')
   const connectUrl = new URL('https://connect.stripe.com/oauth/authorize')
   connectUrl.searchParams.append('client_id', clientId)
-  connectUrl.searchParams.append('state', user.id) // Store user ID to verify after redirect
+  connectUrl.searchParams.append('state', state)
   connectUrl.searchParams.append('redirect_uri', returnUrl)
   connectUrl.searchParams.append('stripe_user[email]', user.email || '')
-  connectUrl.searchParams.append('stripe_user[url]', `${process.env.NEXT_PUBLIC_APP_URL}/trainer`)
+  connectUrl.searchParams.append('stripe_user[url]', new URL('/trainer', appUrl).toString())
   connectUrl.searchParams.append('stripe_user[country]', 'PL')
 
-  return NextResponse.redirect(connectUrl)
+  const response = NextResponse.redirect(connectUrl)
+  response.cookies.set(STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: new URL(appUrl).protocol === 'https:',
+    sameSite: 'lax',
+    path: '/api/stripe/callback',
+    maxAge: 10 * 60,
+  })
+  return response
 }

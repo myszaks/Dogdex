@@ -28,10 +28,17 @@ async function generateTrainingTypeSlug(
 }
 
 export async function GET() {
+  const { user, role } = await getServerUser()
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  if (!isTrainerRole(role)) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
   const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('training_types')
     .select('*')
+    .eq('trainer_id', user.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
@@ -56,8 +63,33 @@ export async function POST(req: Request) {
 
   const { name, description, price_per_hour, duration_min, is_active } = body
 
-  if (!name || typeof name !== 'string' || !name.trim()) {
+  if (!name || typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
     return NextResponse.json({ error: 'Nazwa typu treningu jest wymagana' }, { status: 400 })
+  }
+  if (description != null && (typeof description !== 'string' || description.length > 2000)) {
+    return NextResponse.json({ error: 'Opis może mieć maksymalnie 2000 znaków' }, { status: 400 })
+  }
+  if (
+    price_per_hour != null
+    && (
+      typeof price_per_hour !== 'number'
+      || !Number.isFinite(price_per_hour)
+      || price_per_hour < 0
+      || price_per_hour > 100_000
+    )
+  ) {
+    return NextResponse.json({ error: 'Nieprawidłowa cena treningu' }, { status: 400 })
+  }
+  if (
+    duration_min != null
+    && (
+      typeof duration_min !== 'number'
+      || !Number.isInteger(duration_min)
+      || duration_min < 15
+      || duration_min > 480
+    )
+  ) {
+    return NextResponse.json({ error: 'Czas treningu musi wynosić od 15 do 480 minut' }, { status: 400 })
   }
 
   const supabase = await createAuthClient()
@@ -69,7 +101,7 @@ export async function POST(req: Request) {
       trainer_id: user.id,
       slug,
       name: (name as string).trim(),
-      description: (description as string | null) || null,
+      description: typeof description === 'string' ? description.trim() || null : null,
       price_per_hour: typeof price_per_hour === 'number' ? price_per_hour : null,
       duration_min: typeof duration_min === 'number' ? duration_min : 60,
       is_active: typeof is_active === 'boolean' ? is_active : true,

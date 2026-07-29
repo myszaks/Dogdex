@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { sendContactEmail, sendContactConfirmation } from '@/lib/email'
+import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -24,6 +25,37 @@ export async function POST(req: Request) {
   }
   if (name.length > 120 || subject.length > 200 || message.length > 5000) {
     return NextResponse.json({ error: 'Przekroczono maksymalną długość pola' }, { status: 400 })
+  }
+
+  const rateLimit = await enforcePublicRateLimits([
+    {
+      scope: 'contact-ip',
+      identifier: getRequestIp(req),
+      limit: 5,
+      windowSeconds: 10 * 60,
+    },
+    {
+      scope: 'contact-email',
+      identifier: email,
+      limit: 3,
+      windowSeconds: 30 * 60,
+    },
+  ])
+
+  if (!rateLimit.allowed) {
+    if (rateLimit.reason === 'limited') {
+      return NextResponse.json(
+        { error: 'Zbyt wiele wiadomości. Spróbuj ponownie później.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        },
+      )
+    }
+    return NextResponse.json(
+      { error: 'Formularz jest chwilowo niedostępny. Spróbuj ponownie później.' },
+      { status: 503 },
+    )
   }
 
   try {

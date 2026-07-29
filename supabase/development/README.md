@@ -31,8 +31,16 @@ The upgrade includes:
 Do not additionally apply `supabase/schema.sql` or the individual files from
 `supabase/migrations` to the same database. They contain the same changes.
 
-The files are schema-only. They do not copy users, registrations, dogs, events,
-storage objects, secrets, or any other production records.
+The files do not copy users, registrations, dogs, events, storage objects,
+secrets, or any other production records. The production snapshot contains only
+the two required Storage bucket configuration rows in addition to the schema.
+
+## Repair for a database created from an earlier snapshot
+
+If `01_production_schema.sql` and `02_production_to_branch.sql` were applied
+before the Storage configuration fix, run `repair_storage_buckets.sql` once.
+The repair is idempotent and only restores the `dog-photos` and
+`event-thumbnails` bucket configuration. It does not modify stored files.
 
 ## Regeneration and verification
 

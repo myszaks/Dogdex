@@ -8,6 +8,12 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 const migrationsDirectory = path.join(repositoryRoot, "supabase", "migrations");
 const outputPath = path.join(repositoryRoot, "supabase", "schema.sql");
+const productionStoragePath = path.join(
+  repositoryRoot,
+  "supabase",
+  "production",
+  "storage_buckets.sql",
+);
 const numberedMigrationPattern = /^\d{14}_.+\.sql$/;
 const checkOnly = process.argv.includes("--check");
 
@@ -43,6 +49,9 @@ const sections = await Promise.all(
     ].join("\n");
   }),
 );
+const productionStorageSql = (await readFile(productionStoragePath, "utf8"))
+  .replace(/\r\n/g, "\n")
+  .trimEnd();
 
 const generatedSchema = [
   "-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.",
@@ -59,6 +68,13 @@ const generatedSchema = [
   ...sections.flatMap((section, index) =>
     index === sections.length - 1 ? [section] : [section, ""],
   ),
+  "",
+  "-- ============================================================================",
+  "-- Production Storage bucket configuration",
+  "-- Source: supabase/production/storage_buckets.sql",
+  "-- ============================================================================",
+  "",
+  productionStorageSql,
   "",
 ].join("\n");
 

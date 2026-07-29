@@ -5,6 +5,7 @@
 -- Apply only to a fresh Supabase project.
 --
 -- Source: supabase/migrations/20260611083507_from_main.sql
+-- Storage configuration source: supabase/production/storage_buckets.sql
 
 
 
@@ -1285,3 +1286,52 @@ with check (((bucket_id = 'event-thumbnails'::text) AND (auth.role() = 'authenti
   for select
   to public
 using ((bucket_id = 'event-thumbnails'::text));
+
+-- ============================================================================
+-- Production Storage bucket configuration
+-- ============================================================================
+
+-- Storage buckets are configuration rows and are therefore not included in a
+-- schema-only pg_dump. Keep them with the production snapshot explicitly.
+
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'dog-photos',
+  'dog-photos',
+  true,
+  null,
+  null
+)
+on conflict (id) do update
+set
+  name = excluded.name,
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'event-thumbnails',
+  'event-thumbnails',
+  true,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set
+  name = excluded.name,
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;

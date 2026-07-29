@@ -29,3 +29,6 @@ active development branch, use the two generated files described in
 The snapshot expects the standard Supabase `auth`, `storage`, and `extensions`
 schemas to exist. Legacy migration files without a 14-digit timestamp remain for
 historical reference and are intentionally excluded from the generated snapshot.
+Required production Storage bucket configuration is maintained separately in
+`production/storage_buckets.sql` because schema-only database dumps do not
+include bucket rows.

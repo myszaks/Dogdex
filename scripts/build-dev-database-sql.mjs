@@ -10,6 +10,12 @@ import {
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 const migrationsDirectory = path.join(repositoryRoot, "supabase", "migrations");
+const productionStoragePath = path.join(
+  repositoryRoot,
+  "supabase",
+  "production",
+  "storage_buckets.sql",
+);
 const outputDirectory = path.join(repositoryRoot, "supabase", "development");
 const productionOutputPath = path.join(
   outputDirectory,
@@ -18,6 +24,10 @@ const productionOutputPath = path.join(
 const deltaOutputPath = path.join(
   outputDirectory,
   "02_production_to_branch.sql",
+);
+const storageRepairOutputPath = path.join(
+  outputDirectory,
+  "repair_storage_buckets.sql",
 );
 const numberedMigrationPattern = /^\d{14}_.+\.sql$/;
 const checkOnly = process.argv.includes("--check");
@@ -61,6 +71,9 @@ function section(migrationFile, sql) {
 }
 
 const productionSql = await migrationContents(productionSnapshotMigration);
+const productionStorageSql = (await readFile(productionStoragePath, "utf8"))
+  .replace(/\r\n/g, "\n")
+  .trimEnd();
 const productionArtifact = [
   "-- AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.",
   "--",
@@ -69,8 +82,15 @@ const productionArtifact = [
   "-- Apply only to a fresh Supabase project.",
   "--",
   `-- Source: supabase/migrations/${productionSnapshotMigration}`,
+  "-- Storage configuration source: supabase/production/storage_buckets.sql",
   "",
   productionSql,
+  "",
+  "-- ============================================================================",
+  "-- Production Storage bucket configuration",
+  "-- ============================================================================",
+  "",
+  productionStorageSql,
   "",
 ].join("\n");
 
@@ -100,6 +120,18 @@ const deltaArtifact = [
   "commit;",
   "",
 ].join("\n");
+const storageRepairArtifact = [
+  "-- Idempotent repair for development databases provisioned before the",
+  "-- production Storage bucket configuration was included in the snapshot.",
+  "-- This changes configuration only; it does not create or copy user files.",
+  "",
+  "begin;",
+  "",
+  productionStorageSql,
+  "",
+  "commit;",
+  "",
+].join("\n");
 
 async function checkArtifact(filePath, expected) {
   let current;
@@ -121,12 +153,14 @@ async function checkArtifact(filePath, expected) {
 if (checkOnly) {
   await checkArtifact(productionOutputPath, productionArtifact);
   await checkArtifact(deltaOutputPath, deltaArtifact);
+  await checkArtifact(storageRepairOutputPath, storageRepairArtifact);
   process.stdout.write(
     `Development database SQL is current (${deltaMigrations.length} delta migrations).\n`,
   );
 } else {
   await writeFile(productionOutputPath, productionArtifact, "utf8");
   await writeFile(deltaOutputPath, deltaArtifact, "utf8");
+  await writeFile(storageRepairOutputPath, storageRepairArtifact, "utf8");
   process.stdout.write(
     `Generated production snapshot and ${deltaMigrations.length}-migration development delta.\n`,
   );

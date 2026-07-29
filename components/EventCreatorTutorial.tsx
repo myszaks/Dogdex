@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronRight, Lightbulb, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Lightbulb, X } from 'lucide-react'
 import useUser from '@/hooks/useUser'
 
 interface TutorialPrompt {
@@ -14,8 +14,6 @@ interface TutorialPrompt {
 interface TargetRect {
   top: number
   left: number
-  right: number
-  bottom: number
   width: number
   height: number
 }
@@ -123,6 +121,14 @@ const PROMPTS_BY_STEP: Record<number, TutorialPrompt[]> = {
   ],
 }
 
+const STEP_LABELS = [
+  'Informacje',
+  'Lokalizacja i czas',
+  'Rejestracja',
+  'Wyniki i live',
+  'Podgląd',
+]
+
 export default function EventCreatorTutorial({
   currentStep,
   forceStart,
@@ -182,36 +188,46 @@ export default function EventCreatorTutorial({
     )
     if (!target) return
 
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const isSmallScreen = window.innerWidth < 640
+    target.scrollIntoView({
+      behavior: 'auto',
+      block: isSmallScreen ? 'start' : 'center',
+    })
+    if (isSmallScreen) {
+      window.scrollBy({ top: -84, behavior: 'auto' })
+    }
 
     function updatePosition() {
       const rect = target?.getBoundingClientRect()
       if (!rect) return
       setTargetRect({
-        top: rect.top,
-        left: rect.left,
-        right: rect.right,
-        bottom: rect.bottom,
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX,
         width: rect.width,
         height: rect.height,
       })
     }
 
     const frame = window.requestAnimationFrame(updatePosition)
+    const observer = new ResizeObserver(updatePosition)
+    observer.observe(target)
     window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
     return () => {
       window.cancelAnimationFrame(frame)
+      observer.disconnect()
       window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
     }
   }, [active, prompt])
 
   if (!active || !prompt || !targetRect) return null
 
-  const popoverStyle = getPopoverPosition(targetRect)
   const isLastPrompt = promptIndex === prompts.length - 1
   const isFinalStep = currentStep === 4
+  const spotlightLeft = Math.max(window.scrollX + 8, targetRect.left - 6)
+  const spotlightWidth = Math.min(
+    targetRect.width + 12,
+    window.scrollX + window.innerWidth - spotlightLeft - 8,
+  )
 
   function rememberPromptIds(ids: string[]) {
     if (!user?.id || forceStart) return
@@ -253,6 +269,16 @@ export default function EventCreatorTutorial({
     closeCurrentStep()
   }
 
+  function previousPrompt() {
+    for (let index = promptIndex - 1; index >= 0; index -= 1) {
+      if (document.querySelector(`[data-tutorial-id="${prompts[index].target}"]`)) {
+        setTargetRect(null)
+        setPromptIndex(index)
+        return
+      }
+    }
+  }
+
   function finishTutorial() {
     setActive(false)
     setTargetRect(null)
@@ -273,14 +299,11 @@ export default function EventCreatorTutorial({
   return (
     <>
       <div
-        className="pointer-events-none fixed z-[125] rounded-[28px] border-2 border-accent transition-all duration-200"
+        className="pointer-events-none absolute z-[125] rounded-[28px] border-2 border-accent"
         style={{
-          top: Math.max(8, targetRect.top - 6),
-          left: Math.max(8, targetRect.left - 6),
-          width: Math.min(
-            window.innerWidth - Math.max(8, targetRect.left - 6) - 8,
-            targetRect.width + 12,
-          ),
+          top: targetRect.top - 6,
+          left: spotlightLeft,
+          width: spotlightWidth,
           height: targetRect.height + 12,
           boxShadow: '0 0 0 9999px rgba(16, 35, 31, 0.58), 0 12px 40px rgba(0, 0, 0, 0.24)',
         }}
@@ -290,21 +313,21 @@ export default function EventCreatorTutorial({
         role="dialog"
         aria-live="polite"
         aria-labelledby="event-creator-prompt-title"
-        className="fixed z-[130] w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-orange-200 bg-white shadow-2xl"
-        style={popoverStyle}
+        className="fixed bottom-3 left-3 right-3 z-[130] overflow-hidden rounded-2xl border border-orange-200 bg-white shadow-2xl sm:bottom-6 sm:left-auto sm:right-6 sm:w-[380px]"
       >
         <div className="flex items-center justify-between border-b border-sage-100 px-5 py-3">
           <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent">
             <Lightbulb className="h-4 w-4" />
-            Podpowiedź {promptIndex + 1} z {prompts.length}
+            Krok {currentStep + 1}: {STEP_LABELS[currentStep]}
           </span>
           <button
             type="button"
             onClick={closeCurrentStep}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-sage-500 hover:bg-sage-100"
+            className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-sage-500 hover:bg-sage-100"
             aria-label="Pomiń podpowiedzi na tym kroku"
           >
             <X className="h-4 w-4" />
+            Pomiń krok
           </button>
         </div>
 
@@ -315,7 +338,7 @@ export default function EventCreatorTutorial({
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{prompt.description}</p>
         </div>
 
-        <div className="flex items-center justify-between border-t border-sage-100 bg-sage-50 px-5 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-sage-100 bg-sage-50 px-5 py-3">
           <button
             type="button"
             onClick={finishTutorial}
@@ -323,19 +346,31 @@ export default function EventCreatorTutorial({
           >
             Wyłącz tutorial
           </button>
-          <button type="button" onClick={nextPrompt} className="btn btn-primary btn-sm">
-            {isLastPrompt && isFinalStep ? (
-              <>
-                Gotowe
-                <Check className="h-4 w-4" />
-              </>
-            ) : (
-              <>
-                {isLastPrompt ? 'Rozumiem' : 'Dalej'}
-                <ChevronRight className="h-4 w-4" />
-              </>
+          <div className="flex gap-2">
+            {promptIndex > 0 && (
+              <button
+                type="button"
+                onClick={previousPrompt}
+                className="btn btn-secondary btn-sm"
+                aria-label="Poprzednia podpowiedź"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             )}
-          </button>
+            <button type="button" onClick={nextPrompt} className="btn btn-primary btn-sm">
+              {isLastPrompt && isFinalStep ? (
+                <>
+                  Gotowe
+                  <Check className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  Dalej
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </section>
     </>
@@ -366,23 +401,4 @@ function firstAvailablePromptIndex(
     && !seenIds.has(prompt.id)
     && document.querySelector(`[data-tutorial-id="${prompt.target}"]`)
   )
-}
-
-function getPopoverPosition(rect: TargetRect): React.CSSProperties {
-  if (window.innerWidth < 640) {
-    return { left: 12, bottom: 12 }
-  }
-
-  const width = 360
-  const margin = 12
-  const left = Math.min(
-    window.innerWidth - width - margin,
-    Math.max(margin, rect.left),
-  )
-  const spaceBelow = window.innerHeight - rect.bottom
-
-  if (spaceBelow >= 250) {
-    return { top: rect.bottom + margin, left }
-  }
-  return { bottom: Math.max(margin, window.innerHeight - rect.top + margin), left }
 }

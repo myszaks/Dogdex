@@ -29,8 +29,8 @@ export const COMPETITION_PRESETS: CompetitionPresetOption[] = [
   },
   {
     key: 'points',
-    label: 'Suma punktów',
-    description: 'Konkurencje, wagi, bonusy i punkty karne.',
+    label: 'Wielobój punktowy',
+    description: 'Kilka konkurencji, różne wagi, bonusy i punkty karne.',
     definition: VERSATILE_DOG_CUP_FORMAT,
   },
 ]
@@ -39,11 +39,6 @@ const RECOMMENDED_PRESET_BY_EVENT_TYPE: Record<string, CompetitionPresetKey> = {
   agility: 'time_trial',
   canicross: 'time_trial',
   speedway: 'speedway',
-  dog_show: 'points',
-  flyball: 'points',
-  fullfocus: 'points',
-  obedience: 'points',
-  rally_o: 'points',
 }
 
 export function getRecommendedCompetitionPreset(
@@ -68,4 +63,12 @@ export function cloneCompetitionPreset(
   const preset = COMPETITION_PRESETS.find(candidate => candidate.key === key)
   if (!preset) throw new Error(`Unknown competition preset: ${key}`)
   return structuredClone(preset.definition)
+}
+
+export function getLiveVisibilityLabel(
+  hasResults: boolean,
+  resultsPublic: boolean,
+): 'Wyłączony' | 'Prywatny' | 'Publiczny' {
+  if (!hasResults) return 'Wyłączony'
+  return resultsPublic ? 'Publiczny' : 'Prywatny'
 }

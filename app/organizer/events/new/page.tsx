@@ -37,6 +37,7 @@ import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
+import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
@@ -1118,7 +1119,10 @@ function StepPreview({
             <MetricTile label="Grafik startów" value={hasSchedule ? 'Włączony' : 'Wyłączony'} />
             <MetricTile label="Grupowanie" value={groupingEnabled ? 'Włączone' : 'Brak'} />
             <MetricTile label="Wyniki" value={hasResults ? 'Włączone' : 'Wyłączone'} />
-            <MetricTile label="Widok live" value={hasResults && resultsPublic ? 'Publiczny' : 'Prywatny'} />
+            <MetricTile
+              label="Widok live"
+              value={getLiveVisibilityLabel(hasResults, resultsPublic)}
+            />
           </div>
         </div>
       </div>

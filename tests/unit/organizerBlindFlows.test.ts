@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest'
+import {
+  cloneCompetitionPreset,
+  getLiveVisibilityLabel,
+  getRecommendedCompetitionPreset,
+  isLikelyNonCompetitiveEvent,
+} from '@/lib/eventCompetitionSetup'
+import {
+  calculateCompetitionResults,
+  validateCompetitionFieldValues,
+  validateCompetitionFormatDefinition,
+} from '@/lib/competitionEngine'
+
+describe('blind organizer journeys through the event creator', () => {
+  it('lets a walk organizer ignore results without seeing a misleading live status', () => {
+    expect(isLikelyNonCompetitiveEvent('spacer')).toBe(true)
+    expect(getRecommendedCompetitionPreset('spacer')).toBeNull()
+    expect(getLiveVisibilityLabel(false, true)).toBe('Wyłączony')
+  })
+
+  it('lets a workshop organizer proceed without choosing any scoring language', () => {
+    expect(isLikelyNonCompetitiveEvent('wykłady')).toBe(true)
+    expect(getRecommendedCompetitionPreset('wykłady')).toBeNull()
+    expect(getLiveVisibilityLabel(false, false)).toBe('Wyłączony')
+  })
+
+  it('gives a Speedway organizer a usable default and a plain required parameter', () => {
+    const recommendation = getRecommendedCompetitionPreset('speedway')
+    expect(recommendation?.key).toBe('speedway')
+
+    const definition = cloneCompetitionPreset('speedway')
+    expect(validateCompetitionFormatDefinition(definition).success).toBe(true)
+    expect(validateCompetitionFieldValues(definition.eventFields, {})).toEqual([
+      { path: 'distance_m', message: 'Pole jest wymagane.' },
+    ])
+    expect(validateCompetitionFieldValues(
+      definition.eventFields,
+      { distance_m: 50 },
+    )).toEqual([])
+  })
+
+  it('does not silently assign an unrelated points system to obedience', () => {
+    expect(getRecommendedCompetitionPreset('obedience')).toBeNull()
+  })
+
+  it('handles a deliberately complex points event selected by its organizer', () => {
+    const definition = cloneCompetitionPreset('points')
+    const entrant = (
+      participantId: string,
+      values: Record<string, number>,
+    ) => ({
+      participantId,
+      event: {},
+      participant: {},
+      registration: {},
+      attempts: [{
+        stageId: 'main',
+        attemptId: 'scorecard',
+        status: null,
+        values,
+      }],
+    })
+
+    const rows = calculateCompetitionResults(definition, [
+      entrant('balanced-dog', {
+        agility_points: 90,
+        obedience_points: 80,
+        nosework_points: 70,
+        teamwork_bonus: 10,
+        penalty_points: 5,
+      }),
+      entrant('precise-dog', {
+        agility_points: 80,
+        obedience_points: 90,
+        nosework_points: 70,
+        teamwork_bonus: 10,
+        penalty_points: 4,
+      }),
+      entrant('below-threshold', {
+        agility_points: 40,
+        obedience_points: 40,
+        nosework_points: 40,
+        teamwork_bonus: 0,
+        penalty_points: 5,
+      }),
+    ])
+    const byId = Object.fromEntries(rows.map(row => [row.participantId, row]))
+
+    expect(byId['precise-dog'].ranks.overall).toBe(1)
+    expect(byId['balanced-dog'].ranks.overall).toBe(2)
+    expect(byId['below-threshold'].ranks.overall).toBeNull()
+  })
+})

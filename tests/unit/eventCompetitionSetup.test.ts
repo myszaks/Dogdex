@@ -19,6 +19,11 @@ describe('event competition setup recommendations', () => {
     expect(isLikelyNonCompetitiveEvent('wykłady')).toBe(true)
   })
 
+  it('does not guess a scoring scheme when a discipline has no safe default', () => {
+    expect(getRecommendedCompetitionPreset('obedience')).toBeNull()
+    expect(getRecommendedCompetitionPreset('dog_show')).toBeNull()
+  })
+
   it('returns an independent preset copy for an event', () => {
     const first = cloneCompetitionPreset('time_trial')
     const second = cloneCompetitionPreset('time_trial')

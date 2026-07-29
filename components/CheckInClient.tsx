@@ -1,32 +1,39 @@
 'use client'
 import { useState } from 'react'
-import { SIZE_CLASSES, SIZE_CLASS_LABELS } from '@/lib/speedway'
-import type { SizeClass } from '@/lib/speedway'
 
 interface CheckInParticipant {
   registrationId: string
   participantId: string
   dogName: string
   ownerName: string
-  sizeClass: SizeClass
+  sizeClass: string
   checkedIn: boolean
 }
 
 interface Props {
-  eventId: string
   initialParticipants: CheckInParticipant[]
+  classOptions: Array<{ key: string; label: string }>
   eventClosed: boolean
 }
 
-export default function CheckInClient({ eventId, initialParticipants, eventClosed }: Props) {
+export default function CheckInClient({
+  initialParticipants,
+  classOptions,
+  eventClosed,
+}: Props) {
   const [participants, setParticipants] = useState(initialParticipants)
   const [loading, setLoading] = useState<Record<string, boolean>>({})
 
   const checkedInCount = participants.filter(p => p.checkedIn).length
 
-  const activeSizeClasses = SIZE_CLASSES.filter(cls =>
-    participants.some(p => p.sizeClass === cls)
-  )
+  const activeSizeClasses = [
+    ...classOptions.filter(option => participants.some(p => p.sizeClass === option.key)),
+    ...(
+      participants.some(participant => participant.sizeClass === '__unassigned')
+        ? [{ key: '__unassigned', label: 'Brak przypisanej klasy' }]
+        : []
+    ),
+  ]
 
   async function toggleCheckIn(p: CheckInParticipant) {
     if (eventClosed) return
@@ -100,13 +107,13 @@ export default function CheckInClient({ eventId, initialParticipants, eventClose
 
       {/* Per-class lists */}
       {activeSizeClasses.map(cls => {
-        const cps = participants.filter(p => p.sizeClass === cls)
+        const cps = participants.filter(p => p.sizeClass === cls.key)
         const doneCount = cps.filter(p => p.checkedIn).length
         return (
-          <section key={cls}>
+          <section key={cls.key}>
             <div className="flex items-center gap-2 mb-2">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                {SIZE_CLASS_LABELS[cls]}
+                {cls.label}
               </h3>
               <span className={`badge ${doneCount === cps.length ? 'badge-green' : 'badge-yellow'}`}>
                 {doneCount} / {cps.length}

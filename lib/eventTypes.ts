@@ -40,7 +40,7 @@ export const EVENT_TYPES: EventType[] = [
         type: 'number',
         required: true,
         placeholder: 'np. 45',
-        description: 'Klasa startowa zostanie przydzielona automatycznie: XS (<30cm), S (30–39.9cm), M (40–49.9cm), L (50–59.9cm), XL (≥60cm)',
+        description: 'Klasa startowa zostanie przydzielona automatycznie według progów ustawionych w kroku „Wyniki i live”.',
       },
     ],
   },

@@ -137,7 +137,7 @@ describe('competition engine', () => {
   it('reproduces Speedway calculations and ranks dogs inside size classes', () => {
     const speedwayEntrant = (
       participantId: string,
-      sizeClass: string,
+      heightCm: number,
       checkedIn: boolean,
       run1: number | 'dns' | 'dnf',
       run2: number | 'dns' | 'dnf',
@@ -145,7 +145,7 @@ describe('competition engine', () => {
       participantId,
       event: { distance_m: 50 },
       participant: {},
-      registration: { size_class: sizeClass, checked_in: checkedIn },
+      registration: { dog_height_cm: heightCm, checked_in: checkedIn },
       attempts: [
         {
           stageId: 'main',
@@ -163,19 +163,20 @@ describe('competition engine', () => {
     })
 
     const rows = calculateCompetitionResults(SPEEDWAY_FORMAT, [
-      speedwayEntrant('xs-fast-a', 'XS', true, 5000, 4800),
-      speedwayEntrant('xs-fast-b', 'XS', true, 4800, 'dnf'),
-      speedwayEntrant('xs-third', 'XS', true, 5200, 5100),
-      speedwayEntrant('s-fast', 'S', true, 4700, 4600),
-      speedwayEntrant('s-no-time', 'S', true, 'dns', 'dnf'),
-      speedwayEntrant('s-not-checked-in', 'S', false, 4500, 4400),
+      speedwayEntrant('xs-fast-a', 29.9, true, 5000, 4800),
+      speedwayEntrant('xs-fast-b', 25, true, 4800, 'dnf'),
+      speedwayEntrant('xs-third', 10, true, 5200, 5100),
+      speedwayEntrant('s-fast', 30, true, 4700, 4600),
+      speedwayEntrant('s-no-time', 39.9, true, 'dns', 'dnf'),
+      speedwayEntrant('s-not-checked-in', 35, false, 4500, 4400),
+      speedwayEntrant('large-production-class', 62, true, 4900, 4700),
     ])
     const byId = Object.fromEntries(rows.map(row => [row.participantId, row]))
 
     expect(validateCompetitionFormatDefinition(SPEEDWAY_FORMAT).success).toBe(true)
     expect(byId['xs-fast-a'].computed.best_time_ms).toBe(4800)
     expect(byId['xs-fast-a'].computed.speed_kmh).toBe(37.5)
-    expect(byId['xs-fast-a'].groups.size_class).toBe('XS')
+    expect(byId['xs-fast-a'].groups.size_class).toBe('xs')
     expect(byId['xs-fast-a'].ranks.class).toBe(1)
     expect(byId['xs-fast-b'].ranks.class).toBe(1)
     expect(byId['xs-third'].ranks.class).toBe(3)
@@ -185,6 +186,21 @@ describe('competition engine', () => {
     expect(byId['s-no-time'].ranks.class).toBeNull()
     expect(byId['s-not-checked-in'].computed.best_time_ms).toBe(4400)
     expect(byId['s-not-checked-in'].ranks.class).toBeNull()
+    expect(byId['large-production-class'].groups.size_class).toBe('l')
+
+    const customClasses = structuredClone(SPEEDWAY_FORMAT)
+    customClasses.groups[0].buckets = [
+      { key: 'xs', label: 'XS', max: 30 },
+      { key: 's', label: 'S', min: 30, max: 40 },
+      { key: 'm', label: 'M', min: 40, max: 50 },
+      { key: 'l', label: 'L', min: 50, max: 60 },
+      { key: 'xl', label: 'XL', min: 60 },
+    ]
+    expect(
+      calculateCompetitionResults(customClasses, [
+        speedwayEntrant('large-custom-class', 62, true, 4900, 4700),
+      ])[0].groups.size_class,
+    ).toBe('xl')
 
     const viewRows = rows.map(row => ({
       participant_id: row.participantId,
@@ -202,11 +218,13 @@ describe('competition engine', () => {
     )
 
     expect(viewGroups.map(group => group.title)).toEqual([
-      'Klasa wzrostowa: XS (< 30 cm)',
-      'Klasa wzrostowa: S (30–39,9 cm)',
+      'Klasa wzrostowa: XS',
+      'Klasa wzrostowa: S',
+      'Klasa wzrostowa: L',
     ])
     expect(viewGroups[0].rows.map(row => row.ranks.class)).toEqual([1, 1, 3])
     expect(viewGroups[1].rows.map(row => row.ranks.class)).toEqual([1, null, null])
+    expect(viewGroups[2].rows.map(row => row.ranks.class)).toEqual([1])
   })
 
   it('builds an editable weighted score recipe without exposing expression JSON', () => {

@@ -152,8 +152,9 @@ export const TIME_TRIAL_FORMAT: CompetitionFormatDefinition = {
 
 /**
  * Reference configuration mirroring the current Dogdex Speedway rules.
- * The application adapter exposes a normalized registration.size_class value,
- * so the format stays independent from organizer-specific registration field ids.
+ * The application adapter exposes the dog's height as registration.dog_height_cm.
+ * Height buckets live in the format itself, so every organizer can adjust the
+ * class boundaries without changing backend code.
  */
 export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
   schemaVersion: 1,
@@ -241,13 +242,12 @@ export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
     {
       id: 'size_class',
       label: 'Klasa wzrostowa',
-      source: { op: 'ref', path: 'registration.size_class' },
-      values: [
-        { key: 'XS', label: 'XS (< 30 cm)' },
-        { key: 'S', label: 'S (30–39,9 cm)' },
-        { key: 'M', label: 'M (40–49,9 cm)' },
-        { key: 'L', label: 'L (50–59,9 cm)' },
-        { key: 'XL', label: 'XL (≥ 60 cm)' },
+      source: { op: 'ref', path: 'registration.dog_height_cm' },
+      buckets: [
+        { key: 'xs', label: 'XS', max: 30 },
+        { key: 's', label: 'S', min: 30, max: 40 },
+        { key: 'm', label: 'M', min: 40, max: 50 },
+        { key: 'l', label: 'L', min: 50 },
       ],
     },
   ],

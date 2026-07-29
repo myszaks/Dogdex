@@ -1,4 +1,5 @@
 'use client'
+import { useRef } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import './date-time-picker.css'
@@ -16,13 +17,16 @@ interface Props {
 
 export default function DateTimePicker({ value, onChange, required, placeholder, minDate }: Props) {
   const selected = value ? new Date(value) : null
+  const pickerRef = useRef<DatePicker>(null)
 
   return (
     <div className="relative">
       <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-sage-500" />
       <DatePicker
+        ref={pickerRef}
         selected={selected}
         onChange={(date: Date | null) => onChange(date ? date.toISOString() : null)}
+        shouldCloseOnSelect={false}
         showTimeInput
         timeInputLabel="Godzina"
         timeFormat="HH:mm"
@@ -67,7 +71,17 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
             </button>
           </div>
         )}
-      />
+      >
+        <div className="dogdex-date-picker__actions">
+          <button
+            type="button"
+            onClick={() => pickerRef.current?.setOpen(false)}
+            disabled={!selected}
+          >
+            Gotowe
+          </button>
+        </div>
+      </DatePicker>
       <Clock3 className={`pointer-events-none absolute top-1/2 h-4 w-4 -translate-y-1/2 text-sage-400 ${selected && !required ? 'right-10' : 'right-3.5'}`} />
       {selected && !required && (
         <button

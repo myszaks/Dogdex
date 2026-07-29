@@ -116,11 +116,8 @@ export function extractSizeClassFromFormData(
   if (!formData) return null
 
   // 1. height_cm → przelicz wzrost na klasę
-  for (const [key, value] of Object.entries(formData)) {
-    if (!isHeightFieldKey(key)) continue
-    const height = parseHeightCm(value)
-    if (height !== null) return getSizeClass(height)
-  }
+  const height = extractHeightCmFromFormData(formData)
+  if (height !== null) return getSizeClass(height)
 
   // 2. Skanuj wszystkie wartości — każda wartość będąca literałem XS/S/M/L/XL traktowana
   //    jako klasa (obsługuje size_class, klasa, dog_class, kategoria, etc.)
@@ -132,6 +129,25 @@ export function extractSizeClassFromFormData(
   return null
 }
 
+export function extractHeightCmFromFormData(
+  formData: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!formData) return null
+  for (const [key, value] of Object.entries(formData)) {
+    if (!isHeightFieldKey(key)) continue
+    const height = parseHeightCm(value)
+    if (height !== null) return height
+  }
+  return null
+}
+
+export function extractHeightCmFromRegistration(
+  formData: Record<string, unknown> | null | undefined,
+  dogHeightCm: unknown,
+): number | null {
+  return extractHeightCmFromFormData(formData) ?? parseHeightCm(dogHeightCm)
+}
+
 export function extractSizeClassFromRegistration(
   formData: Record<string, unknown> | null | undefined,
   dogHeightCm: unknown,
@@ -139,6 +155,6 @@ export function extractSizeClassFromRegistration(
   const fromForm = extractSizeClassFromFormData(formData)
   if (fromForm) return fromForm
 
-  const height = parseHeightCm(dogHeightCm)
+  const height = extractHeightCmFromRegistration(null, dogHeightCm)
   return height !== null ? getSizeClass(height) : null
 }

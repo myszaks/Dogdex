@@ -41,7 +41,7 @@ import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
-  hasSizeClassRegistrationSource,
+  hasDogHeightRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
@@ -970,7 +970,7 @@ function StepRegistration({
   onGroupingFieldChange: (value: string) => void
 }) {
   const speedwayDependencyReady = eventTypeId !== 'speedway'
-    || hasSizeClassRegistrationSource(formFields)
+    || hasDogHeightRegistrationSource(formFields)
 
   return (
     <div className="space-y-8">
@@ -989,11 +989,11 @@ function StepRegistration({
               {speedwayDependencyReady ? (
                 <>
                   <strong>Zależność Speedway zabezpieczona:</strong> formularz zawiera wymagane źródło klasy:
-                  wzrost psa albo pełny wybór XS–XL.
+                  wzrost psa w centymetrach.
                 </>
               ) : (
                 <>
-                  <strong>Uzupełnij źródło klasy Speedway:</strong> dodaj wymagany wzrost psa albo listę ze wszystkimi klasami XS–XL.
+                  <strong>Uzupełnij źródło klasy Speedway:</strong> dodaj wymagany wzrost psa w centymetrach.
                 </>
               )}
             </p>

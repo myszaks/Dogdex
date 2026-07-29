@@ -11,7 +11,10 @@ import type {
   CompetitionEntrantInput,
   CompetitionScalar,
 } from '@/types/competition'
-import { extractSizeClassFromRegistration } from '@/lib/speedway'
+import {
+  extractHeightCmFromRegistration,
+  extractSizeClassFromRegistration,
+} from '@/lib/speedway'
 import { isParticipantCompetitionComplete } from '@/lib/competitionProgress'
 
 interface Params {
@@ -233,6 +236,10 @@ export async function POST(req: Request, { params }: Params) {
         id: row.id,
         form_data: formData,
         checked_in: Boolean(row.checked_in),
+        dog_height_cm: extractHeightCmFromRegistration(
+          formData,
+          participantDogHeight(participant),
+        ),
         size_class: extractSizeClassFromRegistration(
           formData,
           participantDogHeight(participant),

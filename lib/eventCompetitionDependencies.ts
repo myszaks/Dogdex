@@ -39,6 +39,10 @@ export function hasSizeClassRegistrationSource(fields: FormField[]): boolean {
   return fields.some(field => isHeightSource(field) || isCompleteSizeClassSource(field))
 }
 
+export function hasDogHeightRegistrationSource(fields: FormField[]): boolean {
+  return fields.some(isHeightSource)
+}
+
 function collectReferencePaths(value: unknown, references: Set<string>) {
   if (Array.isArray(value)) {
     value.forEach(item => collectReferencePaths(item, references))
@@ -70,6 +74,16 @@ export function validateEventCompetitionDependencies(
   const issues: EventCompetitionDependencyIssue[] = []
 
   for (const reference of references) {
+    if (reference === 'registration.dog_height_cm') {
+      if (!hasDogHeightRegistrationSource(fields)) {
+        issues.push({
+          path: reference,
+          message: 'Schemat dzieli psy według progów wzrostu. Formularz zapisów musi wymagać wzrostu psa w centymetrach.',
+        })
+      }
+      continue
+    }
+
     if (reference === 'registration.size_class') {
       if (!hasSizeClassRegistrationSource(fields)) {
         issues.push({

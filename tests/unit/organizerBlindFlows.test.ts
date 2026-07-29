@@ -49,6 +49,16 @@ describe('blind organizer journeys through the event creator', () => {
     )).toEqual([])
     expect(definition.resultFields.map(field => field.id)).toEqual(['time_ms'])
     expect(definition.eventFields.map(field => field.id)).toContain('distance_m')
+    expect(definition.groups[0].source).toEqual({
+      op: 'ref',
+      path: 'registration.dog_height_cm',
+    })
+    expect(definition.groups[0].buckets).toEqual([
+      { key: 'xs', label: 'XS', max: 30 },
+      { key: 's', label: 'S', min: 30, max: 40 },
+      { key: 'm', label: 'M', min: 40, max: 50 },
+      { key: 'l', label: 'L', min: 50 },
+    ])
   })
 
   it('does not silently assign an unrelated points system to obedience', () => {

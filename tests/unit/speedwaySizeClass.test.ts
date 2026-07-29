@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { extractSizeClassFromFormData, extractSizeClassFromRegistration } from '@/lib/speedway'
+import {
+  extractHeightCmFromRegistration,
+  extractSizeClassFromFormData,
+  extractSizeClassFromRegistration,
+} from '@/lib/speedway'
 
 describe('speedway size class extraction', () => {
   it('assigns size class from the exact height_cm form field', () => {
@@ -23,6 +27,7 @@ describe('speedway size class extraction', () => {
 
   it('prefers form data over dog profile height', () => {
     expect(extractSizeClassFromRegistration({ height_cm: '35' }, 62)).toBe('S')
+    expect(extractHeightCmFromRegistration({ height_cm: '35,5' }, 62)).toBe(35.5)
   })
 
   it('understands descriptive XS–XL option labels from registration forms', () => {

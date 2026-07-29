@@ -157,14 +157,40 @@
 }
 
 .dogdex-date-picker .react-datepicker__today-button {
-  margin: 12px -12px -12px;
+  margin: 12px -12px 0;
   padding: 11px;
   border-top: 1px solid #dfe8d8;
-  border-radius: 0 0 20px 20px;
   background: #f4f7f1;
   color: #53614d;
   font-size: 12px;
   font-weight: 700;
+}
+
+.dogdex-date-picker .react-datepicker__children-container {
+  width: auto;
+  margin: 0 -12px -12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #dfe8d8;
+}
+
+.dogdex-date-picker__actions button {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  background: #ff8024;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  transition: 160ms ease;
+}
+
+.dogdex-date-picker__actions button:hover:not(:disabled) {
+  background: #e76d1a;
+}
+
+.dogdex-date-picker__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .dogdex-date-picker .react-datepicker__aria-live {

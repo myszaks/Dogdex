@@ -37,7 +37,7 @@ import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import {
   ensureEventTypeRegistrationDependencies,
-  hasSizeClassRegistrationSource,
+  hasDogHeightRegistrationSource,
   validateEventCompetitionDependencies,
 } from '@/lib/eventCompetitionDependencies'
 import { cn } from '@/lib/utils'
@@ -483,15 +483,15 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 </p>
                 {eventTypeId === 'speedway' && (
                   <div className={`mb-5 flex gap-3 rounded-2xl border p-4 text-sm leading-relaxed ${
-                    hasSizeClassRegistrationSource(formFields)
+                    hasDogHeightRegistrationSource(formFields)
                       ? 'border-green-200 bg-green-50 text-green-900'
                       : 'border-amber-200 bg-amber-50 text-amber-900'
                   }`}>
                     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
                     <p>
-                      {hasSizeClassRegistrationSource(formFields)
-                        ? 'Formularz zawiera wymagane źródło klasy Speedway: wzrost psa albo pełny wybór XS–XL.'
-                        : 'Dodaj wymagany wzrost psa albo pełny wybór klas XS–XL.'}
+                      {hasDogHeightRegistrationSource(formFields)
+                        ? 'Formularz zawiera wymagany wzrost psa używany do przydziału klasy Speedway.'
+                        : 'Dodaj wymagany wzrost psa w centymetrach.'}
                     </p>
                   </div>
                 )}

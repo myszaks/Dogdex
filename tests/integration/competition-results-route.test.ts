@@ -195,7 +195,7 @@ describe('POST /api/events/[id]/competition-results', () => {
           speed_kmh: 36,
           __completed: false,
         }),
-        groups: { size_class: 'XS' },
+        groups: { size_class: 'xs' },
         ranks: { class: 1 },
       }),
     ], { onConflict: 'event_id,participant_id' })

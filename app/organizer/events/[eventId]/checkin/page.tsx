@@ -1,8 +1,13 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
-import { extractSizeClassFromRegistration } from '@/lib/speedway'
-import type { SizeClass } from '@/lib/speedway'
+import {
+  extractHeightCmFromRegistration,
+  extractSizeClassFromRegistration,
+  SIZE_CLASSES,
+  SIZE_CLASS_LABELS,
+} from '@/lib/speedway'
 import CheckInClient from '@/components/CheckInClient'
+import type { CompetitionFormatDefinition } from '@/types/competition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
@@ -15,12 +20,19 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function relatedRecord(value: unknown): Record<string, unknown> {
+  const related = Array.isArray(value) ? value[0] : value
+  return related && typeof related === 'object'
+    ? related as Record<string, unknown>
+    : {}
+}
+
 export default async function CheckInPage({ params }: Props) {
   const { eventId: param } = await params
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase
-    .from('events').select('id, slug, title, event_type_id, status')
+    .from('events').select('id, slug, title, event_type_id, status, competition_config')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
   const eventId = event.id
@@ -33,17 +45,46 @@ export default async function CheckInPage({ params }: Props) {
     .order('order_index', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
 
-  const participants = (registrations ?? []).map((r: any) => {
-    const pid = r.participants?.id ?? r.id
-    const dogHeightCm = Array.isArray(r.participants?.dogs)
-      ? r.participants.dogs[0]?.height_cm
-      : r.participants?.dogs?.height_cm
-    const sizeClass: SizeClass = extractSizeClassFromRegistration(r.form_data as Record<string, unknown>, dogHeightCm) ?? 'M'
+  const definition = (
+    event.competition_config
+    && typeof event.competition_config === 'object'
+    && !Array.isArray(event.competition_config)
+  ) ? event.competition_config as CompetitionFormatDefinition : null
+  const heightGroup = definition?.groups.find(group =>
+    group.source.op === 'ref'
+    && group.source.path === 'registration.dog_height_cm'
+    && Boolean(group.buckets?.length)
+  )
+  const configuredClasses = heightGroup?.buckets?.map(bucket => ({
+    key: bucket.key,
+    label: bucket.label,
+  })) ?? null
+  const classOptions = configuredClasses ?? SIZE_CLASSES.map(sizeClass => ({
+    key: sizeClass,
+    label: SIZE_CLASS_LABELS[sizeClass],
+  }))
+
+  const participants = (registrations ?? []).map(r => {
+    const participant = relatedRecord(r.participants)
+    const dog = relatedRecord(participant.dogs)
+    const pid = participant.id ?? r.id
+    const dogHeightCm = dog.height_cm
+    const formData = r.form_data as Record<string, unknown>
+    const heightCm = extractHeightCmFromRegistration(formData, dogHeightCm)
+    const configuredClass = heightCm === null
+      ? null
+      : heightGroup?.buckets?.find(bucket =>
+          (bucket.min === undefined || heightCm >= bucket.min)
+          && (bucket.max === undefined || heightCm < bucket.max)
+        )?.key ?? null
+    const sizeClass = configuredClass
+      ?? (heightGroup ? null : extractSizeClassFromRegistration(formData, dogHeightCm))
+      ?? '__unassigned'
     return {
       registrationId: r.id as string,
       participantId: pid as string,
-      dogName: (r.participants?.dog_name ?? '') as string,
-      ownerName: (r.participants?.owner_name ?? '') as string,
+      dogName: (participant.dog_name ?? '') as string,
+      ownerName: (participant.owner_name ?? '') as string,
       sizeClass,
       checkedIn: Boolean(r.checked_in),
     }
@@ -63,8 +104,8 @@ export default async function CheckInPage({ params }: Props) {
       </div>
 
       <CheckInClient
-        eventId={eventId}
         initialParticipants={participants}
+        classOptions={classOptions}
         eventClosed={event.status === 'finished' || event.status === 'cancelled'}
       />
     </div>

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import CompetitionFormatPicker from '@/components/CompetitionFormatPicker'
 import CompetitionFormatStudio from '@/components/CompetitionFormatStudio'
+import SpeedwayClassEditor from '@/components/SpeedwayClassEditor'
 import {
   COMPETITION_PRESETS,
   cloneCompetitionPreset,
@@ -272,6 +273,16 @@ export default function EventResultsSetup({
                 values={values}
                 onChange={onValuesChange}
               />
+
+              {eventTypeId === 'speedway' && (
+                <SpeedwayClassEditor
+                  definition={definition}
+                  onChange={nextDefinition => {
+                    onFormatSelect(null, nextDefinition)
+                    setMessage('Klasy wzrostowe dostosowano dla tego wydarzenia.')
+                  }}
+                />
+              )}
 
               <details className="group mt-5 rounded-2xl border border-sage-200 bg-sage-50/60">
                 <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-primary marker:hidden">

@@ -68,12 +68,6 @@ export default function UserMenu({ sidebar = false }: Props) {
             </p>
             <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
             <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
-            {isTrainer && (
-              <DropdownItem href="/trainer" icon={<Dumbbell className="w-4 h-4" />} label="Panel trenera" onClose={() => setOpen(false)} accent />
-            )}
-            {isOrganizer && (
-              <DropdownItem href="/organizer" icon={<CalendarCog className="w-4 h-4" />} label="Panel organizatora" onClose={() => setOpen(false)} accent />
-            )}
             {isAdmin && (
               <>
                 <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />

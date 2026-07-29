@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calculator, Eye, Flag, Layers3, Plus, Save, Trash2 } from 'lucide-react'
-import { TIME_TRIAL_FORMAT } from '@/lib/competitionPresets'
+import { SPEEDWAY_FORMAT, TIME_TRIAL_FORMAT } from '@/lib/competitionPresets'
 import type {
   CompetitionComputedFieldDefinition,
   CompetitionFieldDefinition,
@@ -241,6 +241,17 @@ export default function CompetitionFormatStudio({
     updateDefinition({ views })
   }
 
+  function applyStarterPreset(
+    preset: CompetitionFormatDefinition,
+    presetDescription: string,
+  ) {
+    setDefinition(structuredClone(preset))
+    setName(preset.name)
+    setDescription(presetDescription)
+    setStep('data')
+    setError(null)
+  }
+
   async function save(status: 'draft' | 'published') {
     setSaving(status)
     setError(null)
@@ -317,6 +328,33 @@ export default function CompetitionFormatStudio({
 
       <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-4">
+          {!formatId && !initialDefinition && (
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+              <p className="form-label">Szablon startowy</p>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm justify-start"
+                  onClick={() => applyStarterPreset(
+                    TIME_TRIAL_FORMAT,
+                    'Uniwersalny format dwóch prób czasowych.',
+                  )}
+                >
+                  Próba czasowa
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm justify-start"
+                  onClick={() => applyStarterPreset(
+                    SPEEDWAY_FORMAT,
+                    'Dwie próby, klasy XS–XL, najlepszy czas i prędkość.',
+                  )}
+                >
+                  Speedway
+                </button>
+              </div>
+            </div>
+          )}
           <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
             <label className="form-label">Nazwa formatu</label>
             <input className="form-input" value={name} onChange={event => setName(event.target.value)} />

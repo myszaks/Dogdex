@@ -20,6 +20,13 @@ export const metadata: Metadata = { title: 'Wyniki' }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function relatedParticipant(value: unknown): Record<string, unknown> {
+  const participant = Array.isArray(value) ? value[0] : value
+  return typeof participant === 'object' && participant !== null
+    ? participant as Record<string, unknown>
+    : {}
+}
+
 export default async function ResultsPage({ params }: Props) {
   const { eventId: param } = await params
   const supabase = await createAuthClient()
@@ -115,11 +122,18 @@ export default async function ResultsPage({ params }: Props) {
         .select('id, participant_id, stage_id, attempt_id, status, values')
         .eq('event_id', eventId)
     : { data: [] }
-  const competitionParticipants = (registrations ?? []).map((registration: any) => ({
-    participantId: registration.participants?.id ?? registration.participant_id,
-    dogName: registration.participants?.dog_name ?? '',
-    ownerName: registration.participants?.owner_name ?? '',
-  }))
+  const competitionParticipants = (registrations ?? [])
+    .filter(registration => !isSpeedway || Boolean(registration.checked_in))
+    .map(registration => {
+      const participant = relatedParticipant(registration.participants)
+      return {
+        participantId: typeof participant.id === 'string'
+          ? participant.id
+          : String(registration.participant_id),
+        dogName: typeof participant.dog_name === 'string' ? participant.dog_name : '',
+        ownerName: typeof participant.owner_name === 'string' ? participant.owner_name : '',
+      }
+    })
 
   return (
     <div>

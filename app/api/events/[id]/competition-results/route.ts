@@ -11,6 +11,7 @@ import type {
   CompetitionEntrantInput,
   CompetitionScalar,
 } from '@/types/competition'
+import { extractSizeClassFromRegistration } from '@/lib/speedway'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -23,6 +24,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function relatedRecord(value: unknown): Record<string, unknown> {
   if (Array.isArray(value)) return isRecord(value[0]) ? value[0] : {}
   return isRecord(value) ? value : {}
+}
+
+function participantDogHeight(participant: Record<string, unknown>): unknown {
+  return relatedRecord(participant.dogs).height_cm
 }
 
 export async function GET(_req: Request, { params }: Params) {
@@ -52,7 +57,7 @@ export async function POST(req: Request, { params }: Params) {
 
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('id, created_by, status, competition_config, competition_values, competition_config_revision')
+    .select('id, created_by, status, event_type_id, competition_config, competition_values, competition_config_revision')
     .eq('id', eventId)
     .maybeSingle()
 
@@ -112,7 +117,7 @@ export async function POST(req: Request, { params }: Params) {
 
   const { data: registration, error: registrationError } = await supabase
     .from('registrations')
-    .select('id')
+    .select('id, checked_in')
     .eq('event_id', eventId)
     .eq('participant_id', participantId)
     .eq('status', 'confirmed')
@@ -124,6 +129,12 @@ export async function POST(req: Request, { params }: Params) {
   if (!registration) {
     return NextResponse.json(
       { error: 'Wynik można zapisać tylko potwierdzonemu uczestnikowi wydarzenia.' },
+      { status: 409 },
+    )
+  }
+  if (event.event_type_id === 'speedway' && !registration.checked_in) {
+    return NextResponse.json(
+      { error: 'Najpierw odpraw psa. Nieodprawione psy nie trafiają do wyników Speedway.' },
       { status: 409 },
     )
   }
@@ -177,7 +188,7 @@ export async function POST(req: Request, { params }: Params) {
   ] = await Promise.all([
     supabase
       .from('registrations')
-      .select('id, participant_id, form_data, checked_in, participants(*)')
+      .select('id, participant_id, form_data, checked_in, participants(*, dogs(height_cm))')
       .eq('event_id', eventId)
       .eq('status', 'confirmed'),
     supabase
@@ -210,17 +221,29 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const eventValues = isRecord(event.competition_values) ? event.competition_values : {}
-  const entrants: CompetitionEntrantInput[] = (registrations ?? []).map(row => ({
-    participantId: row.participant_id as string,
-    event: eventValues,
-    participant: relatedRecord(row.participants),
-    registration: {
-      id: row.id,
-      form_data: isRecord(row.form_data) ? row.form_data : {},
-      checked_in: Boolean(row.checked_in),
-    },
-    attempts: entriesByParticipant.get(row.participant_id as string) ?? [],
-  }))
+  const entrants: CompetitionEntrantInput[] = (registrations ?? []).map(row => {
+    const participant = relatedRecord(row.participants)
+    const formData = isRecord(row.form_data) ? row.form_data : {}
+    return {
+      participantId: row.participant_id as string,
+      event: eventValues,
+      participant,
+      registration: {
+        id: row.id,
+        form_data: formData,
+        checked_in: Boolean(row.checked_in),
+        ...(event.event_type_id === 'speedway'
+          ? {
+              size_class: extractSizeClassFromRegistration(
+                formData,
+                participantDogHeight(participant),
+              ) ?? 'M',
+            }
+          : {}),
+      },
+      attempts: entriesByParticipant.get(row.participant_id as string) ?? [],
+    }
+  })
   const calculated = calculateCompetitionResults(definition, entrants)
   const sourceRevision = Math.max(
     Number(event.competition_config_revision) || 1,

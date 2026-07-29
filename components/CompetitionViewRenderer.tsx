@@ -7,6 +7,10 @@ import type {
   CompetitionScalar,
   CompetitionViewBlockDefinition,
 } from '@/types/competition'
+import {
+  groupCompetitionResultsForBlock,
+  sortCompetitionResultsForBlock,
+} from '@/lib/competitionViews'
 
 interface ParticipantSummary {
   participantId: string
@@ -78,15 +82,6 @@ function participantFromResult(result: CalculatedResultRow, participants: Partic
   }
 }
 
-function sortedForBlock(results: CalculatedResultRow[], block: CompetitionViewBlockDefinition) {
-  if (!block.rankingId) return results
-  return [...results].sort((left, right) => {
-    const leftRank = left.ranks[block.rankingId!] ?? Number.MAX_SAFE_INTEGER
-    const rightRank = right.ranks[block.rankingId!] ?? Number.MAX_SAFE_INTEGER
-    return leftRank - rightRank
-  })
-}
-
 export default function CompetitionViewRenderer({
   eventId,
   definition,
@@ -99,6 +94,14 @@ export default function CompetitionViewRenderer({
   const [results, setResults] = useState(initialResults)
   const [liveState, setLiveState] = useState(initialLiveState)
   const [connected, setConnected] = useState(false)
+  const participantIds = useMemo(
+    () => new Set(participants.map(participant => participant.participantId)),
+    [participants],
+  )
+  const visibleResults = useMemo(
+    () => results.filter(result => participantIds.has(result.participant_id)),
+    [participantIds, results],
+  )
 
   const view = useMemo(
     () => definition.views.find(candidate =>
@@ -184,7 +187,7 @@ export default function CompetitionViewRenderer({
           block={block}
           definition={definition}
           participants={participants}
-          results={results}
+          results={visibleResults}
           liveState={liveState}
         />
       ))}
@@ -205,7 +208,8 @@ function CompetitionViewBlock({
   results: CalculatedResultRow[]
   liveState: CompetitionLiveState | null
 }) {
-  const ordered = sortedForBlock(results, block)
+  const ordered = sortCompetitionResultsForBlock(results, block)
+  const resultGroups = groupCompetitionResultsForBlock(definition, results, block)
   const limited = block.limit ? ordered.slice(0, block.limit) : ordered
   const currentIndex = liveState?.current_participant_id
     ? participants.findIndex(participant => participant.participantId === liveState.current_participant_id)
@@ -297,21 +301,35 @@ function CompetitionViewBlock({
   }
 
   if (block.type === 'podium') {
-    const ranked = limited.filter(result =>
-      block.rankingId && result.ranks[block.rankingId] !== null
-    ).slice(0, block.limit ?? 3)
     return (
       <section>
         <BlockTitle title={block.title ?? 'Podium'} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          {ranked.map(result => {
-            const participant = participantFromResult(result, participants)
-            const rank = block.rankingId ? result.ranks[block.rankingId] : null
+        <div className="space-y-5">
+          {resultGroups.map(group => {
+            const ranked = group.rows.filter(result =>
+              block.rankingId && result.ranks[block.rankingId] !== null
+            ).slice(0, block.limit ?? 3)
+            if (ranked.length === 0) return null
             return (
-              <div key={result.participant_id} className="card text-center">
-                <p className="text-3xl">{rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}</p>
-                <p className="mt-2 font-bold">{participant.dogName ?? '—'}</p>
-                <p className="text-xs text-muted-foreground">{participant.ownerName ?? '—'}</p>
+              <div key={group.key}>
+                {group.title && (
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-sage-600">
+                    {group.title}
+                  </h3>
+                )}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {ranked.map(result => {
+                    const participant = participantFromResult(result, participants)
+                    const rank = block.rankingId ? result.ranks[block.rankingId] : null
+                    return (
+                      <div key={result.participant_id} className="card text-center">
+                        <p className="text-3xl">{rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}</p>
+                        <p className="mt-2 font-bold">{participant.dogName ?? '—'}</p>
+                        <p className="text-xs text-muted-foreground">{participant.ownerName ?? '—'}</p>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
           })}
@@ -325,47 +343,66 @@ function CompetitionViewBlock({
     return (
       <section>
         <BlockTitle title={block.title} />
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-sage-100 bg-sage-50 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">Zawodnik</th>
-                {fields.map(path => (
-                  <th key={path} className="px-4 py-3 text-right">
-                    {definition.computedFields.find(field => field.id === path.split('.').at(-1))?.label ?? path}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-sage-100">
-              {limited.map(result => {
-                const participant = participantFromResult(result, participants)
-                return (
-                  <tr key={result.participant_id}>
-                    <td className="px-4 py-3 font-bold">
-                      {block.rankingId ? result.ranks[block.rankingId] ?? '—' : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{participant.dogName ?? '—'}</p>
-                      <p className="text-xs text-muted-foreground">{participant.ownerName ?? '—'}</p>
-                    </td>
-                    {fields.map(path => {
-                      const fieldId = path.split('.').at(-1) ?? path
-                      return (
-                        <td key={path} className="px-4 py-3 text-right font-mono font-semibold">
-                          {formatMetric(definition, path, result.computed[fieldId])}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-              {limited.length === 0 && (
-                <tr><td colSpan={fields.length + 2} className="px-4 py-10 text-center text-muted-foreground">Oczekiwanie na wyniki.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="space-y-5">
+          {resultGroups.map(group => {
+            const groupRows = block.limit ? group.rows.slice(0, block.limit) : group.rows
+            return (
+              <div key={group.key}>
+                {group.title && (
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.12em] text-sage-600">
+                    {group.title}
+                  </h3>
+                )}
+                <div className="card overflow-x-auto p-0">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-sage-100 bg-sage-50 text-left text-xs text-muted-foreground">
+                        <th className="px-4 py-3">#</th>
+                        <th className="px-4 py-3">Zawodnik</th>
+                        {fields.map(path => (
+                          <th key={path} className="px-4 py-3 text-right">
+                            {definition.computedFields.find(field => field.id === path.split('.').at(-1))?.label ?? path}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sage-100">
+                      {groupRows.map(result => {
+                        const participant = participantFromResult(result, participants)
+                        return (
+                          <tr key={result.participant_id}>
+                            <td className="px-4 py-3 font-bold">
+                              {block.rankingId ? result.ranks[block.rankingId] ?? '—' : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="font-medium">{participant.dogName ?? '—'}</p>
+                              <p className="text-xs text-muted-foreground">{participant.ownerName ?? '—'}</p>
+                            </td>
+                            {fields.map(path => {
+                              const fieldId = path.split('.').at(-1) ?? path
+                              return (
+                                <td key={path} className="px-4 py-3 text-right font-mono font-semibold">
+                                  {formatMetric(definition, path, result.computed[fieldId])}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
+                      {groupRows.length === 0 && (
+                        <tr><td colSpan={fields.length + 2} className="px-4 py-10 text-center text-muted-foreground">Oczekiwanie na wyniki.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
+          {resultGroups.length === 0 && (
+            <div className="card py-10 text-center text-muted-foreground">
+              Oczekiwanie na wyniki.
+            </div>
+          )}
         </div>
       </section>
     )

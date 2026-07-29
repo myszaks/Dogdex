@@ -9,9 +9,10 @@ import useUser from '@/hooks/useUser'
 import {
   Home,
   Archive,
+  CalendarCog,
   ClipboardList,
   Dog,
-  Settings2,
+  Dumbbell,
   PawPrint,
   LogIn,
   HelpCircle,
@@ -48,8 +49,8 @@ export default function Navigation() {
   ]
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
   if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
-  if (isTrainer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Settings2 })
-  if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Organizator', Icon: Settings2 })
+  if (isTrainer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Dumbbell })
+  if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Panel organizatora', Icon: CalendarCog })
   const mobileNavLinks = navLinks.filter(link =>
     link.href !== '/trainer' && link.href !== '/organizer'
   )
@@ -75,7 +76,7 @@ export default function Navigation() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {mobileNavLinks.map(({ href, label, Icon }) => (
+          {navLinks.map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}
@@ -133,7 +134,7 @@ export default function Navigation() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="flex">
-          {navLinks.map(({ href, label, Icon }) => (
+          {mobileNavLinks.map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}

@@ -64,6 +64,10 @@ export interface CompetitionGroupDefinition {
   id: string
   label: string
   source: CompetitionExpression
+  values?: Array<{
+    key: string
+    label: string
+  }>
   buckets?: Array<{
     key: string
     label: string

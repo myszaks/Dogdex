@@ -4,7 +4,8 @@ import {
   evaluateCompetitionExpression,
   validateCompetitionFormatDefinition,
 } from '@/lib/competitionEngine'
-import { TIME_TRIAL_FORMAT } from '@/lib/competitionPresets'
+import { groupCompetitionResultsForBlock } from '@/lib/competitionViews'
+import { SPEEDWAY_FORMAT, TIME_TRIAL_FORMAT } from '@/lib/competitionPresets'
 
 describe('competition engine', () => {
   it('evaluates formulas without executing organizer-provided code', () => {
@@ -122,5 +123,80 @@ describe('competition engine', () => {
     if (!result.success) {
       expect(result.issues.some(issue => issue.message.includes('cykliczną'))).toBe(true)
     }
+  })
+
+  it('reproduces Speedway calculations and ranks dogs inside size classes', () => {
+    const speedwayEntrant = (
+      participantId: string,
+      sizeClass: string,
+      checkedIn: boolean,
+      run1: number | 'dns' | 'dnf',
+      run2: number | 'dns' | 'dnf',
+    ) => ({
+      participantId,
+      event: { distance_m: 50 },
+      participant: {},
+      registration: { size_class: sizeClass, checked_in: checkedIn },
+      attempts: [
+        {
+          stageId: 'main',
+          attemptId: 'run_1',
+          status: typeof run1 === 'number' ? null : run1,
+          values: { time_ms: typeof run1 === 'number' ? run1 : null },
+        },
+        {
+          stageId: 'main',
+          attemptId: 'run_2',
+          status: typeof run2 === 'number' ? null : run2,
+          values: { time_ms: typeof run2 === 'number' ? run2 : null },
+        },
+      ],
+    })
+
+    const rows = calculateCompetitionResults(SPEEDWAY_FORMAT, [
+      speedwayEntrant('xs-fast-a', 'XS', true, 5000, 4800),
+      speedwayEntrant('xs-fast-b', 'XS', true, 4800, 'dnf'),
+      speedwayEntrant('xs-third', 'XS', true, 5200, 5100),
+      speedwayEntrant('s-fast', 'S', true, 4700, 4600),
+      speedwayEntrant('s-no-time', 'S', true, 'dns', 'dnf'),
+      speedwayEntrant('s-not-checked-in', 'S', false, 4500, 4400),
+    ])
+    const byId = Object.fromEntries(rows.map(row => [row.participantId, row]))
+
+    expect(validateCompetitionFormatDefinition(SPEEDWAY_FORMAT).success).toBe(true)
+    expect(byId['xs-fast-a'].computed.best_time_ms).toBe(4800)
+    expect(byId['xs-fast-a'].computed.speed_kmh).toBe(37.5)
+    expect(byId['xs-fast-a'].groups.size_class).toBe('XS')
+    expect(byId['xs-fast-a'].ranks.class).toBe(1)
+    expect(byId['xs-fast-b'].ranks.class).toBe(1)
+    expect(byId['xs-third'].ranks.class).toBe(3)
+    expect(byId['s-fast'].ranks.class).toBe(1)
+    expect(byId['s-no-time'].computed.best_time_ms).toBeNull()
+    expect(byId['s-no-time'].computed.speed_kmh).toBeNull()
+    expect(byId['s-no-time'].ranks.class).toBeNull()
+    expect(byId['s-not-checked-in'].computed.best_time_ms).toBe(4400)
+    expect(byId['s-not-checked-in'].ranks.class).toBeNull()
+
+    const viewRows = rows.map(row => ({
+      participant_id: row.participantId,
+      computed: row.computed,
+      groups: row.groups,
+      ranks: row.ranks,
+    }))
+    const resultBlock = SPEEDWAY_FORMAT.views
+      .find(view => view.kind === 'results')!
+      .blocks.find(block => block.type === 'result_table')!
+    const viewGroups = groupCompetitionResultsForBlock(
+      SPEEDWAY_FORMAT,
+      viewRows,
+      resultBlock,
+    )
+
+    expect(viewGroups.map(group => group.title)).toEqual([
+      'Klasa wzrostowa: XS (< 30 cm)',
+      'Klasa wzrostowa: S (30–39,9 cm)',
+    ])
+    expect(viewGroups[0].rows.map(row => row.ranks.class)).toEqual([1, 1, 3])
+    expect(viewGroups[1].rows.map(row => row.ranks.class)).toEqual([1, null, null])
   })
 })

@@ -374,6 +374,54 @@ export function validateCompetitionFormatDefinition(
         issues,
         { nodes: 0 },
       )
+      if (collectionName === 'groups' && item.values !== undefined) {
+        if (!Array.isArray(item.values) || item.values.length === 0) {
+          issues.push({ path: `${collectionName}[${index}].values`, message: 'Wartości grupy muszą być niepustą tablicą.' })
+        } else {
+          const valueKeys = new Set<string>()
+          item.values.forEach((groupValue, valueIndex) => {
+            if (isRecord(groupValue)) {
+              if (
+                typeof groupValue.key !== 'string'
+                || groupValue.key.length === 0
+                || groupValue.key.length > 64
+              ) {
+                issues.push({
+                  path: `${collectionName}[${index}].values[${valueIndex}].key`,
+                  message: 'Klucz wartości grupy jest wymagany i może mieć maksymalnie 64 znaki.',
+                })
+              } else if (valueKeys.has(groupValue.key)) {
+                issues.push({
+                  path: `${collectionName}[${index}].values[${valueIndex}].key`,
+                  message: 'Klucz wartości grupy musi być unikalny.',
+                })
+              } else {
+                valueKeys.add(groupValue.key)
+              }
+              validateLabel(
+                groupValue.label,
+                `${collectionName}[${index}].values[${valueIndex}].label`,
+                issues,
+              )
+            } else {
+              issues.push({
+                path: `${collectionName}[${index}].values[${valueIndex}]`,
+                message: 'Wartość grupy musi być obiektem.',
+              })
+            }
+          })
+        }
+      }
+      if (
+        collectionName === 'groups'
+        && item.values !== undefined
+        && item.buckets !== undefined
+      ) {
+        issues.push({
+          path: `${collectionName}[${index}]`,
+          message: 'Grupa może używać wartości albo przedziałów, ale nie obu naraz.',
+        })
+      }
       if (collectionName === 'groups' && item.buckets !== undefined) {
         if (!Array.isArray(item.buckets) || item.buckets.length === 0) {
           issues.push({ path: `${collectionName}[${index}].buckets`, message: 'Przedziały muszą być niepustą tablicą.' })
@@ -771,6 +819,11 @@ function groupValue(
   context: Record<string, unknown>,
 ): string | null {
   const rawValue = firstScalar(evaluateCompetitionExpression(definition.source, context))
+  if (definition.values?.length) {
+    if (rawValue === null) return null
+    const key = String(rawValue)
+    return definition.values.some(value => value.key === key) ? key : null
+  }
   if (definition.buckets?.length) {
     if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) return null
     const bucket = definition.buckets.find(candidate =>

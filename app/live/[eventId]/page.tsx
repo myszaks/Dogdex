@@ -33,6 +33,13 @@ interface Props {
   params: Promise<{ eventId: string }>
 }
 
+function relatedParticipant(value: unknown): Record<string, unknown> {
+  const participant = Array.isArray(value) ? value[0] : value
+  return typeof participant === 'object' && participant !== null
+    ? participant as Record<string, unknown>
+    : {}
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
   const { event } = await resolveEvent(eventId)
@@ -113,11 +120,18 @@ export default async function LivePage({ params }: Props) {
           .maybeSingle(),
       ])
     : [{ data: [] }, { data: null }]
-  const competitionParticipants = (registrations ?? []).map((registration: any) => ({
-    participantId: registration.participants?.id ?? registration.participant_id,
-    dogName: registration.participants?.dog_name ?? null,
-    ownerName: registration.participants?.owner_name ?? null,
-  }))
+  const competitionParticipants = (registrations ?? [])
+    .filter(registration => !isSpeedway || Boolean(registration.checked_in))
+    .map(registration => {
+      const participant = relatedParticipant(registration.participants)
+      return {
+        participantId: typeof participant.id === 'string'
+          ? participant.id
+          : String(registration.participant_id),
+        dogName: typeof participant.dog_name === 'string' ? participant.dog_name : null,
+        ownerName: typeof participant.owner_name === 'string' ? participant.owner_name : null,
+      }
+    })
 
   return (
     <div>

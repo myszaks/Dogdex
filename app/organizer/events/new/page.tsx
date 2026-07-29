@@ -15,6 +15,7 @@ import {
   Eye,
   FileText,
   GalleryHorizontal,
+  HelpCircle,
   ImagePlus,
   Info,
   ListChecks,
@@ -29,11 +30,13 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import FormTemplatePicker from '@/components/FormTemplatePicker'
-import CompetitionFormatPicker from '@/components/CompetitionFormatPicker'
+import EventCreatorTutorial from '@/components/EventCreatorTutorial'
+import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import { EVENT_TYPES } from '@/lib/eventTypes'
+import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { cn } from '@/lib/utils'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
@@ -47,6 +50,7 @@ const STEPS = [
   { label: 'Podstawowe informacje', shortLabel: 'Informacje', Icon: FileText },
   { label: 'Lokalizacja i czas', shortLabel: 'Lokalizacja', Icon: MapPin },
   { label: 'Rejestracja i limity', shortLabel: 'Rejestracja', Icon: Users },
+  { label: 'Wyniki i transmisja live', shortLabel: 'Wyniki i live', Icon: Trophy },
   { label: 'Podgląd i publikacja', shortLabel: 'Podgląd', Icon: Eye },
 ]
 
@@ -158,6 +162,7 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   const [savingMode, setSavingMode] = useState<'draft' | 'publish' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
 
   const [eventTypeId, setEventTypeId] = useState<string>('')
   const [title, setTitle] = useState('')
@@ -210,7 +215,10 @@ export default function NewEventPage() {
   ) {
     setCompetitionFormatId(id)
     setCompetitionDefinition(definition)
-    if (!id) setCompetitionValues({})
+    const allowedIds = new Set(definition?.eventFields.map(field => field.id) ?? [])
+    setCompetitionValues(current => Object.fromEntries(
+      Object.entries(current).filter(([key]) => allowedIds.has(key))
+    ))
   }
 
   function handleTemplateSelect(templateId: string | null, fields: FormField[]) {
@@ -253,6 +261,24 @@ export default function NewEventPage() {
     if (step === 2) {
       if (entryFeeEnabled && !entryFee.trim()) {
         setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
+        return false
+      }
+    }
+
+    if (step === 3 && hasResults && competitionDefinition) {
+      const valueIssues = validateCompetitionFieldValues(
+        competitionDefinition.eventFields,
+        competitionValues,
+      )
+      if (valueIssues.length > 0) {
+        const field = competitionDefinition.eventFields.find(candidate =>
+          valueIssues[0].path.includes(candidate.id)
+        )
+        setError(
+          field
+            ? `Uzupełnij pole „${field.label}” w ustawieniach wyników.`
+            : valueIssues[0].message,
+        )
         return false
       }
     }
@@ -365,11 +391,26 @@ export default function NewEventPage() {
             Krok {currentStep + 1}: {STEPS[currentStep].label}
           </p>
         </div>
-        <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
-          <Check className="h-4 w-4 text-accent" />
-          Stan formularza jest zachowywany między krokami
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            className="btn btn-secondary btn-sm"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Jak działa kreator?
+          </button>
+          <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
+            <Check className="h-4 w-4 text-accent" />
+            Stan formularza jest zachowywany między krokami
+          </div>
         </div>
       </div>
+
+      <EventCreatorTutorial
+        manualOpen={tutorialOpen}
+        onManualOpenChange={setTutorialOpen}
+      />
 
       <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
         <WizardStepper currentStep={currentStep} onStepChange={goToStep} />
@@ -416,10 +457,6 @@ export default function NewEventPage() {
               entryFeeEnabled={entryFeeEnabled}
               entryFee={entryFee}
               autoConfirm={autoConfirm}
-              hasResults={hasResults}
-              resultsPublic={resultsPublic}
-              competitionFormatId={competitionFormatId}
-              competitionValues={competitionValues}
               hasSchedule={hasSchedule}
               eventTypeId={eventTypeId || null}
               selectedTemplateId={selectedTemplateId}
@@ -434,7 +471,21 @@ export default function NewEventPage() {
               }}
               onEntryFeeChange={setEntryFee}
               onAutoConfirmChange={setAutoConfirm}
-              onHasResultsChange={checked => {
+              onHasScheduleChange={setHasSchedule}
+              onTemplateSelect={handleTemplateSelect}
+              onGroupingFieldChange={setGroupingField}
+            />
+          )}
+
+          {currentStep === 3 && (
+            <EventResultsSetup
+              eventTypeId={eventTypeId || null}
+              enabled={hasResults}
+              resultsPublic={resultsPublic}
+              formatId={competitionFormatId}
+              definition={competitionDefinition}
+              values={competitionValues}
+              onEnabledChange={checked => {
                 setHasResults(checked)
                 if (!checked) {
                   setResultsPublic(true)
@@ -444,15 +495,12 @@ export default function NewEventPage() {
                 }
               }}
               onResultsPublicChange={setResultsPublic}
-              onCompetitionFormatSelect={handleCompetitionFormatSelect}
-              onCompetitionValuesChange={setCompetitionValues}
-              onHasScheduleChange={setHasSchedule}
-              onTemplateSelect={handleTemplateSelect}
-              onGroupingFieldChange={setGroupingField}
+              onFormatSelect={handleCompetitionFormatSelect}
+              onValuesChange={setCompetitionValues}
             />
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <StepPreview
               title={title}
               description={description}
@@ -523,7 +571,7 @@ function WizardStepper({
 }) {
   return (
     <div className="border-b border-sage-200 bg-white px-4 py-5 sm:px-8 lg:px-10">
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {STEPS.map(({ label, shortLabel, Icon }, index) => {
           const active = index === currentStep
           const complete = index < currentStep
@@ -821,10 +869,6 @@ function StepRegistration({
   entryFeeEnabled,
   entryFee,
   autoConfirm,
-  hasResults,
-  resultsPublic,
-  competitionFormatId,
-  competitionValues,
   hasSchedule,
   eventTypeId,
   selectedTemplateId,
@@ -836,10 +880,6 @@ function StepRegistration({
   onEntryFeeEnabledChange,
   onEntryFeeChange,
   onAutoConfirmChange,
-  onHasResultsChange,
-  onResultsPublicChange,
-  onCompetitionFormatSelect,
-  onCompetitionValuesChange,
   onHasScheduleChange,
   onTemplateSelect,
   onGroupingFieldChange,
@@ -849,10 +889,6 @@ function StepRegistration({
   entryFeeEnabled: boolean
   entryFee: string
   autoConfirm: boolean
-  hasResults: boolean
-  resultsPublic: boolean
-  competitionFormatId: string | null
-  competitionValues: Record<string, CompetitionScalar>
   hasSchedule: boolean
   eventTypeId: string | null
   selectedTemplateId: string | null
@@ -864,13 +900,6 @@ function StepRegistration({
   onEntryFeeEnabledChange: (checked: boolean) => void
   onEntryFeeChange: (value: string) => void
   onAutoConfirmChange: (checked: boolean) => void
-  onHasResultsChange: (checked: boolean) => void
-  onResultsPublicChange: (checked: boolean) => void
-  onCompetitionFormatSelect: (
-    id: string | null,
-    definition: CompetitionFormatDefinition | null,
-  ) => void
-  onCompetitionValuesChange: (values: Record<string, CompetitionScalar>) => void
   onHasScheduleChange: (checked: boolean) => void
   onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
   onGroupingFieldChange: (value: string) => void
@@ -965,7 +994,7 @@ function StepRegistration({
         </Panel>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+      <div>
         <Panel Icon={FileText} title="Formularz zapisów">
           <p className="mb-4 text-sm text-muted-foreground">
             Wybierz szablon pól dodatkowych albo utwórz nowy. Pola stałe uczestnika pozostają dostępne jak wcześniej.
@@ -992,36 +1021,6 @@ function StepRegistration({
               <p className="mt-1 text-xs text-slate-400">Listy zapisów będą pogrupowane według tego pola.</p>
             </div>
           )}
-        </Panel>
-
-        <Panel Icon={Trophy} title="Wyniki i ranking">
-          <div className="space-y-3">
-            <ToggleRow
-              checked={hasResults}
-              onChange={onHasResultsChange}
-              title="Włącz wyniki i ranking"
-              description="Pojawią się narzędzia organizatora oraz widok live dla uczestników."
-            />
-            {hasResults && (
-              <>
-                <ToggleRow
-                  checked={resultsPublic}
-                  onChange={onResultsPublicChange}
-                  title="Wyniki widoczne publicznie"
-                  description="Odznacz, jeśli publikacja wyników ma nastąpić dopiero po zawodach."
-                />
-                <div className="mt-5 border-t border-sage-100 pt-5">
-                  <CompetitionFormatPicker
-                    selectedId={competitionFormatId}
-                    values={competitionValues}
-                    onSelect={onCompetitionFormatSelect}
-                    onValuesChange={onCompetitionValuesChange}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
           <div className="mt-6 grid grid-cols-2 gap-3">
             <MetricTile label="Pola formularza" value={String(formFieldsCount)} />
             <MetricTile label="Grupowanie" value={groupingField ? 'Tak' : 'Nie'} />

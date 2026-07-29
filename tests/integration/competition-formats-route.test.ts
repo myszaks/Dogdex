@@ -12,6 +12,46 @@ vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
 }))
 
+describe('GET /api/competition-formats', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  it('explicitly limits an organizer to own and published system schemes', async () => {
+    checkRoleForApi.mockResolvedValue({
+      user: { id: 'organizer-1' },
+      role: 'organizer',
+    })
+
+    const query: Record<string, ReturnType<typeof vi.fn>> & {
+      then?: (
+        resolve: (value: { data: unknown[]; error: null }) => unknown,
+      ) => Promise<unknown>
+    } = {
+      select: vi.fn(),
+      order: vi.fn(),
+      or: vi.fn(),
+    }
+    query.select.mockReturnValue(query)
+    query.order.mockReturnValue(query)
+    query.or.mockReturnValue(query)
+    query.then = resolve => Promise.resolve(resolve({ data: [], error: null }))
+
+    createAuthClient.mockResolvedValue({
+      from: vi.fn(() => query),
+    })
+
+    const { GET } = await import('@/app/api/competition-formats/route')
+    const response = await GET()
+
+    expect(response.status).toBe(200)
+    expect(query.or).toHaveBeenCalledWith(
+      'created_by.eq.organizer-1,and(is_system.eq.true,status.eq.published)',
+    )
+  })
+})
+
 describe('POST /api/competition-formats', () => {
   beforeEach(() => {
     vi.resetModules()

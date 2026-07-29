@@ -8,7 +8,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, company, role, created_at')
+    .select('id, full_name, company, role, created_at, event_creator_tutorial_seen_at')
     .eq('id', user.id)
     .single()
 
@@ -32,6 +32,9 @@ export async function PATCH(req: Request) {
   const allowed: Record<string, unknown> = {}
   if (typeof body.full_name === 'string') allowed.full_name = body.full_name.trim().slice(0, 100)
   if (typeof body.company === 'string') allowed.company = body.company.trim().slice(0, 100)
+  if (body.event_creator_tutorial_seen === true) {
+    allowed.event_creator_tutorial_seen_at = new Date().toISOString()
+  }
 
   if (Object.keys(allowed).length === 0) {
     return NextResponse.json({ error: 'Brak pól do aktualizacji' }, { status: 400 })
@@ -41,7 +44,7 @@ export async function PATCH(req: Request) {
     .from('profiles')
     .update(allowed)
     .eq('id', user.id)
-    .select('id, full_name, company, role')
+    .select('id, full_name, company, role, event_creator_tutorial_seen_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

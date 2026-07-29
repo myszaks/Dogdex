@@ -8,12 +8,19 @@ export async function GET() {
   if ('error' in authResult) return authResult.error
 
   const supabase = await createAuthClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('competition_formats')
     .select('id, family_id, previous_version_id, version, name, description, status, definition, is_system, published_at, created_at, updated_at')
     .order('is_system', { ascending: false })
     .order('updated_at', { ascending: false })
 
+  if (authResult.role !== 'admin') {
+    query = query.or(
+      `created_by.eq.${authResult.user.id},and(is_system.eq.true,status.eq.published)`,
+    )
+  }
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const validFormats = (data ?? []).filter(format =>
     validateCompetitionFormatDefinition(format.definition).success

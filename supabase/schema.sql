@@ -3089,3 +3089,12 @@ grant all on table public.competition_live_state to service_role;
 
 alter publication supabase_realtime add table public.competition_calculated_results;
 alter publication supabase_realtime add table public.competition_live_state;
+
+-- ============================================================================
+-- Source migration: 20260729150000_add_event_creator_tutorial_seen.sql
+-- ============================================================================
+
+-- Additive account preference used by the event creator onboarding.
+-- Existing profiles remain unchanged (NULL means the tutorial has not been seen).
+alter table public.profiles
+  add column if not exists event_creator_tutorial_seen_at timestamptz;

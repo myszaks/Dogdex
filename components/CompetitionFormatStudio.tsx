@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calculator, Eye, Flag, Layers3, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Calculator, Check, Eye, Flag, Layers3, Plus, Save, Trash2, X } from 'lucide-react'
 import {
   SPEEDWAY_FORMAT,
   TIME_TRIAL_FORMAT,
@@ -36,6 +36,13 @@ interface Props {
   initialName?: string
   initialDescription?: string | null
   initialDefinition?: CompetitionFormatDefinition
+  embedded?: boolean
+  onApply?: (
+    definition: CompetitionFormatDefinition,
+    name: string,
+    description: string,
+  ) => void
+  onCancel?: () => void
 }
 
 const STEPS: Array<{ id: StudioStep; label: string; Icon: typeof Layers3 }> = [
@@ -161,6 +168,9 @@ export default function CompetitionFormatStudio({
   initialName,
   initialDescription,
   initialDefinition,
+  embedded = false,
+  onApply,
+  onCancel,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<StudioStep>('data')
@@ -440,12 +450,12 @@ export default function CompetitionFormatStudio({
     setError(null)
   }
 
-  async function save(status: 'draft' | 'published') {
+  function getValidatedDefinition(): CompetitionFormatDefinition | null {
     setError(null)
     const nextDefinition = { ...definition, name: name.trim() }
     if (!name.trim()) {
       setError('Nadaj formatowi nazwę w panelu po lewej.')
-      return
+      return null
     }
     const validation = validateCompetitionFormatDefinition(nextDefinition)
     if (!validation.success) {
@@ -455,8 +465,20 @@ export default function CompetitionFormatStudio({
       setError(
         `Sprawdź sekcję „${issueAreaLabel(issueStep)}”: ${firstIssue.message}`,
       )
-      return
+      return null
     }
+    return validation.data
+  }
+
+  function applyEmbeddedDefinition() {
+    const validatedDefinition = getValidatedDefinition()
+    if (!validatedDefinition) return
+    onApply?.(validatedDefinition, name.trim(), description.trim())
+  }
+
+  async function save(status: 'draft' | 'published') {
+    const nextDefinition = getValidatedDefinition()
+    if (!nextDefinition) return
     setSaving(status)
     try {
       const response = await fetch(
@@ -489,36 +511,57 @@ export default function CompetitionFormatStudio({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-7xl space-y-6'}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <Link href="/organizer/formats" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            Biblioteka formatów
-          </Link>
-          <h1 className="page-title">{formatId ? 'Edycja formatu' : 'Nowy format zawodów'}</h1>
+          {!embedded && (
+            <Link href="/organizer/formats" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-4 w-4" />
+              Biblioteka formatów
+            </Link>
+          )}
+          <h1 className="page-title">
+            {embedded ? 'Dostosuj zasady wyników' : formatId ? 'Edycja formatu' : 'Nowy format zawodów'}
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Reguły zostaną zweryfikowane i wykonywane na backendzie Dogdex.
+            {embedded
+              ? 'Zmiany zastosujemy tylko do tworzonego wydarzenia. Później możesz zapisać je w swoich schematach.'
+              : 'Reguły zostaną zweryfikowane i wykonywane na backendzie Dogdex.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => save('draft')}
-            disabled={saving !== null}
-            className="btn btn-secondary"
-          >
-            <Save className="h-4 w-4" />
-            {saving === 'draft' ? 'Zapisywanie…' : 'Zapisz szkic'}
-          </button>
-          <button
-            type="button"
-            onClick={() => save('published')}
-            disabled={saving !== null}
-            className="btn btn-primary"
-          >
-            {saving === 'published' ? 'Publikowanie…' : 'Opublikuj format'}
-          </button>
+          {embedded ? (
+            <>
+              <button type="button" onClick={onCancel} className="btn btn-secondary">
+                <X className="h-4 w-4" />
+                Anuluj
+              </button>
+              <button type="button" onClick={applyEmbeddedDefinition} className="btn btn-primary">
+                <Check className="h-4 w-4" />
+                Zastosuj do wydarzenia
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => save('draft')}
+                disabled={saving !== null}
+                className="btn btn-secondary"
+              >
+                <Save className="h-4 w-4" />
+                {saving === 'draft' ? 'Zapisywanie…' : 'Zapisz szkic'}
+              </button>
+              <button
+                type="button"
+                onClick={() => save('published')}
+                disabled={saving !== null}
+                className="btn btn-primary"
+              >
+                {saving === 'published' ? 'Publikowanie…' : 'Opublikuj format'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 

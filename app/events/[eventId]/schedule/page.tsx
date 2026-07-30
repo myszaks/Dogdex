@@ -181,7 +181,7 @@ export default async function PublicSchedulePage({ params }: Props) {
 
             return (
               <div key={date}>
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 capitalize">
+                <h2 className="text-sm font-semibold text-slate-500 tracking-wide mb-3">
                   {formattedDate}
                 </h2>
                 <div className="space-y-2">
@@ -238,7 +238,7 @@ export default async function PublicSchedulePage({ params }: Props) {
 
           return (
             <div key={date}>
-              <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 capitalize">
+              <h2 className="text-sm font-semibold text-slate-500 tracking-wide mb-3">
                 {formattedDate}
               </h2>
               <div className="space-y-2">

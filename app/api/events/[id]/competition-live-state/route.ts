@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Wydarzenie nie używa uniwersalnego formatu.' }, { status: 409 })
   }
   if (event.status === 'finished' || event.status === 'cancelled') {
-    return NextResponse.json({ error: 'Stan live jest zablokowany.' }, { status: 409 })
+    return NextResponse.json({ error: 'Stan wyników na żywo jest zablokowany.' }, { status: 409 })
   }
 
   let body: Record<string, unknown>

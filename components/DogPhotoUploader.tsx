@@ -132,7 +132,7 @@ export default function DogPhotoUploader({ currentUrl, onUrlChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <label className="form-label">Zdjęcie psa</label>
+      <p className="form-label">Zdjęcie psa</p>
 
       {/* Current photo – circle preview */}
       {currentUrl && !srcUrl && (

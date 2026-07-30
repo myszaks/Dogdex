@@ -100,6 +100,12 @@ export async function PATCH(req: Request, { params }: Params) {
       if (!format) {
         return NextResponse.json({ error: 'Nie znaleziono wybranego formatu zawodów.' }, { status: 404 })
       }
+      if (format.status === 'archived') {
+        return NextResponse.json(
+          { error: 'Archiwalnego formatu nie można przypisać do wydarzenia.' },
+          { status: 409 },
+        )
+      }
       if (nextEventStatus !== 'draft' && format.status !== 'published') {
         return NextResponse.json(
           { error: 'Przed publikacją wydarzenia opublikuj jego format zawodów.' },

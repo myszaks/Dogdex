@@ -81,7 +81,7 @@ export default function MyTrainingsContent({
         const data = await response.json().catch(() => null)
 
         if (!response.ok) {
-          throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie pobrac rezerwacji')
+          throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się pobrać rezerwacji')
         }
 
         if (!cancelled) {
@@ -106,7 +106,7 @@ export default function MyTrainingsContent({
   }, [])
 
   const handleCancel = async (bookingId: string) => {
-    if (!confirm('Czy na pewno chcesz anulowac te rezerwacje?')) {
+    if (!confirm('Czy na pewno chcesz anulować tę rezerwację?')) {
       return
     }
 
@@ -117,13 +117,13 @@ export default function MyTrainingsContent({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'cancelled',
-          cancellation_reason: 'Anulowanie przez uzytkownika',
+          cancellation_reason: 'Anulowanie przez użytkownika',
         }),
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Blad przy anulacji')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Błąd podczas anulowania')
       }
 
       setBookings(currentBookings =>
@@ -190,7 +190,7 @@ export default function MyTrainingsContent({
             {'<-'} Profil
           </Link>
         )}
-        <div className="text-center text-slate-500">Ladowanie...</div>
+        <div className="text-center text-slate-500">Ładowanie...</div>
       </div>
     )
   }
@@ -213,9 +213,9 @@ export default function MyTrainingsContent({
             {'<-'} Profil
           </Link>
           <div className="mb-8">
-            <h1 className="page-title mb-2">Moje Treningi</h1>
+            <h1 className="page-title mb-2">Moje treningi</h1>
             <p className="text-muted-foreground">
-              Twoje rezerwacje treningow indywidualnych
+              Twoje rezerwacje treningów indywidualnych
             </p>
           </div>
         </>
@@ -236,7 +236,7 @@ export default function MyTrainingsContent({
 
       {bookings.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-slate-500 mb-4">Nie masz jeszcze zadnych rezerwacji</p>
+          <p className="text-slate-500 mb-4">Nie masz jeszcze żadnych rezerwacji</p>
           <Link href="/trainings" className="btn btn-primary inline-block">
             Przegladaj trenerow
           </Link>
@@ -245,7 +245,7 @@ export default function MyTrainingsContent({
         <>
           {upcomingBookings.length > 0 && (
             <div className="mb-12">
-              <h2 className="font-heading font-semibold text-xl mb-6">Nadchodzace treningi</h2>
+              <h2 className="font-heading font-semibold text-xl mb-6">Nadchodzące treningi</h2>
               <div className="space-y-4">
                 {upcomingBookings.map(booking => (
                   <div key={booking.id} className="card border-l-4 border-accent p-6">
@@ -285,7 +285,7 @@ export default function MyTrainingsContent({
                         disabled={cancelling === booking.id}
                         className="text-sm text-red-600 hover:text-red-700 font-semibold"
                       >
-                        {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwacje'}
+                        {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwację'}
                       </button>
                     )}
                   </div>

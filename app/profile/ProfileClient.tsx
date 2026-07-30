@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { BadgeCheck, User, Shield, Settings2, ClipboardList, CalendarDays, Check } from 'lucide-react'
 import { ROLE_LABELS, isAppRole } from '@/lib/roles'
+import { fetchWithAuthRetry } from '@/lib/authFetch'
 
 interface Props {
   email: string
@@ -51,7 +52,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
     setError(null)
     setSaved(false)
     try {
-      const res = await fetch('/api/profile', {
+      const res = await fetchWithAuthRetry('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: name, company: org }),
@@ -142,8 +143,9 @@ export default function ProfileClient({ email, fullName, company, role, createdA
         <h2 className="font-heading font-semibold text-foreground">Dane osobowe</h2>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Imię i nazwisko</label>
+          <label htmlFor="profile-name" className="block text-sm font-medium text-foreground mb-1.5">Imię i nazwisko</label>
           <input
+            id="profile-name"
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -154,10 +156,11 @@ export default function ProfileClient({ email, fullName, company, role, createdA
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
+          <label htmlFor="profile-organization" className="block text-sm font-medium text-foreground mb-1.5">
             Klub / organizacja <span className="text-muted-foreground font-normal">(opcjonalnie)</span>
           </label>
           <input
+            id="profile-organization"
             type="text"
             value={org}
             onChange={e => setOrg(e.target.value)}
@@ -168,8 +171,9 @@ export default function ProfileClient({ email, fullName, company, role, createdA
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Adres e-mail</label>
+          <label htmlFor="profile-email" className="block text-sm font-medium text-foreground mb-1.5">Adres e-mail</label>
           <input
+            id="profile-email"
             type="email"
             value={email}
             disabled
@@ -178,7 +182,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+          <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
         )}
         {saved && (
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center gap-2">

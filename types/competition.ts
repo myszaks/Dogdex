@@ -6,6 +6,11 @@ export interface CompetitionFieldDefinition {
   id: string
   label: string
   type: CompetitionFieldType
+  /**
+   * Dotyczy wyłącznie pól wyniku. Brak wartości oznacza, że pole jest
+   * dostępne we wszystkich etapach, również w starszych formatach.
+   */
+  stageIds?: string[]
   required?: boolean
   unit?: string
   min?: number

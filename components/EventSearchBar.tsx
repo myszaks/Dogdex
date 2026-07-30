@@ -120,11 +120,12 @@ export default function EventSearchBar() {
 
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <label htmlFor="event-filter-location" className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-accent" />
                   Lokalizacja
                 </label>
                 <Input
+                  id="event-filter-location"
                   className="rounded-xl"
                   placeholder="Wpisz miasto lub miejsce..."
                   value={draftLocation}
@@ -133,11 +134,12 @@ export default function EventSearchBar() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <label htmlFor="event-filter-organizer" className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-accent" />
                   Organizator
                 </label>
                 <Input
+                  id="event-filter-organizer"
                   className="rounded-xl"
                   placeholder="Nazwa organizatora..."
                   value={draftOrganizer}

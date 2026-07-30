@@ -1,9 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { formatDateShort } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
-import type { CancellationRequest } from '@/types'
+import type { CancellationRequest, Registration } from '@/types'
 
 interface ParticipantInfo {
   dog_name: string | null
@@ -11,17 +10,22 @@ interface ParticipantInfo {
   owner_email: string | null
 }
 
-interface RequestRow extends CancellationRequest {
+export interface CancellationRequestRow extends CancellationRequest {
   participant?: ParticipantInfo | null
 }
 
-interface Props {
-  requests: RequestRow[]
+export interface CancellationResolution {
+  requestId: string
+  action: 'accept' | 'reject'
+  registration: (Partial<Registration> & Pick<Registration, 'id'>) | null
 }
 
-export default function CancellationRequestsPanel({ requests: initial }: Props) {
-  const router = useRouter()
-  const [requests, setRequests] = useState<RequestRow[]>(initial)
+interface Props {
+  requests: CancellationRequestRow[]
+  onResolved: (resolution: CancellationResolution) => void
+}
+
+export default function CancellationRequestsPanel({ requests, onResolved }: Props) {
   const [processing, setProcessing] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -42,10 +46,11 @@ export default function CancellationRequestsPanel({ requests: initial }: Props) 
         setErrors(prev => ({ ...prev, [id]: json.error ?? 'Błąd' }))
         return
       }
-      setRequests(prev =>
-        prev.map(r => r.id === id ? { ...r, status: action === 'accept' ? 'accepted' : 'rejected' } : r)
-      )
-      router.refresh()
+      onResolved({
+        requestId: id,
+        action,
+        registration: json.registration ?? null,
+      })
     } finally {
       setProcessing(null)
     }

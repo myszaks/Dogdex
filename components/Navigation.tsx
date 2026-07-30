@@ -18,6 +18,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { shouldHideMobileBottomNavigation } from '@/lib/mobileNavigation'
 
 function AuthParamHandler({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
@@ -41,6 +42,17 @@ export default function Navigation() {
   const [open, setOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
   const { isOrganizer, isTrainer, user } = useUser()
+  const hideMobileBottomNav = shouldHideMobileBottomNavigation(pathname)
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'dogdex-mobile-nav-hidden',
+      hideMobileBottomNav,
+    )
+    return () => {
+      document.documentElement.classList.remove('dogdex-mobile-nav-hidden')
+    }
+  }, [hideMobileBottomNav])
 
   const navLinks = [
     { href: '/', label: 'Główna', Icon: Home },
@@ -75,17 +87,19 @@ export default function Navigation() {
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav aria-label="Główna nawigacja" className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navLinks.map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}
+              prefetch={href === '/organizer' || href === '/trainer' ? false : undefined}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
                 isActive(href)
                   ? 'bg-[#EFF4F2] text-[#1E3932] font-semibold shadow-sm'
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               )}
+              aria-current={isActive(href) ? 'page' : undefined}
             >
               <Icon className={cn('w-4.5 h-4.5 shrink-0', isActive(href) ? 'text-[#1E3932]' : 'text-white/60')} />
               {label}
@@ -129,26 +143,31 @@ export default function Navigation() {
       <div className="md:hidden h-[52px]" />
 
       {/* ── Mobile Bottom Nav ──────────────────────────────── */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-40 md:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-        <div className="flex">
-          {mobileNavLinks.map(({ href, label, Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
-                isActive(href) ? 'text-accent' : 'text-muted-foreground'
-              )}
-            >
-              <Icon className={cn('w-5 h-5', isActive(href) ? 'text-accent' : 'text-muted-foreground/70')} />
-              <span className="leading-none">{label}</span>
-            </Link>
-          ))}
-        </div>
-      </nav>
+      {!hideMobileBottomNav && (
+        <nav
+          aria-label="Główna nawigacja mobilna"
+          className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-40 md:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="flex">
+            {mobileNavLinks.map(({ href, label, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                prefetch={href === '/organizer' || href === '/trainer' ? false : undefined}
+                className={cn(
+                  'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
+                  isActive(href) ? 'text-accent' : 'text-muted-foreground'
+                )}
+                aria-current={isActive(href) ? 'page' : undefined}
+              >
+                <Icon className={cn('w-5 h-5', isActive(href) ? 'text-accent' : 'text-muted-foreground/70')} />
+                <span className="leading-none">{label}</span>
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
 
       <Suspense fallback={null}>
         <AuthParamHandler onOpen={() => setOpen(true)} />

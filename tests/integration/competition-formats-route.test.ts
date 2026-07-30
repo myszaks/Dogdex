@@ -30,10 +30,12 @@ describe('GET /api/competition-formats', () => {
       ) => Promise<unknown>
     } = {
       select: vi.fn(),
+      eq: vi.fn(),
       order: vi.fn(),
       or: vi.fn(),
     }
     query.select.mockReturnValue(query)
+    query.eq.mockReturnValue(query)
     query.order.mockReturnValue(query)
     query.or.mockReturnValue(query)
     query.then = resolve => Promise.resolve(resolve({ data: [], error: null }))
@@ -49,6 +51,7 @@ describe('GET /api/competition-formats', () => {
     expect(query.or).toHaveBeenCalledWith(
       'created_by.eq.organizer-1,and(is_system.eq.true,status.eq.published)',
     )
+    expect(query.eq).toHaveBeenCalledWith('status', 'published')
   })
 })
 

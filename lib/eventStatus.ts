@@ -7,6 +7,8 @@ type EventStatusLike = {
   registration_deadline?: string | null
 }
 
+export type EventLiveState = 'draft' | 'upcoming' | 'live' | 'finished' | 'cancelled'
+
 export function effectiveEventStatus(event: EventStatusLike, now = new Date()): string {
   if (event.status === 'draft') return 'draft'
   if (event.status === 'cancelled') return 'cancelled'
@@ -17,6 +19,20 @@ export function effectiveEventStatus(event: EventStatusLike, now = new Date()): 
 
   if (end && now > end) return 'finished'
   if (start && now >= start) return 'ongoing'
+  return 'upcoming'
+}
+
+export function eventLiveState(event: EventStatusLike, now = new Date()): EventLiveState {
+  const effectiveStatus = effectiveEventStatus(event, now)
+
+  if (effectiveStatus === 'draft') return 'draft'
+  if (effectiveStatus === 'cancelled') return 'cancelled'
+  if (effectiveStatus === 'finished') return 'finished'
+
+  // An explicit ongoing status is treated as a manual start, even when the
+  // scheduled start time has not been reached yet.
+  if (event.status === 'ongoing' || effectiveStatus === 'ongoing') return 'live'
+
   return 'upcoming'
 }
 

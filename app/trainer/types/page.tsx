@@ -124,8 +124,9 @@ export default function TrainingTypesPage() {
         <div className="card p-6 mb-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold mb-2">Nazwa *</label>
+              <label htmlFor="training-type-name" className="block text-sm font-semibold mb-2">Nazwa *</label>
               <input
+                id="training-type-name"
                 type="text"
                 value={formData.name}
                 onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
@@ -135,8 +136,9 @@ export default function TrainingTypesPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Opis</label>
+              <label htmlFor="training-type-description" className="block text-sm font-semibold mb-2">Opis</label>
               <textarea
+                id="training-type-description"
                 value={formData.description}
                 onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 className="form-input resize-none"
@@ -147,8 +149,9 @@ export default function TrainingTypesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Cena/godzinę (PLN)</label>
+                <label htmlFor="training-type-price" className="block text-sm font-semibold mb-2">Cena/godzinę (PLN)</label>
                 <input
+                  id="training-type-price"
                   type="number"
                   value={formData.price_per_hour}
                   onChange={e => setFormData(prev => ({ ...prev, price_per_hour: e.target.value }))}
@@ -160,8 +163,9 @@ export default function TrainingTypesPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Czas trwania (min)</label>
+                <label htmlFor="training-type-duration" className="block text-sm font-semibold mb-2">Czas trwania (min)</label>
                 <input
+                  id="training-type-duration"
                   type="number"
                   value={formData.duration_min}
                   onChange={e => setFormData(prev => ({ ...prev, duration_min: e.target.value }))}

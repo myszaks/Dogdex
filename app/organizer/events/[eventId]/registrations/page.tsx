@@ -5,8 +5,7 @@ import CsvExportButton from '@/components/CsvExportButton'
 import type { Metadata } from 'next'
 import type { FormField, Registration } from '@/types'
 import type { CompetitionFormatDefinition } from '@/types/competition'
-import RegistrationsClientList from '@/components/RegistrationsClientList'
-import CancellationRequestsPanel from '@/components/CancellationRequestsPanel'
+import OrganizerRegistrationsWorkspace from '@/components/OrganizerRegistrationsWorkspace'
 import Link from 'next/link'
 
 interface Props {
@@ -29,22 +28,16 @@ export default async function RegistrationsPage({ params }: Props) {
   const eventId = event.id
 
   const [
-    { data: registrations, count },
-    { count: confirmedCount },
-    { count: pendingCount },
-    { count: cancelledCount },
+    { data: registrations },
     { data: cancellationRequests },
     { count: slotCount },
   ] = await Promise.all([
     supabase
       .from('registrations')
-      .select('*, participants(*)', { count: 'exact' })
+      .select('*, participants(*)')
       .eq('event_id', eventId)
       .order('order_index', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true }),
-    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'confirmed'),
-    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'pending'),
-    supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('status', 'cancelled'),
     supabase
       .from('cancellation_requests')
       .select('*, registrations(participant_id, participants(dog_name, owner_name, owner_email))')
@@ -56,13 +49,6 @@ export default async function RegistrationsPage({ params }: Props) {
 
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const hasSchedule = (slotCount ?? 0) > 0
-
-  const stats = {
-    total: count ?? 0,
-    confirmed: confirmedCount ?? 0,
-    pending: pendingCount ?? 0,
-    cancelled: cancelledCount ?? 0,
-  }
 
   return (
     <div>
@@ -101,54 +87,24 @@ export default async function RegistrationsPage({ params }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
-        <div className="card text-center py-2">
-          <p className="text-xl font-bold text-slate-800">{stats.total}</p>
-          <p className="text-xs text-slate-500">Łącznie</p>
-        </div>
-        <div className="card text-center py-2">
-          <p className="text-xl font-bold text-green-600">{stats.confirmed}</p>
-          <p className="text-xs text-slate-500">Potwierdzone</p>
-        </div>
-        <div className="card text-center py-2">
-          <p className="text-xl font-bold text-yellow-600">{stats.pending}</p>
-          <p className="text-xs text-slate-500">Oczekujące</p>
-        </div>
-        <div className="card text-center py-2">
-          <p className="text-xl font-bold text-red-500">{stats.cancelled}</p>
-          <p className="text-xs text-slate-500">Anulowane</p>
-        </div>
-      </div>
-
-      {!registrations || registrations.length === 0 ? (
-        <div className="card text-center py-12 text-slate-500">
-          Brak zapisów na to wydarzenie
-        </div>
-      ) : (
-        <>
-          <CancellationRequestsPanel
-            requests={(cancellationRequests ?? []).map(r => ({
-              ...r,
-              participant: Array.isArray(r.registrations)
-                ? r.registrations[0]?.participants?.[0] ?? null
-                : null,
-            }))}
-          />
-          <RegistrationsClientList
-            initialRegistrations={registrations as unknown as Registration[]}
-            eventFormFields={eventFormFields}
-            groupingField={event.grouping_field ?? null}
-            competitionDefinition={
-              event.competition_config
-              && typeof event.competition_config === 'object'
-              && !Array.isArray(event.competition_config)
-                ? event.competition_config as CompetitionFormatDefinition
-                : null
-            }
-            eventId={eventId}
-          />
-        </>
-      )}
+      <OrganizerRegistrationsWorkspace
+        initialRegistrations={(registrations ?? []) as unknown as Registration[]}
+        initialCancellationRequests={(cancellationRequests ?? []).map(r => ({
+          ...r,
+          participant: Array.isArray(r.registrations)
+            ? r.registrations[0]?.participants?.[0] ?? null
+            : null,
+        }))}
+        eventFormFields={eventFormFields}
+        groupingField={event.grouping_field ?? null}
+        competitionDefinition={
+          event.competition_config
+          && typeof event.competition_config === 'object'
+          && !Array.isArray(event.competition_config)
+            ? event.competition_config as CompetitionFormatDefinition
+            : null
+        }
+      />
     </div>
   )
 }

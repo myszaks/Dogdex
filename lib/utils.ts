@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { DogEvent } from "@/types"
 import { effectiveEventStatus, isEventRegistrationOpen } from "@/lib/eventStatus"
+import { formatPolishCount } from "@/lib/polish"
 
 export const DISPLAY_TIME_ZONE = 'Europe/Warsaw'
 
@@ -27,12 +28,10 @@ export function toSlug(title: string): string {
  * plForm(3, 'termin', 'terminy', 'terminów') → '3 terminy'
  */
 export function plForm(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10
-  const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return `${n} ${one}`
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${n} ${few}`
-  return `${n} ${many}`
+  return formatPolishCount(n, [one, few, many])
 }
+
+export { formatPolishCount, polishForm, POLISH_FORMS } from "@/lib/polish"
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'

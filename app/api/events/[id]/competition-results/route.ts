@@ -15,6 +15,7 @@ import {
   buildSpeedwayRegistrationContext,
 } from '@/lib/speedway'
 import { isParticipantCompetitionComplete } from '@/lib/competitionProgress'
+import { resultFieldsForStage } from '@/lib/competitionStages'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -107,7 +108,7 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   const valueIssues = validateCompetitionFieldValues(
-    definition.resultFields,
+    resultFieldsForStage(definition, stageId),
     values,
     { requireRequired: status === null },
   )

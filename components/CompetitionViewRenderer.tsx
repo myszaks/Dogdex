@@ -167,7 +167,7 @@ export default function CompetitionViewRenderer({
   if (!view) {
     return (
       <div className="card py-12 text-center text-muted-foreground">
-        Ten format nie ma skonfigurowanego widoku {kind === 'live' ? 'live' : 'wynikowego'}.
+        Ten format nie ma skonfigurowanego widoku {kind === 'live' ? 'na żywo' : 'wyników końcowych'}.
       </div>
     )
   }

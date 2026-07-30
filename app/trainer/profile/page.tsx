@@ -148,8 +148,9 @@ export default function TrainerProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Full Name */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Imię i nazwisko *</label>
+              <label htmlFor="trainer-full-name" className="block text-sm font-semibold mb-2">Imię i nazwisko *</label>
               <input
+                id="trainer-full-name"
                 type="text"
                 name="full_name"
                 value={formData.full_name}
@@ -163,8 +164,9 @@ export default function TrainerProfilePage() {
 
             {/* Bio */}
             <div>
-              <label className="block text-sm font-semibold mb-2">O Tobie</label>
+              <label htmlFor="trainer-bio" className="block text-sm font-semibold mb-2">O Tobie</label>
               <textarea
+                id="trainer-bio"
                 name="bio"
                 value={formData.bio}
                 onChange={handleChange}
@@ -177,8 +179,9 @@ export default function TrainerProfilePage() {
 
             {/* Location City */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Miasto</label>
+              <label htmlFor="trainer-location-city" className="block text-sm font-semibold mb-2">Miasto</label>
               <input
+                id="trainer-location-city"
                 type="text"
                 name="location_city"
                 value={formData.location_city}
@@ -191,8 +194,9 @@ export default function TrainerProfilePage() {
 
             {/* Location Details */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Szczegóły lokalizacji</label>
+              <label htmlFor="trainer-location-details" className="block text-sm font-semibold mb-2">Szczegóły lokalizacji</label>
               <input
+                id="trainer-location-details"
                 type="text"
                 name="location_details"
                 value={formData.location_details}
@@ -205,7 +209,7 @@ export default function TrainerProfilePage() {
 
             {/* Profile Image Upload */}
             <div>
-              <label className="block text-sm font-semibold mb-2">Zdjęcie profilu</label>
+              <p className="block text-sm font-semibold mb-2">Zdjęcie profilu</p>
               <TrainerPhotoUploader
                 currentUrl={formData.profile_image_url || null}
                 onUrlChange={(url) => {

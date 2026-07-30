@@ -14,6 +14,7 @@ import {
   TRACK_DISTANCE_MIN_M,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -275,7 +276,9 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <span className="h-px flex-1 bg-slate-200" />
               {SIZE_CLASS_LABELS[cls]}
-              <span className="badge badge-yellow">{classRows.length} psów</span>
+              <span className="badge badge-yellow">
+                {formatPolishCount(classRows.length, POLISH_FORMS.dog)}
+              </span>
               <span className="h-px flex-1 bg-slate-200" />
             </h2>
 
@@ -328,9 +331,10 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
 
                     {/* Run inputs */}
                     <div className="grid grid-cols-2 gap-3 mb-3">
-                      <label className="block">
+                      <label htmlFor={`speedway-run-1-${r.participantId}`} className="block">
                         <span className="form-label text-xs">Przebieg 1 (s)</span>
                         <input
+                          id={`speedway-run-1-${r.participantId}`}
                           type="number"
                           min={0}
                           step={0.01}
@@ -340,9 +344,10 @@ export default function SpeedwayResultsForm({ eventId, initialTrackDistanceM, pa
                           className="form-input font-mono"
                         />
                       </label>
-                      <label className="block">
+                      <label htmlFor={`speedway-run-2-${r.participantId}`} className="block">
                         <span className="form-label text-xs">Przebieg 2 (s)</span>
                         <input
+                          id={`speedway-run-2-${r.participantId}`}
                           type="number"
                           min={0}
                           step={0.01}

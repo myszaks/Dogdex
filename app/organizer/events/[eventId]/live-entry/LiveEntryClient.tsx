@@ -105,8 +105,9 @@ export default function LiveEntryClient({
         </div>
 
         <div>
-          <label className="form-label">Czas (sekundy, np. 45.32)</label>
+          <label htmlFor="live-entry-time" className="form-label">Czas (sekundy, np. 45.32)</label>
           <input
+            id="live-entry-time"
             type="number"
             step="0.01"
             min="0"
@@ -114,13 +115,15 @@ export default function LiveEntryClient({
             onChange={e => setTimeInput(e.target.value)}
             placeholder="—"
             className="form-input font-mono text-2xl"
+            aria-describedby={error ? 'live-entry-error' : undefined}
             autoFocus
           />
         </div>
 
         <div>
-          <label className="form-label">Uwagi</label>
+          <label htmlFor="live-entry-notes" className="form-label">Uwagi</label>
           <input
+            id="live-entry-notes"
             type="text"
             value={notes}
             onChange={e => setNotes(e.target.value)}
@@ -129,7 +132,7 @@ export default function LiveEntryClient({
           />
         </div>
 
-        {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
+        {error && <p id="live-entry-error" role="alert" className="text-sm text-red-600 font-medium">{error}</p>}
 
         <div className="flex gap-2">
           <button

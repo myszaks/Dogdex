@@ -7,6 +7,7 @@ import CompetitionViewRenderer from '@/components/CompetitionViewRenderer'
 import type { SpeedwayLiveParticipantInfo } from '@/components/SpeedwayLiveView'
 import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { formatDate } from '@/lib/utils'
+import { eventLiveState, type EventLiveState } from '@/lib/eventStatus'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { CompetitionFormatDefinition } from '@/types/competition'
@@ -40,10 +41,58 @@ function relatedParticipant(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function LiveUnavailable({
+  event,
+  state,
+}: {
+  event: { slug: string; title: string; start_at: string | null }
+  state: Exclude<EventLiveState, 'live' | 'draft'>
+}) {
+  const content = {
+    upcoming: {
+      icon: '🕒',
+      title: 'Wyniki na żywo nie są jeszcze dostępne',
+      description: 'Pojawią się zgodnie z terminem wydarzenia lub gdy organizator udostępni je wcześniej.',
+    },
+    finished: {
+      icon: '🏁',
+      title: 'Relacja na żywo została zakończona',
+      description: 'Końcowe wyniki znajdziesz w archiwum wydarzenia.',
+    },
+    cancelled: {
+      icon: '⊘',
+      title: 'Wydarzenie zostało odwołane',
+      description: 'Wyniki na żywo nie będą dostępne.',
+    },
+  }[state]
+
+  return (
+    <div>
+      <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        ← Powrót do wydarzenia
+      </Link>
+      <h1 className="text-2xl font-bold text-slate-800 mb-1">{event.title}</h1>
+      {event.start_at && (
+        <p className="text-slate-500 text-sm mb-5">📅 {formatDate(event.start_at)}</p>
+      )}
+      <div className="card text-center py-12 text-slate-500">
+        <p className="text-4xl mb-3" aria-hidden="true">{content.icon}</p>
+        <p className="font-semibold text-slate-700">{content.title}</p>
+        <p className="text-sm mt-1">{content.description}</p>
+        {state === 'finished' && (
+          <Link href={`/archive/${event.slug}`} className="btn btn-primary mt-5">
+            Zobacz wyniki
+          </Link>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventId } = await params
   const { event } = await resolveEvent(eventId)
-  return { title: `Live – ${event?.title ?? 'Wydarzenie'}` }
+  return { title: `Wyniki na żywo – ${event?.title ?? 'Wydarzenie'}` }
 }
 
 export default async function LivePage({ params }: Props) {
@@ -53,6 +102,19 @@ export default async function LivePage({ params }: Props) {
   if (!resolvedEvent) notFound()
   if (resolvedEvent.status === 'draft') notFound()
   if (redirectTo) redirect(redirectTo)
+
+  const event = resolvedEvent
+  if (!event.has_results) notFound()
+
+  const liveState = eventLiveState({
+    status: event.status,
+    start_at: event.start_at,
+    end_at: event.end_at,
+  })
+  if (liveState === 'draft') notFound()
+  if (liveState !== 'live') {
+    return <LiveUnavailable event={event} state={liveState} />
+  }
 
   const supabase = createServerClient()
   const resolvedId = resolvedEvent.id as string
@@ -70,9 +132,6 @@ export default async function LivePage({ params }: Props) {
       .eq('status', 'confirmed')
       .order('order_index', { ascending: true, nullsFirst: false }),
   ])
-
-  const event = resolvedEvent
-  if (!event.has_results) notFound()
 
   const isPublic = event.results_public ?? true
   const isSpeedway = event.event_type_id === 'speedway'

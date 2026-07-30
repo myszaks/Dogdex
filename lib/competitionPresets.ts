@@ -112,7 +112,7 @@ export const TIME_TRIAL_FORMAT: CompetitionFormatDefinition = {
   views: [
     {
       id: 'live',
-      label: 'Widok live',
+      label: 'Widok na żywo',
       kind: 'live',
       blocks: [
         { id: 'current', type: 'current_entry', title: 'Aktualnie na starcie' },
@@ -120,7 +120,7 @@ export const TIME_TRIAL_FORMAT: CompetitionFormatDefinition = {
         {
           id: 'live_table',
           type: 'leaderboard',
-          title: 'Wyniki live',
+          title: 'Wyniki na żywo',
           rankingId: 'overall',
           fields: ['computed.best_time_ms', 'computed.speed_kmh'],
         },
@@ -296,7 +296,7 @@ export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
   views: [
     {
       id: 'live',
-      label: 'Speedway live',
+      label: 'Speedway na żywo',
       kind: 'live',
       blocks: [
         { id: 'current', type: 'current_entry', title: 'Aktualnie na starcie' },
@@ -305,7 +305,7 @@ export const SPEEDWAY_FORMAT: CompetitionFormatDefinition = {
         {
           id: 'live_table',
           type: 'leaderboard',
-          title: 'Wyniki live',
+          title: 'Wyniki na żywo',
           rankingId: 'class',
           fields: ['computed.best_time_ms', 'computed.speed_kmh'],
         },
@@ -494,7 +494,7 @@ export const VERSATILE_DOG_CUP_FORMAT: CompetitionFormatDefinition = {
   views: [
     {
       id: 'live',
-      label: 'Puchar live',
+      label: 'Puchar na żywo',
       kind: 'live',
       blocks: [
         { id: 'current', type: 'current_entry', title: 'Aktualnie oceniany zespół' },
@@ -502,7 +502,7 @@ export const VERSATILE_DOG_CUP_FORMAT: CompetitionFormatDefinition = {
         {
           id: 'leaderboard',
           type: 'leaderboard',
-          title: 'Klasyfikacja live',
+          title: 'Klasyfikacja na żywo',
           rankingId: 'overall',
           fields: [
             'computed.total_points',

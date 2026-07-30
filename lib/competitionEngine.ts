@@ -5,6 +5,7 @@ import type {
   CompetitionFormatDefinition,
   CompetitionScalar,
 } from '@/types/competition'
+import { resultFieldsForStage } from '@/lib/competitionStages'
 
 const MAX_EXPRESSION_DEPTH = 20
 const MAX_EXPRESSION_NODES = 200
@@ -307,6 +308,12 @@ export function validateCompetitionFormatDefinition(
   }
 
   const fieldCollections = ['eventFields', 'resultFields'] as const
+  const stageIds = new Set(
+    (Array.isArray(value.stages) ? value.stages : [])
+      .filter(isRecord)
+      .map(stage => stage.id)
+      .filter((id): id is string => typeof id === 'string'),
+  )
   for (const collectionName of fieldCollections) {
     const collection = Array.isArray(value[collectionName]) ? value[collectionName] : []
     collection.forEach((field, index) => {
@@ -317,6 +324,32 @@ export function validateCompetitionFormatDefinition(
       }
       if (typeof field.min === 'number' && typeof field.max === 'number' && field.min > field.max) {
         issues.push({ path: `${collectionName}[${index}]`, message: 'Minimum nie może być większe od maksimum.' })
+      }
+      if (collectionName === 'eventFields' && field.stageIds !== undefined) {
+        issues.push({
+          path: `${collectionName}[${index}].stageIds`,
+          message: 'Parametr wydarzenia nie może być przypisany do etapu.',
+        })
+      }
+      if (collectionName === 'resultFields' && field.stageIds !== undefined) {
+        if (!Array.isArray(field.stageIds) || field.stageIds.length === 0) {
+          issues.push({
+            path: `${collectionName}[${index}].stageIds`,
+            message: 'Wybierz co najmniej jeden etap albo ustaw wszystkie etapy.',
+          })
+        } else {
+          const assignedStageIds = new Set<string>()
+          field.stageIds.forEach((stageId, stageIdIndex) => {
+            const path = `${collectionName}[${index}].stageIds[${stageIdIndex}]`
+            if (typeof stageId !== 'string' || !stageIds.has(stageId)) {
+              issues.push({ path, message: 'Pole wyniku odwołuje się do nieistniejącego etapu.' })
+            } else if (assignedStageIds.has(stageId)) {
+              issues.push({ path, message: 'Etap może być przypisany do pola tylko raz.' })
+            } else {
+              assignedStageIds.add(stageId)
+            }
+          })
+        }
       }
     })
   }
@@ -579,7 +612,7 @@ export function validateCompetitionFormatDefinition(
     if (!isRecord(view)) return
     validateLabel(view.label, `views[${viewIndex}].label`, issues)
     if (!['live', 'results'].includes(String(view.kind))) {
-      issues.push({ path: `views[${viewIndex}].kind`, message: 'Widok musi mieć rodzaj live albo results.' })
+      issues.push({ path: `views[${viewIndex}].kind`, message: 'Widok musi mieć rodzaj „na żywo” albo „wyniki końcowe”.' })
     }
     if (!Array.isArray(view.blocks)) {
       issues.push({ path: `views[${viewIndex}].blocks`, message: 'Widok musi zawierać tablicę bloków.' })
@@ -911,14 +944,25 @@ export function calculateCompetitionResults(
   const statusKinds = new Map(definition.statuses.map(status => [status.id, status.kind]))
   const contexts = entrants.map(entrant => {
     const computed: Record<string, CompetitionScalar> = {}
-    const validAttempts = entrant.attempts.filter(attempt =>
+    const scopedAttempts = entrant.attempts.map(attempt => {
+      const allowedFieldIds = new Set(
+        resultFieldsForStage(definition, attempt.stageId).map(field => field.id),
+      )
+      return {
+        ...attempt,
+        values: Object.fromEntries(
+          Object.entries(attempt.values).filter(([fieldId]) => allowedFieldIds.has(fieldId)),
+        ),
+      }
+    })
+    const validAttempts = scopedAttempts.filter(attempt =>
       attempt.status === null || statusKinds.get(attempt.status) === 'valid'
     )
     const context: Record<string, unknown> = {
       event: entrant.event,
       participant: entrant.participant,
       registration: entrant.registration,
-      attempts: entrant.attempts,
+      attempts: scopedAttempts,
       valid_attempts: validAttempts,
       computed,
       groups: {},

@@ -49,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Navigation />
               <div className="flex-1 min-w-0 md:pl-[260px]">
                 <main
+                  id="dogdex-main-content"
                   className="min-h-screen px-4 pt-[76px] pb-6 md:px-8 md:py-8"
                   style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
                 >

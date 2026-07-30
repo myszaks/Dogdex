@@ -143,6 +143,7 @@ function DropdownItem({
   return (
     <Link
       href={href}
+      prefetch={false}
       onClick={onClose}
       className={cn(
         'flex items-center gap-2.5 px-3 py-2 hover:bg-secondary rounded-xl text-sm font-medium transition-colors',

@@ -4,6 +4,7 @@ import type {
   CompetitionFormatDefinition,
   CompetitionScalar,
 } from '@/types/competition'
+import { resultFieldsForStage } from '@/lib/competitionStages'
 
 function hasValue(value: CompetitionScalar | undefined): boolean {
   return value !== null && value !== undefined && value !== ''
@@ -35,7 +36,7 @@ export function isParticipantCompetitionComplete(
   )
   return configuredAttempts.length > 0 && configuredAttempts.every(attempt =>
     isAttemptComplete(
-      definition.resultFields,
+      resultFieldsForStage(definition, attempt.stageId),
       attemptByKey.get(`${attempt.stageId}\u001f${attempt.attemptId}`),
     )
   )

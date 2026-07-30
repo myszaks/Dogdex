@@ -138,7 +138,7 @@ export default function ImageCropUploader({ currentUrl, onUrlChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <label className="form-label">Zdjęcie (thumbnail)</label>
+      <p className="form-label">Miniatura wydarzenia</p>
 
       {/* Current thumbnail preview */}
       {currentUrl && !srcUrl && (

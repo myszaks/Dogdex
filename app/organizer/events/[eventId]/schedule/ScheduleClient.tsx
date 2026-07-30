@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import type { TimeSlot } from '@/types'
 import ConfirmModal from '@/components/ConfirmModal'
-import { AlertTriangle, Plus, X, Pencil, GripVertical, PawPrint, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, Plus, X, GripVertical, PawPrint, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/Modal'
 import { plForm } from '@/lib/utils'
+import { formatPolishCount, polishForm, POLISH_FORMS } from '@/lib/polish'
+import { scheduleSlotOptions } from '@/lib/scheduleManagement'
 
 interface Participant {
   registrationId: string
@@ -110,6 +112,7 @@ export default function ScheduleClient({
   const [newMax, setNewMax] = useState('')
   const [addingSlot, setAddingSlot] = useState(false)
   const [unassignedOpen, setUnassignedOpen] = useState(true)
+  const [movingItemId, setMovingItemId] = useState<string | null>(null)
 
   const slotMap = new Map(slots.map(s => [s.id, s]))
 
@@ -172,13 +175,7 @@ export default function ScheduleClient({
     }
   }
 
-  async function onDragEnd(result: DropResult) {
-    if (!result.destination) return
-    const virtualId = result.draggableId
-    const destSlotId = result.destination.droppableId === 'unassigned'
-      ? null
-      : result.destination.droppableId
-
+  async function moveItem(virtualId: string, destSlotId: string | null) {
     const item = items.find(i => i.id === virtualId)
     if (!item || item.slotId === destSlotId) return
 
@@ -187,57 +184,86 @@ export default function ScheduleClient({
       if (slot?.max_participants != null) {
         const currentCount = itemsInSlot(destSlotId).length
         if (currentCount >= slot.max_participants) {
-          alert(`Slot jest pełny (max ${slot.max_participants}).`)
+          alert(`Termin jest pełny (maksymalnie ${formatPolishCount(slot.max_participants, [
+            'uczestnik',
+            'uczestników',
+            'uczestników',
+          ])}).`)
           return
         }
       }
     }
 
+    const previousItem = { ...item }
     setItems(prev =>
       prev.map(i => i.id === virtualId ? { ...i, slotId: destSlotId } : i)
     )
-
+    setMovingItemId(virtualId)
     setSaveStatus('saving')
-    if (destSlotId === null) {
-      if (item.assignmentId) {
+
+    try {
+      if (destSlotId === null) {
+        if (!item.assignmentId) {
+          setSaveStatus('saved')
+          return
+        }
         const delRes = await fetch(`/api/events/${eventId}/schedule-assignments`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assignment_id: item.assignmentId }),
         })
+        if (!delRes.ok) {
+          const error = await delRes.json().catch(() => ({}))
+          throw new Error(error.error ?? 'Nie udało się usunąć przypisania')
+        }
         setItems(prev =>
           prev.map(i => i.id === virtualId
             ? { ...i, slotId: null, assignmentId: null, sentAt: null }
             : i)
         )
-        setSaveStatus(delRes.ok ? 'saved' : 'error')
-      } else {
-        setSaveStatus('saved')
-      }
-    } else {
-      const res = await fetch(`/api/events/${eventId}/schedule-assignments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          registration_id: item.registrationId,
-          time_slot_id: destSlotId,
-          item_date: item.itemDate,
-        }),
-      })
-      if (res.ok) {
-        const assignment = await res.json()
-        setItems(prev =>
-          prev.map(i => i.id === virtualId ? { ...i, assignmentId: assignment.id } : i)
-        )
         setSaveStatus('saved')
       } else {
-        // Revert optimistic update on failure
+        const res = await fetch(`/api/events/${eventId}/schedule-assignments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            registration_id: item.registrationId,
+            time_slot_id: destSlotId,
+            item_date: item.itemDate,
+          }),
+        })
+        const assignment = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(assignment.error ?? 'Nie udało się zapisać przypisania')
+        }
         setItems(prev =>
-          prev.map(i => i.id === virtualId ? { ...i, slotId: item.slotId } : i)
+          prev.map(i => i.id === virtualId
+            ? {
+                ...i,
+                slotId: destSlotId,
+                assignmentId: assignment.id,
+                sentAt: null,
+              }
+            : i)
         )
-        setSaveStatus('error')
+        setSaveStatus('saved')
       }
+    } catch {
+      setItems(prev =>
+        prev.map(i => i.id === virtualId ? previousItem : i)
+      )
+      setSaveStatus('error')
+    } finally {
+      setMovingItemId(null)
     }
+  }
+
+  function onDragEnd(result: DropResult) {
+    if (!result.destination) return
+    const destSlotId = result.destination.droppableId === 'unassigned'
+      ? null
+      : result.destination.droppableId
+    void moveItem(result.draggableId, destSlotId)
   }
 
   async function handleSendAll() {
@@ -269,7 +295,9 @@ export default function ScheduleClient({
         </div>
         <div className="text-center px-4 py-4 border-x border-[#E2E8F0]">
           <p className="text-2xl font-bold text-[#FF8024]">{slots.length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Slotów</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {polishForm(slots.length, POLISH_FORMS.term)}
+          </p>
         </div>
         <div className="text-center px-4 py-4">
           <p className="text-2xl font-bold text-[#10B981]">{assignedCount}</p>
@@ -333,7 +361,7 @@ export default function ScheduleClient({
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
           <span>
             <strong>{wrongDateItems.length}</strong>
-            {' '}{plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do slotu z
+            {' '}{plForm(wrongDateItems.length, 'pies przypisany', 'psy przypisane', 'psów przypisanych')} do terminu z
             {' '}niezgodną datą. Sprawdź karty oznaczone <span className="font-bold">⚠️</span>.
           </span>
         </div>
@@ -346,14 +374,14 @@ export default function ScheduleClient({
         className="w-full bg-[#FF8024] hover:bg-[#E06A10] text-white rounded-full py-3.5 flex items-center justify-center gap-2 font-semibold text-sm mb-6 transition-colors shadow-sm"
       >
         <Plus className="w-5 h-5" />
-        Dodaj slot
+        Dodaj termin
       </button>
 
       {/* ── Vertical Timeline ── */}
       {slots.length === 0 ? (
         <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm text-center py-16 text-slate-400">
           <p className="text-4xl mb-3">🕐</p>
-          <p>Otwórz &quot;Dodaj slot&quot; i utwórz pierwszy termin</p>
+          <p>Wybierz „Dodaj termin”, aby utworzyć pierwszą godzinę startu.</p>
         </div>
       ) : (
         <div className="relative">
@@ -372,7 +400,7 @@ export default function ScheduleClient({
                     {new Intl.DateTimeFormat('pl-PL', { month: 'short' }).format(new Date(date))}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-slate-700 capitalize">{fmtLong(date)}</p>
+                <p className="text-sm font-semibold text-slate-700">{fmtLong(date)}</p>
               </div>
 
               {/* Slot nodes for this date */}
@@ -424,7 +452,7 @@ export default function ScheduleClient({
                                 type="button"
                                 onClick={() => setDeletingSlotId(slot.id)}
                                 className="text-slate-300 hover:text-red-400 transition-colors ml-2 shrink-0"
-                                title="Usuń slot"
+                                title="Usuń termin"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -444,7 +472,16 @@ export default function ScheduleClient({
                                 </div>
                               )}
                               {inSlot.map((item, i) => (
-                                <TimelineItemCard key={item.id} item={item} index={i} wrongDate={isWrongDate(item)} />
+                                <TimelineItemCard
+                                  key={item.id}
+                                  item={item}
+                                  index={i}
+                                  wrongDate={isWrongDate(item)}
+                                  slots={slots}
+                                  items={items}
+                                  moving={movingItemId === item.id}
+                                  onMove={moveItem}
+                                />
                               ))}
                               {provided.placeholder}
                             </div>
@@ -495,7 +532,15 @@ export default function ScheduleClient({
                   ) : (
                     <div className="space-y-2">
                       {unassigned.map((item, i) => (
-                        <UnassignedItemCard key={item.id} item={item} index={i} />
+                        <UnassignedItemCard
+                          key={item.id}
+                          item={item}
+                          index={i}
+                          slots={slots}
+                          items={items}
+                          moving={movingItemId === item.id}
+                          onMove={moveItem}
+                        />
                       ))}
                     </div>
                   )}
@@ -508,24 +553,25 @@ export default function ScheduleClient({
       </div>
 
       {/* ── Add Slot modal ── */}
-      <Modal open={addSlotOpen} onClose={() => setAddSlotOpen(false)} title="Dodaj slot godzinowy">
+      <Modal open={addSlotOpen} onClose={() => setAddSlotOpen(false)} title="Dodaj termin">
         <div className="space-y-4">
           <div>
-            <label className="form-label">Data *</label>
+            <label htmlFor="schedule-slot-date" className="form-label">Data *</label>
             {availableDates.length > 0 ? (
-              <select value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input">
+              <select id="schedule-slot-date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input">
                 <option value="">— wybierz datę —</option>
                 {availableDates.map(d => (
                   <option key={d} value={d}>{fmtShort(d)} ({d})</option>
                 ))}
               </select>
             ) : (
-              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input" />
+              <input id="schedule-slot-date" type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input" />
             )}
           </div>
           <div>
-            <label className="form-label">Godzina *</label>
+            <label htmlFor="schedule-slot-time" className="form-label">Godzina *</label>
             <input
+              id="schedule-slot-time"
               type="time"
               value={newTime}
               onChange={e => setNewTime(e.target.value)}
@@ -533,8 +579,9 @@ export default function ScheduleClient({
             />
           </div>
           <div>
-            <label className="form-label">Etykieta <span className="text-slate-400 font-normal">(opcjonalna)</span></label>
+            <label htmlFor="schedule-slot-label" className="form-label">Etykieta <span className="text-slate-400 font-normal">(opcjonalna)</span></label>
             <input
+              id="schedule-slot-label"
               type="text"
               value={newLabel}
               onChange={e => setNewLabel(e.target.value)}
@@ -543,8 +590,9 @@ export default function ScheduleClient({
             />
           </div>
           <div>
-            <label className="form-label">Limit miejsc <span className="text-slate-400 font-normal">(opcjonalny)</span></label>
+            <label htmlFor="schedule-slot-capacity" className="form-label">Limit miejsc <span className="text-slate-400 font-normal">(opcjonalny)</span></label>
             <input
+              id="schedule-slot-capacity"
               type="number"
               min="1"
               value={newMax}
@@ -567,7 +615,7 @@ export default function ScheduleClient({
               disabled={addingSlot || !newDate || !newTime}
               className="btn btn-primary flex-1"
             >
-              {addingSlot ? '⏳ Dodawanie...' : '+ Dodaj slot'}
+              {addingSlot ? '⏳ Dodawanie...' : '+ Dodaj termin'}
             </button>
           </div>
         </div>
@@ -575,8 +623,8 @@ export default function ScheduleClient({
 
       <ConfirmModal
         open={deletingSlotId !== null}
-        title="Usunąć slot?"
-        message="Uczestnicy przypisani do tego slotu zostaną odpisani."
+        title="Usunąć termin?"
+        message="Przypisania uczestników do tego terminu zostaną usunięte."
         confirmLabel="Usuń"
         danger
         onConfirm={() => {
@@ -594,10 +642,18 @@ function TimelineItemCard({
   item,
   index,
   wrongDate,
+  slots,
+  items,
+  moving,
+  onMove,
 }: {
   item: ScheduleItem
   index: number
   wrongDate: boolean
+  slots: TimeSlot[]
+  items: ScheduleItem[]
+  moving: boolean
+  onMove: (itemId: string, slotId: string | null) => Promise<void>
 }) {
   const isConfirmed = item.sentAt !== null
   return (
@@ -606,7 +662,6 @@ function TimelineItemCard({
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          {...provided.dragHandleProps}
           className={`flex items-start gap-3 p-3 rounded-2xl border bg-white select-none transition-shadow ${
             snapshot.isDragging
               ? 'shadow-lg border-sky-300'
@@ -615,6 +670,15 @@ function TimelineItemCard({
               : 'border-[#E2E8F0]'
           }`}
         >
+          <button
+            type="button"
+            {...provided.dragHandleProps}
+            className="mt-2 shrink-0 cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+            aria-label={`Przeciągnij ${item.dog_name ?? 'uczestnika'}, aby zmienić termin`}
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+
           {/* Coloured left stripe */}
           <div
             className={`w-1 self-stretch rounded-full shrink-0 ${
@@ -647,12 +711,19 @@ function TimelineItemCard({
                 {fmtShort(item.itemDate)}
               </span>
             )}
+            <ScheduleAssignmentSelect
+              item={item}
+              slots={slots}
+              items={items}
+              disabled={moving}
+              onMove={onMove}
+            />
           </div>
 
           {/* Actions / indicators */}
           <div className="shrink-0 flex flex-col items-end gap-1.5">
             {wrongDate && (
-              <span title={`Zły dzień! Pies zgłoszony na ${fmtShort(item.itemDate)}, slot jest w innym dniu.`}>
+              <span title={`Nieprawidłowy dzień: pies jest zapisany na ${fmtShort(item.itemDate)}, a termin przypada w innym dniu.`}>
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
               </span>
             )}
@@ -663,25 +734,52 @@ function TimelineItemCard({
   )
 }
 
-function UnassignedItemCard({ item, index }: { item: ScheduleItem; index: number }) {
+function UnassignedItemCard({
+  item,
+  index,
+  slots,
+  items,
+  moving,
+  onMove,
+}: {
+  item: ScheduleItem
+  index: number
+  slots: TimeSlot[]
+  items: ScheduleItem[]
+  moving: boolean
+  onMove: (itemId: string, slotId: string | null) => Promise<void>
+}) {
   return (
     <Draggable draggableId={item.id} index={index}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
-          {...provided.dragHandleProps}
           className={`flex items-center gap-3 p-3 rounded-2xl border bg-white select-none transition-shadow ${
             snapshot.isDragging ? 'shadow-lg border-sky-300' : 'border-[#E2E8F0]'
           }`}
         >
-          <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
+          <button
+            type="button"
+            {...provided.dragHandleProps}
+            className="shrink-0 cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+            aria-label={`Przeciągnij ${item.dog_name ?? 'uczestnika'}, aby przypisać termin`}
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
           <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
             <PawPrint className="w-4 h-4 text-amber-400" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-slate-700 truncate text-sm">{item.dog_name ?? '—'}</p>
             <p className="text-xs text-slate-400 truncate">{item.owner_name ?? '—'}</p>
+            <ScheduleAssignmentSelect
+              item={item}
+              slots={slots}
+              items={items}
+              disabled={moving}
+              onMove={onMove}
+            />
           </div>
           {item.itemDate && (
             <span className="text-[10px] font-medium bg-sky-100 text-sky-700 rounded-full px-2 py-0.5 shrink-0">
@@ -691,5 +789,55 @@ function UnassignedItemCard({ item, index }: { item: ScheduleItem; index: number
         </div>
       )}
     </Draggable>
+  )
+}
+
+function ScheduleAssignmentSelect({
+  item,
+  slots,
+  items,
+  disabled,
+  onMove,
+}: {
+  item: ScheduleItem
+  slots: TimeSlot[]
+  items: ScheduleItem[]
+  disabled: boolean
+  onMove: (itemId: string, slotId: string | null) => Promise<void>
+}) {
+  const selectId = `schedule-slot-${item.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  const slotOptions = scheduleSlotOptions(slots, items, item.itemDate, item.slotId)
+
+  return (
+    <div className="mt-2">
+      <label htmlFor={selectId} className="sr-only">
+        Termin dla psa {item.dog_name ?? 'bez nazwy'}
+      </label>
+      <select
+        id={selectId}
+        value={item.slotId ?? ''}
+        disabled={disabled}
+        onChange={event => void onMove(item.id, event.target.value || null)}
+        className="h-8 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 disabled:opacity-60"
+      >
+        <option value="">
+          {item.slotId ? 'Usuń przypisanie' : 'Wybierz termin…'}
+        </option>
+        {slotOptions.map(({ slot, full }) => {
+          const label = [
+            fmtShort(slot.slot_date),
+            slot.slot_time.slice(0, 5),
+            slot.label,
+            full ? 'pełny' : null,
+          ].filter(Boolean).join(' · ')
+
+          return (
+            <option key={slot.id} value={slot.id} disabled={full}>
+              {label}
+            </option>
+          )
+        })}
+      </select>
+    </div>
   )
 }

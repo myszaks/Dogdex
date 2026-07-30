@@ -95,14 +95,16 @@ function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="card space-y-4">
       <div>
-        <label className="form-label">Nowe hasło</label>
+        <label htmlFor="reset-password" className="form-label">Nowe hasło</label>
         <input
+          id="reset-password"
           className="form-input"
           type="password"
           autoComplete="new-password"
           placeholder="Minimum 9 znaków"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          aria-describedby={error ? 'reset-password-error' : undefined}
           required
         />
         {password.length > 0 && (
@@ -121,18 +123,24 @@ function ResetPasswordForm() {
         )}
       </div>
       <div>
-        <label className="form-label">Powtórz hasło</label>
+        <label htmlFor="reset-password-confirm" className="form-label">Powtórz hasło</label>
         <input
+          id="reset-password-confirm"
           className="form-input"
           type="password"
           autoComplete="new-password"
           placeholder="Wpisz hasło ponownie"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
+          aria-invalid={confirm.length > 0 && password !== confirm}
+          aria-describedby={[
+            confirm.length > 0 ? 'reset-password-match' : null,
+            error ? 'reset-password-error' : null,
+          ].filter(Boolean).join(' ') || undefined}
           required
         />
         {confirm.length > 0 && (
-          <p className={`mt-1 text-xs flex items-center gap-1 ${password === confirm ? 'text-green-600' : 'text-red-500'}`}>
+          <p id="reset-password-match" className={`mt-1 text-xs flex items-center gap-1 ${password === confirm ? 'text-green-600' : 'text-red-500'}`}>
             <span>{password === confirm ? '✓' : '○'}</span>
             {password === confirm ? 'Hasła są zgodne' : 'Hasła nie są zgodne'}
           </p>
@@ -140,7 +148,7 @@ function ResetPasswordForm() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+        <div id="reset-password-error" role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           {error}
         </div>
       )}

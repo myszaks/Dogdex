@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveEventStatus, isEventRegistrationOpen } from '@/lib/eventStatus'
+import {
+  effectiveEventStatus,
+  eventLiveState,
+  isEventRegistrationOpen,
+} from '@/lib/eventStatus'
 
 describe('eventStatus', () => {
   it('keeps draft events as draft and closed for registration', () => {
@@ -57,5 +61,32 @@ describe('eventStatus', () => {
       end_at: null,
       registration_deadline: null,
     }, new Date('2026-07-10T10:00:00.000Z'))).toBe(false)
+  })
+
+  it('does not expose the live view before a scheduled event starts', () => {
+    expect(eventLiveState({
+      status: 'upcoming',
+      start_at: '2026-08-15T10:00:00.000Z',
+      end_at: '2026-08-15T12:00:00.000Z',
+      registration_deadline: null,
+    }, new Date('2026-07-30T10:00:00.000Z'))).toBe('upcoming')
+  })
+
+  it('allows an organizer to start live manually before the scheduled time', () => {
+    expect(eventLiveState({
+      status: 'ongoing',
+      start_at: '2026-08-15T10:00:00.000Z',
+      end_at: '2026-08-15T12:00:00.000Z',
+      registration_deadline: null,
+    }, new Date('2026-07-30T10:00:00.000Z'))).toBe('live')
+  })
+
+  it('does not keep live open after the event end time', () => {
+    expect(eventLiveState({
+      status: 'ongoing',
+      start_at: '2026-07-30T08:00:00.000Z',
+      end_at: '2026-07-30T10:00:00.000Z',
+      registration_deadline: null,
+    }, new Date('2026-07-30T10:00:01.000Z'))).toBe('finished')
   })
 })

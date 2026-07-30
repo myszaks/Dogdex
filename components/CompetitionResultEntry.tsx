@@ -6,6 +6,7 @@ import type {
   CompetitionFormatDefinition,
   CompetitionScalar,
 } from '@/types/competition'
+import { resultFieldsForStage } from '@/lib/competitionStages'
 
 interface Participant {
   participantId: string
@@ -76,6 +77,9 @@ export default function CompetitionResultEntry({
   )
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all')
+  const activeResultFields = selectedAttempt
+    ? resultFieldsForStage(definition, selectedAttempt.stageId)
+    : []
 
   const activeKey = (participantId: string) => selectedAttempt
     ? entryKey(participantId, selectedAttempt.stageId, selectedAttempt.attemptId)
@@ -84,7 +88,7 @@ export default function CompetitionResultEntry({
     if (!selectedAttempt) return 0
     return participants.filter(participant => {
       const entry = entries[activeKey(participant.participantId)]
-      return isEntryComplete(definition, entry)
+      return isEntryComplete(activeResultFields, entry)
     }).length
   }, [entries, participants, selectedAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
   const visibleParticipants = useMemo(() => {
@@ -93,7 +97,10 @@ export default function CompetitionResultEntry({
       const matchesSearch = !normalizedSearch
         || participant.dogName.toLocaleLowerCase('pl').includes(normalizedSearch)
         || participant.ownerName.toLocaleLowerCase('pl').includes(normalizedSearch)
-      const complete = isEntryComplete(definition, entries[activeKey(participant.participantId)])
+      const complete = isEntryComplete(
+        activeResultFields,
+        entries[activeKey(participant.participantId)],
+      )
       const matchesFilter = filter === 'all'
         || (filter === 'completed' && complete)
         || (filter === 'pending' && !complete)
@@ -133,7 +140,10 @@ export default function CompetitionResultEntry({
           stageId: selectedAttempt.stageId,
           attemptId: selectedAttempt.attemptId,
           status: entry.status,
-          values: entry.values,
+          values: Object.fromEntries(
+            activeResultFields.map(field => [field.id, entry.values[field.id]])
+              .filter(([, value]) => value !== undefined),
+          ),
         }),
       })
       const json = await response.json()
@@ -191,9 +201,10 @@ export default function CompetitionResultEntry({
     <div className="space-y-5">
       <div className="card sticky top-2 z-20 bg-sage-50/95 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <label className="block min-w-64">
+          <label htmlFor="competition-current-attempt" className="block min-w-64">
             <span className="form-label">Aktualna próba</span>
             <select
+              id="competition-current-attempt"
               className="form-input min-h-11"
               value={`${selectedAttempt.stageId}\u001f${selectedAttempt.attemptId}`}
               onChange={event => {
@@ -218,10 +229,11 @@ export default function CompetitionResultEntry({
           </p>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto]">
-          <label className="relative block">
+          <label htmlFor="competition-participant-search" className="relative block">
             <span className="sr-only">Szukaj psa lub właściciela</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sage-500" />
             <input
+              id="competition-participant-search"
               className="form-input min-h-11 pl-10"
               value={search}
               onChange={event => setSearch(event.target.value)}
@@ -275,8 +287,11 @@ export default function CompetitionResultEntry({
                 </div>
 
                 <div className="grid flex-[2] gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {definition.resultFields.map(field => (
-                    <label key={field.id}>
+                  {activeResultFields.map(field => (
+                    <label
+                      key={field.id}
+                      htmlFor={`competition-result-${participant.participantId}-${field.id}`}
+                    >
                       <span className="form-label text-xs">
                         {field.label}
                         {field.unit && field.type !== 'duration_ms' ? ` (${field.unit})` : ''}
@@ -284,6 +299,7 @@ export default function CompetitionResultEntry({
                       </span>
                       {field.type === 'boolean' ? (
                         <input
+                          id={`competition-result-${participant.participantId}-${field.id}`}
                           type="checkbox"
                           checked={entry.values[field.id] === true}
                           disabled={entry.status !== null}
@@ -295,6 +311,7 @@ export default function CompetitionResultEntry({
                         />
                       ) : (
                         <input
+                          id={`competition-result-${participant.participantId}-${field.id}`}
                           className="form-input"
                           type={field.type === 'text' ? 'text' : 'number'}
                           min={field.type === 'duration_ms' && field.min !== undefined
@@ -331,9 +348,10 @@ export default function CompetitionResultEntry({
                       )}
                     </label>
                   ))}
-                  <label>
+                  <label htmlFor={`competition-status-${participant.participantId}`}>
                     <span className="form-label text-xs">Status</span>
                     <select
+                      id={`competition-status-${participant.participantId}`}
                       className="form-input"
                       value={entry.status ?? ''}
                       onChange={event => patchEntry(participant.participantId, {
@@ -388,12 +406,12 @@ export default function CompetitionResultEntry({
 }
 
 function isEntryComplete(
-  definition: CompetitionFormatDefinition,
+  resultFields: CompetitionFormatDefinition['resultFields'],
   entry: EntryState | undefined,
 ): boolean {
   if (!entry || !entry.id) return false
   if (entry.status !== null) return true
-  return definition.resultFields
+  return resultFields
     .filter(field => field.required)
     .every(field => {
       const value = entry.values[field.id]

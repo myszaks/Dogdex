@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import useUser from '@/hooks/useUser'
 import type { FormField } from '@/types'
 import ConfirmModal from './ConfirmModal'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 interface Props {
   eventId: string
@@ -100,7 +101,7 @@ export default function UserRegistrationStatus({ eventId, eventStatus }: Props) 
     <div className="space-y-3">
       {registrations.length > 1 && (
         <p className="text-xs font-medium text-slate-500">
-          Twoje zapisy na to wydarzenie: {registrations.length}
+          Twoje zapisy na to wydarzenie: {formatPolishCount(registrations.length, POLISH_FORMS.registration)}
         </p>
       )}
 

@@ -97,7 +97,7 @@ export async function POST(req: Request, { params }: Params) {
 
   const { registration_id, time_slot_id, item_date = '' } = body
   if (!registration_id || !time_slot_id)
-    return NextResponse.json({ error: 'Wymagane: registration_id, time_slot_id' }, { status: 400 })
+    return NextResponse.json({ error: 'Brakuje identyfikatora zapisu lub terminu.' }, { status: 400 })
 
   const [{ data: registration }, { data: slot }] = await Promise.all([
     supabase
@@ -113,17 +113,17 @@ export async function POST(req: Request, { params }: Params) {
   ])
 
   if (!registration || !slot) {
-    return NextResponse.json({ error: 'Nie znaleziono zapisu lub slotu' }, { status: 404 })
+    return NextResponse.json({ error: 'Nie znaleziono zapisu lub terminu' }, { status: 404 })
   }
   if (
     registration.event_id !== id
     || slot.event_id !== id
     || registration.status !== 'confirmed'
   ) {
-    return NextResponse.json({ error: 'Zapis i slot muszą należeć do tego wydarzenia' }, { status: 409 })
+    return NextResponse.json({ error: 'Zapis i termin muszą należeć do tego wydarzenia' }, { status: 409 })
   }
   if (item_date && item_date !== slot.slot_date) {
-    return NextResponse.json({ error: 'Data przypisania nie zgadza się z datą slotu' }, { status: 409 })
+    return NextResponse.json({ error: 'Data przypisania nie zgadza się z datą terminu' }, { status: 409 })
   }
 
   if (item_date) {
@@ -163,7 +163,7 @@ export async function POST(req: Request, { params }: Params) {
   const { data, error } = await supabase
     .from('schedule_assignments')
     .upsert(
-      { registration_id, time_slot_id, item_date },
+      { registration_id, time_slot_id, item_date, sent_at: null },
       { onConflict: 'registration_id,item_date' }
     )
     .select()

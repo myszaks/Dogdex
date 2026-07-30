@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import type { FormField } from '@/types'
 import OptionReorder from './OptionReorder'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 // ─── Field type labels ──────────────────────────────────────────────────────
 const FIELD_TYPES: Array<{ value: FormField['type']; label: string }> = [
@@ -13,7 +14,7 @@ const FIELD_TYPES: Array<{ value: FormField['type']; label: string }> = [
   { value: 'multiselect', label: 'Wielokrotny wybór' },
   { value: 'multidate', label: 'Wybór dat (wielokrotny)' },
   { value: 'textarea', label: 'Długi tekst' },
-  { value: 'checkbox', label: 'Checkbox (tak/nie)' },
+  { value: 'checkbox', label: 'Pole wyboru (tak/nie)' },
 ]
 
 const DEFAULT_LABELS: Record<FormField['type'], string> = {
@@ -51,6 +52,13 @@ function FieldCard({
   onMoveDown,
   templateMode,
 }: FieldCardProps) {
+  const fieldIdPart = (field.id || String(index)).replace(/[^a-zA-Z0-9_-]/g, '-')
+  const labelId = `form-field-${fieldIdPart}-label`
+  const typeId = `form-field-${fieldIdPart}-type`
+  const placeholderId = `form-field-${fieldIdPart}-placeholder`
+  const descriptionId = `form-field-${fieldIdPart}-description`
+  const requiredId = `form-field-${fieldIdPart}-required`
+
   return (
     <div className="rounded-2xl border border-[#dfe8d8] bg-white p-4 shadow-sm">
       <div className="flex gap-3 items-start">
@@ -82,63 +90,73 @@ function FieldCard({
         <div className="flex-1 space-y-2 min-w-0">
           {/* Label + type row */}
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-            <label className="block">
-              <span className="form-label">Nazwa pytania</span>
+            <div className="block">
+              <label htmlFor={labelId} className="form-label">Nazwa pytania</label>
               <input
+                id={labelId}
                 className="form-input min-h-11 text-sm"
                 value={field.label}
                 onChange={e => onUpdate(index, { label: e.target.value })}
                 placeholder="Np. Poziom zaawansowania"
               />
-            </label>
-            <label className="block">
-              <span className="form-label">Sposób odpowiedzi</span>
+            </div>
+            <div className="block">
+              <label htmlFor={typeId} className="form-label">Sposób odpowiedzi</label>
               <select
-              className="form-input min-h-11 text-sm"
-              value={field.type}
-              onChange={e => {
-                const t = e.target.value as FormField['type']
-                onUpdate(index, {
-                  type: t,
-                  options:
-                    (t === 'select' || t === 'multiselect' || t === 'multidate')
-                      ? field.options?.length
-                        ? field.options
-                        : t === 'multidate'
-                          ? []
-                          : ['Opcja 1', 'Opcja 2']
-                      : undefined,
-                })
-              }}
-            >
-              {FIELD_TYPES.map(t => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
+                id={typeId}
+                className="form-input min-h-11 text-sm"
+                value={field.type}
+                onChange={e => {
+                  const t = e.target.value as FormField['type']
+                  onUpdate(index, {
+                    type: t,
+                    options:
+                      (t === 'select' || t === 'multiselect' || t === 'multidate')
+                        ? field.options?.length
+                          ? field.options
+                          : t === 'multidate'
+                            ? []
+                            : ['Opcja 1', 'Opcja 2']
+                        : undefined,
+                  })
+                }}
+              >
+                {FIELD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
-            </label>
+            </div>
           </div>
 
           {/* Placeholder */}
           {field.type !== 'checkbox' && field.type !== 'select' && (
-            <input
-              className="form-input min-h-11 text-sm"
-              value={field.placeholder ?? ''}
-              onChange={e => onUpdate(index, { placeholder: e.target.value })}
-              placeholder="Tekst podpowiedzi (opcjonalnie)"
-            />
+            <div>
+              <label htmlFor={placeholderId} className="form-label">Tekst podpowiedzi (opcjonalnie)</label>
+              <input
+                id={placeholderId}
+                className="form-input min-h-11 text-sm"
+                value={field.placeholder ?? ''}
+                onChange={e => onUpdate(index, { placeholder: e.target.value })}
+                placeholder="Np. Wpisz poziom zaawansowania"
+              />
+            </div>
           )}
 
           {/* Description */}
-          <input
-            className="form-input min-h-11 text-sm"
-            value={field.description ?? ''}
-            onChange={e =>
-              onUpdate(index, { description: e.target.value || undefined })
-            }
-            placeholder="Opis / pomoc dla uczestnika (opcjonalnie)"
-          />
+          <div>
+            <label htmlFor={descriptionId} className="form-label">Opis dla uczestnika (opcjonalnie)</label>
+            <input
+              id={descriptionId}
+              className="form-input min-h-11 text-sm"
+              value={field.description ?? ''}
+              onChange={e =>
+                onUpdate(index, { description: e.target.value || undefined })
+              }
+              placeholder="Dodatkowe wyjaśnienie pytania"
+            />
+          </div>
 
           {/* Select options */}
           {(field.type === 'select' || field.type === 'multiselect' || field.type === 'multidate') && (
@@ -160,8 +178,9 @@ function FieldCard({
           )}
 
           {/* Required toggle */}
-          <label className="flex min-h-11 items-center gap-3 rounded-xl bg-[#f4f7f1] px-3 text-sm font-medium text-[#43513d] cursor-pointer select-none">
+          <label htmlFor={requiredId} className="flex min-h-11 items-center gap-3 rounded-xl bg-[#f4f7f1] px-3 text-sm font-medium text-[#43513d] cursor-pointer select-none">
             <input
+              id={requiredId}
               type="checkbox"
               checked={field.required}
               onChange={e => onUpdate(index, { required: e.target.checked })}
@@ -196,10 +215,12 @@ function SaveTemplatePanel({
   eventTypeId: string | null
   onClose: () => void
 }) {
+  const nameId = `template-name-${useId().replace(/:/g, '')}`
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const errorId = `${nameId}-error`
 
   async function save() {
     if (!name.trim()) return
@@ -237,7 +258,9 @@ function SaveTemplatePanel({
       ) : (
         <>
           <div className="flex gap-2">
+            <label htmlFor={nameId} className="sr-only">Nazwa szablonu</label>
             <input
+              id={nameId}
               className="form-input flex-1 text-sm"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -249,6 +272,8 @@ function SaveTemplatePanel({
                 }
               }}
               autoFocus
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
             />
             <button
               type="button"
@@ -259,7 +284,7 @@ function SaveTemplatePanel({
               {saving ? '...' : 'Zapisz'}
             </button>
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p id={errorId} role="alert" className="text-xs text-red-600">{error}</p>}
         </>
       )}
     </div>
@@ -311,7 +336,9 @@ function LoadTemplatePanel({
         <div key={t.id} className="flex items-center justify-between gap-2 py-1 border-b border-sky-100 last:border-0">
           <div>
             <p className="text-sm font-medium text-slate-700">{t.name}</p>
-            <p className="text-xs text-slate-400">{t.fields.length} pól dodatkowych</p>
+            <p className="text-xs text-slate-400">
+              {formatPolishCount(t.fields.length, POLISH_FORMS.field)} dodatkowych
+            </p>
           </div>
           <button
             type="button"

@@ -22,7 +22,7 @@ export default function TrainerBookingsPage() {
       .then(async response => {
         const data = await response.json().catch(() => null)
         if (!response.ok) {
-          throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie pobrac rezerwacji')
+          throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się pobrać rezerwacji')
         }
         return data
       })
@@ -47,7 +47,7 @@ export default function TrainerBookingsPage() {
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie potwierdzic rezerwacji')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się potwierdzić rezerwacji')
       }
 
       setBookings(currentBookings =>
@@ -81,7 +81,7 @@ export default function TrainerBookingsPage() {
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie odrzucic rezerwacji')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się odrzucić rezerwacji')
       }
 
       setBookings(currentBookings =>
@@ -101,9 +101,9 @@ export default function TrainerBookingsPage() {
       <div className="max-w-4xl mx-auto px-4 py-12">
         <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
           <ArrowLeft className="w-4 h-4" />
-          Wroc do panelu
+          Wróć do panelu
         </Link>
-        <div className="text-center text-slate-500">Ladowanie...</div>
+        <div className="text-center text-slate-500">Ładowanie...</div>
       </div>
     )
   }
@@ -122,7 +122,7 @@ export default function TrainerBookingsPage() {
         {format(parseISO(booking.scheduled_at), 'd MMMM yyyy HH:mm', { locale: pl })}
       </p>
       <p className="text-sm text-muted-foreground mt-2">
-        Klient: <span className="font-medium text-foreground">{booking.user_name || 'Uzytkownik'}</span>
+        Klient: <span className="font-medium text-foreground">{booking.user_name || 'Użytkownik'}</span>
         {booking.dogs && (
           <>
             {' | '}Pies: <span className="font-medium text-foreground">{booking.dogs.name}</span>
@@ -136,10 +136,10 @@ export default function TrainerBookingsPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
-        Wroc do panelu
+        Wróć do panelu
       </Link>
 
-      <h1 className="font-heading font-bold text-3xl mb-6">Rezerwacje treningow</h1>
+      <h1 className="font-heading font-bold text-3xl mb-6">Rezerwacje treningów</h1>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
@@ -177,7 +177,7 @@ export default function TrainerBookingsPage() {
 
                     {booking.notes_user && (
                       <div className="bg-slate-50 rounded p-3 mb-4 text-sm">
-                        <p className="font-semibold mb-1">Notatki uzytkownika:</p>
+                        <p className="font-semibold mb-1">Notatki użytkownika:</p>
                         <p className="text-slate-600">{booking.notes_user}</p>
                       </div>
                     )}
@@ -204,7 +204,7 @@ export default function TrainerBookingsPage() {
                         className="btn btn-secondary flex items-center justify-center gap-2"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        Szczegoly
+                        Szczegóły
                       </Link>
                     </div>
                   </div>
@@ -238,7 +238,7 @@ export default function TrainerBookingsPage() {
                           href={`/trainer/bookings/${booking.id}`}
                           className="text-sm text-accent hover:underline inline-flex items-center gap-1"
                         >
-                          Szczegoly <ExternalLink className="w-3.5 h-3.5" />
+                          Szczegóły <ExternalLink className="w-3.5 h-3.5" />
                         </Link>
                       </div>
                     </div>
@@ -276,7 +276,7 @@ export default function TrainerBookingsPage() {
                           href={`/trainer/bookings/${booking.id}`}
                           className="text-sm text-accent hover:underline inline-flex items-center gap-1"
                         >
-                          Szczegoly <ExternalLink className="w-3.5 h-3.5" />
+                          Szczegóły <ExternalLink className="w-3.5 h-3.5" />
                         </Link>
                       </div>
                     </div>

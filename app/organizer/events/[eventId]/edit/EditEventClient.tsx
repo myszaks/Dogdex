@@ -44,6 +44,7 @@ import {
 } from '@/lib/eventCompetitionDependencies'
 import { SPEEDWAY_CLASS_GROUPING_FIELD } from '@/lib/speedway'
 import { cn } from '@/lib/utils'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
@@ -56,7 +57,7 @@ const STEPS = [
   { label: 'Podstawowe informacje', shortLabel: 'Informacje', Icon: FileText },
   { label: 'Lokalizacja i czas', shortLabel: 'Lokalizacja', Icon: MapPin },
   { label: 'Rejestracja i limity', shortLabel: 'Rejestracja', Icon: Users },
-  { label: 'Wyniki i transmisja live', shortLabel: 'Wyniki i live', Icon: Trophy },
+  { label: 'Wyniki', shortLabel: 'Wyniki', Icon: Trophy },
   { label: 'Podgląd i zapis', shortLabel: 'Podgląd', Icon: Eye },
 ]
 
@@ -126,7 +127,7 @@ function durationLabel(startAt: string | null, endAt: string | null) {
   const hours = Math.max(1, Math.round(diff / 36e5))
   if (hours < 24) return `${hours} godz.`
   const days = Math.ceil(hours / 24)
-  return `${days} ${days === 1 ? 'dzień' : 'dni'}`
+  return formatPolishCount(days, POLISH_FORMS.day)
 }
 
 export default function EditEventClient({ eventId, initialData }: Props) {
@@ -135,6 +136,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [loading, setLoading] = useState(false)
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dateErrorFieldId, setDateErrorFieldId] = useState<string | null>(null)
 
   const [eventTypeId, setEventTypeId] = useState<string>(initialData.event_type_id ?? '')
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(initialData.form_template_id ?? null)
@@ -226,6 +228,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
   function validateStep(step: number, nextStatus = initialData.status ?? 'upcoming') {
     setError(null)
+    setDateErrorFieldId(null)
     const publishing = nextStatus !== 'draft'
 
     if (step === 0) {
@@ -242,10 +245,12 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     if (step === 1 && publishing) {
       if (!startAt) {
         setError('Wybierz datę rozpoczęcia wydarzenia.')
+        setDateErrorFieldId('edit-event-start-at')
         return false
       }
       if (startAt && endAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
         setError('Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.')
+        setDateErrorFieldId('edit-event-end-at')
         return false
       }
     }
@@ -384,7 +389,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Edycja wydarzenia</p>
-          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator Wydarzenia</h1>
+          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator wydarzenia</h1>
           <p className="mt-2 text-muted-foreground">Krok {currentStep + 1}: {STEPS[currentStep].label}</p>
         </div>
         <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
@@ -421,16 +426,16 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <div className="space-y-5">
                   <div>
-                    <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
-                    <input className="form-input min-h-14 bg-sage-50 text-base font-semibold" value={title} onChange={e => setTitle(e.target.value)} />
+                    <label htmlFor="edit-event-title" className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
+                    <input id="edit-event-title" className="form-input min-h-14 bg-sage-50 text-base font-semibold" value={title} onChange={e => setTitle(e.target.value)} />
                   </div>
                   <div>
-                    <label className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
-                    <input className="form-input min-h-12 bg-sage-50" value={organizerName} onChange={e => setOrganizerName(e.target.value)} />
+                    <label htmlFor="edit-event-organizer" className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
+                    <input id="edit-event-organizer" className="form-input min-h-12 bg-sage-50" value={organizerName} onChange={e => setOrganizerName(e.target.value)} />
                   </div>
                   <div>
-                    <label className="form-label uppercase tracking-[0.16em] text-sage-500">Szczegółowy opis</label>
-                    <textarea className="form-input min-h-44 bg-sage-50 text-base leading-7" value={description} onChange={e => setDescription(e.target.value)} />
+                    <label htmlFor="edit-event-description" className="form-label uppercase tracking-[0.16em] text-sage-500">Szczegółowy opis</label>
+                    <textarea id="edit-event-description" className="form-input min-h-44 bg-sage-50 text-base leading-7" value={description} onChange={e => setDescription(e.target.value)} />
                   </div>
 
                   <details className="group rounded-3xl border border-sage-200 bg-white shadow-sm">
@@ -470,12 +475,45 @@ export default function EditEventClient({ eventId, initialData }: Props) {
               <Panel Icon={CalendarDays} title="Harmonogram">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="form-label">Data rozpoczęcia</label>
-                    <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datę startu" />
+                    <label htmlFor="edit-event-start-at" className="form-label">Data rozpoczęcia</label>
+                    <DateTimePicker
+                      id="edit-event-start-at"
+                      value={startAt}
+                      onChange={value => {
+                        setStartAt(value)
+                        if (
+                          value
+                          && (!endAt || new Date(endAt).getTime() >= new Date(value).getTime())
+                          && dateErrorFieldId
+                        ) {
+                          setError(null)
+                          setDateErrorFieldId(null)
+                        }
+                      }}
+                      placeholder="Wybierz datę startu"
+                      invalid={dateErrorFieldId === 'edit-event-start-at'}
+                      describedBy={dateErrorFieldId === 'edit-event-start-at' ? 'edit-event-validation-error' : undefined}
+                    />
                   </div>
                   <div>
-                    <label className="form-label">Data zakończenia</label>
-                    <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
+                    <label htmlFor="edit-event-end-at" className="form-label">Data zakończenia</label>
+                    <DateTimePicker
+                      id="edit-event-end-at"
+                      value={endAt}
+                      onChange={value => {
+                        setEndAt(value)
+                        if (
+                          (!value || !startAt || new Date(value).getTime() >= new Date(startAt).getTime())
+                          && dateErrorFieldId === 'edit-event-end-at'
+                        ) {
+                          setError(null)
+                          setDateErrorFieldId(null)
+                        }
+                      }}
+                      placeholder="Opcjonalnie"
+                      invalid={dateErrorFieldId === 'edit-event-end-at'}
+                      describedBy={dateErrorFieldId === 'edit-event-end-at' ? 'edit-event-validation-error' : undefined}
+                    />
                   </div>
                 </div>
                 <div className="mt-8 rounded-3xl border border-sage-200 bg-sage-50 p-5">
@@ -544,8 +582,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                   </div>
                 </details>
                 <div className="mt-5 rounded-2xl border border-sage-200 bg-sage-50/60 p-4">
-                  <label className="form-label">Grupowanie listy zapisów</label>
+                  <label htmlFor="edit-event-grouping" className="form-label">Grupowanie listy zapisów</label>
                   <select
+                    id="edit-event-grouping"
                     className="form-input min-h-11"
                     value={groupingField}
                     onChange={e => setGroupingField(e.target.value)}
@@ -568,24 +607,24 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
               <div className="grid items-start gap-6 lg:grid-cols-2">
                 <Panel Icon={Users} title="Limity uczestników">
-                  <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
+                  <label htmlFor="edit-event-max-participants" className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
                   <div className="relative">
-                    <input className="form-input min-h-14 pr-16 text-lg" type="number" min="1" value={maxParticipants} onChange={e => setMaxParticipants(e.target.value)} />
+                    <input id="edit-event-max-participants" className="form-input min-h-14 pr-16 text-lg" type="number" min="1" value={maxParticipants} onChange={e => setMaxParticipants(e.target.value)} />
                     <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-sage-500">psów</span>
                   </div>
                 </Panel>
 
                 <Panel Icon={CalendarDays} title="Terminy zapisów">
-                  <label className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
-                  <DateTimePicker value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
+                  <label htmlFor="edit-event-registration-deadline" className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
+                  <DateTimePicker id="edit-event-registration-deadline" value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
                 </Panel>
 
                 <Panel Icon={Wallet} title="Opłaty">
                   <ToggleRow checked={entryFeeEnabled} onChange={checked => { setEntryFeeEnabled(checked); if (!checked) setEntryFee('') }} title="Pobieraj wpisowe" description="Zachowuje istniejącą logikę wpisowego w PLN." />
                   {entryFeeEnabled && (
                     <div className="mt-5">
-                      <label className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
-                      <input className="form-input min-h-14 text-lg" type="number" min="0" step="0.01" value={entryFee} onChange={e => setEntryFee(e.target.value)} />
+                      <label htmlFor="edit-event-entry-fee" className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
+                      <input id="edit-event-entry-fee" className="form-input min-h-14 text-lg" type="number" min="0" step="0.01" value={entryFee} onChange={e => setEntryFee(e.target.value)} />
                     </div>
                   )}
                 </Panel>
@@ -614,7 +653,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                   <ToggleRow
                     checked={resultsPublic}
                     onChange={setResultsPublic}
-                    title="Wyniki i live publiczne"
+                    title="Wyniki na żywo są publiczne"
                     description="Wyłącz, jeśli chcesz tymczasowo ukryć wyniki przed uczestnikami."
                   />
                 </Panel>
@@ -710,7 +749,11 @@ export default function EditEventClient({ eventId, initialData }: Props) {
         </div>
 
         {error && (
-          <div className="mx-5 mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-8 lg:mx-10">
+          <div
+            id="edit-event-validation-error"
+            role="alert"
+            className="mx-5 mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-8 lg:mx-10"
+          >
             {error}
           </div>
         )}

@@ -87,14 +87,16 @@ export default function SettingsClient({ email, provider }: Props) {
           <h2 className="font-heading font-semibold text-foreground">Zmiana hasła</h2>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Obecne hasło</label>
-            <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+            <label htmlFor="settings-current-password" className="block text-sm font-medium text-foreground mb-1.5">Obecne hasło</label>
+            <input id="settings-current-password" type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+              aria-describedby={pwError ? 'settings-password-error' : undefined}
               className="form-input" autoComplete="current-password" required />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Nowe hasło</label>
-            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+            <label htmlFor="settings-new-password" className="block text-sm font-medium text-foreground mb-1.5">Nowe hasło</label>
+            <input id="settings-new-password" type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+              aria-describedby={pwError ? 'settings-password-error' : undefined}
               className="form-input" autoComplete="new-password" placeholder="Min. 9 znaków" required />
             {newPw.length > 0 && (
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
@@ -113,15 +115,16 @@ export default function SettingsClient({ email, provider }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Powtórz nowe hasło</label>
-            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+            <label htmlFor="settings-confirm-password" className="block text-sm font-medium text-foreground mb-1.5">Powtórz nowe hasło</label>
+            <input id="settings-confirm-password" type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+              aria-describedby={`${confirmPw.length > 0 && newPw !== confirmPw ? 'settings-password-match ' : ''}${pwError ? 'settings-password-error' : ''}`.trim() || undefined}
               className="form-input" autoComplete="new-password" required />
             {confirmPw.length > 0 && newPw !== confirmPw && (
-              <p className="text-xs text-red-500 mt-1">Hasła nie są zgodne</p>
+              <p id="settings-password-match" className="text-xs text-red-500 mt-1">Hasła nie są zgodne</p>
             )}
           </div>
 
-          {pwError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{pwError}</div>}
+          {pwError && <div id="settings-password-error" role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{pwError}</div>}
           {pwSuccess && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">✓ Hasło zostało zmienione!</div>}
 
           <button type="submit" disabled={pwLoading} className="btn btn-primary w-full">

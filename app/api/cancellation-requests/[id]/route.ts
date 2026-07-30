@@ -84,7 +84,7 @@ export async function PATCH(req: Request, { params }: Params) {
       })
     }
 
-    return NextResponse.json({ ok: true, action: 'rejected' })
+    return NextResponse.json({ ok: true, action: 'rejected', registration: null })
   }
 
   // ── ACCEPT ──────────────────────────────────────────────────────────────
@@ -134,18 +134,31 @@ export async function PATCH(req: Request, { params }: Params) {
   if (newFormData) regUpdate.form_data = newFormData
 
   const serviceClient = createServerClient()
+  let updatedRegistration = {
+    id: reg.id as string,
+    status: String(reg.status ?? ''),
+    form_data: (reg.form_data as Record<string, unknown>) ?? {},
+  }
 
   if (Object.keys(regUpdate).length > 0) {
-    const { error: regError } = await serviceClient
+    const { data: registrationData, error: regError } = await serviceClient
       .from('registrations')
       .update(regUpdate)
       .eq('id', reg.id as string)
+      .select('id, status, form_data')
+      .single()
 
     if (regError) return NextResponse.json({ error: regError.message }, { status: 500 })
+    if (registrationData) updatedRegistration = registrationData
   }
 
-  // If specific dates were cancelled, remove any schedule_assignments for those dates
-  if (cancelledDates !== null && cancelledDates.length > 0) {
+  // Remove schedule assignments that are no longer valid after accepting the request.
+  if (newRegistrationStatus === 'cancelled') {
+    await serviceClient
+      .from('schedule_assignments')
+      .delete()
+      .eq('registration_id', reg.id as string)
+  } else if (cancelledDates !== null && cancelledDates.length > 0) {
     const eventId = (event as Record<string, unknown> | null)?.id as string | undefined
     if (eventId) {
       const { data: cancelledSlots } = await serviceClient
@@ -185,5 +198,10 @@ export async function PATCH(req: Request, { params }: Params) {
     })
   }
 
-  return NextResponse.json({ ok: true, action: 'accepted', registrationCancelled: newRegistrationStatus === 'cancelled' })
+  return NextResponse.json({
+    ok: true,
+    action: 'accepted',
+    registrationCancelled: newRegistrationStatus === 'cancelled',
+    registration: updatedRegistration,
+  })
 }

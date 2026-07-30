@@ -49,7 +49,6 @@ interface Props {
 
 export default function RegistrationEventCard({ event, registration, participant, pendingCancellationRequest }: Props) {
   const router = useRouter()
-  const [status, setStatus] = useState(registration.status)
   const [hasPendingRequest, setHasPendingRequest] = useState(!!pendingCancellationRequest)
 
   // multidate cancel UI state
@@ -78,12 +77,12 @@ export default function RegistrationEventCard({ event, registration, participant
     : `/events/${event.slug}`
 
   const canCancel =
-    status !== 'cancelled' &&
+    registration.status !== 'cancelled' &&
     !hasPendingRequest &&
     dispStatus !== 'finished' &&
     dispStatus !== 'cancelled'
 
-  const displayStatusKey = hasPendingRequest ? 'cancellation_pending' : status
+  const displayStatusKey = hasPendingRequest ? 'cancellation_pending' : registration.status
   const config = regStatusConfig[displayStatusKey] ?? { label: displayStatusKey, className: 'bg-secondary text-foreground', Icon: Clock }
   const StatusIcon = config.Icon
 
@@ -202,9 +201,10 @@ export default function RegistrationEventCard({ event, registration, participant
               {/* Multidate selector */}
               {hasMultidate && (
                 <div className="space-y-2">
-                  {allSelectedDates.map(date => (
-                    <label key={date} className="flex items-center gap-3 cursor-pointer">
+                  {allSelectedDates.map((date, index) => (
+                    <label key={date} htmlFor={`cancel-date-${registration.id}-${index}`} className="flex items-center gap-3 cursor-pointer">
                       <input
+                        id={`cancel-date-${registration.id}-${index}`}
                         type="checkbox"
                         className="w-4 h-4 accent-red-500"
                         checked={selectedDates.includes(date)}

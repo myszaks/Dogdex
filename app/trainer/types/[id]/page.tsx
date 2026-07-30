@@ -195,8 +195,9 @@ export default function EditTrainingTypePage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-3 text-sm font-medium">
+          <label htmlFor="training-type-active" className="flex items-center gap-3 text-sm font-medium">
             <input
+              id="training-type-active"
               type="checkbox"
               checked={form.isActive}
               onChange={(event) => setForm((current) => current && ({

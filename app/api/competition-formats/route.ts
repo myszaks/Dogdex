@@ -11,6 +11,7 @@ export async function GET() {
   let query = supabase
     .from('competition_formats')
     .select('id, family_id, previous_version_id, version, name, description, status, definition, is_system, published_at, created_at, updated_at')
+    .eq('status', 'published')
     .order('is_system', { ascending: false })
     .order('updated_at', { ascending: false })
 

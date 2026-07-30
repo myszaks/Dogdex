@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -19,9 +19,11 @@ import {
   ImagePlus,
   Info,
   ListChecks,
+  LoaderCircle,
   MapPin,
   PawPrint,
   Rocket,
+  RefreshCw,
   ShieldCheck,
   Trophy,
   Users,
@@ -49,6 +51,11 @@ import {
 import { SPEEDWAY_CLASS_GROUPING_FIELD } from '@/lib/speedway'
 import { getLiveVisibilityLabel } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
+import {
+  isPreselectedFormatBlocking,
+  type PreselectedFormatStatus,
+} from '@/lib/eventCreatorFormatSelection'
 import type { FormField } from '@/types'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
@@ -61,9 +68,11 @@ const STEPS = [
   { label: 'Podstawowe informacje', shortLabel: 'Informacje', Icon: FileText },
   { label: 'Lokalizacja i czas', shortLabel: 'Lokalizacja', Icon: MapPin },
   { label: 'Rejestracja i limity', shortLabel: 'Rejestracja', Icon: Users },
-  { label: 'Wyniki i transmisja live', shortLabel: 'Wyniki i live', Icon: Trophy },
+  { label: 'Wyniki', shortLabel: 'Wyniki', Icon: Trophy },
   { label: 'Podgląd i publikacja', shortLabel: 'Podgląd', Icon: Eye },
 ]
+
+const CREATOR_ERROR_ID = 'event-creator-validation-error'
 
 type EventVisual = {
   label: string
@@ -164,7 +173,7 @@ function durationLabel(startAt: string | null, endAt: string | null) {
   const hours = Math.max(1, Math.round(diff / 36e5))
   if (hours < 24) return `${hours} godz.`
   const days = Math.ceil(hours / 24)
-  return `${days} ${days === 1 ? 'dzień' : 'dni'}`
+  return formatPolishCount(days, POLISH_FORMS.day)
 }
 
 export default function NewEventPage() {
@@ -173,7 +182,13 @@ export default function NewEventPage() {
   const [loading, setLoading] = useState(false)
   const [savingMode, setSavingMode] = useState<'draft' | 'publish' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [errorFieldId, setErrorFieldId] = useState<string | null>(null)
   const [tutorialSession, setTutorialSession] = useState(0)
+  const [preselectedFormatName, setPreselectedFormatName] = useState<string | null>(null)
+  const [preselectedFormatStatus, setPreselectedFormatStatus] =
+    useState<PreselectedFormatStatus>('checking')
+  const [preselectedFormatError, setPreselectedFormatError] = useState<string | null>(null)
+  const [preselectedFormatRetry, setPreselectedFormatRetry] = useState(0)
 
   const [eventTypeId, setEventTypeId] = useState<string>('')
   const [title, setTitle] = useState('')
@@ -202,6 +217,50 @@ export default function NewEventPage() {
   const [venueName, setVenueName] = useState('')
   const [groupingField, setGroupingField] = useState<string>('')
 
+  useEffect(() => {
+    const formatId = new URLSearchParams(window.location.search).get('competitionFormatId')
+    if (!formatId) {
+      let active = true
+      queueMicrotask(() => {
+        if (active) setPreselectedFormatStatus('idle')
+      })
+      return () => {
+        active = false
+      }
+    }
+
+    const controller = new AbortController()
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        setPreselectedFormatStatus('loading')
+        setPreselectedFormatError(null)
+      }
+    })
+    fetch(`/api/competition-formats/${formatId}`, { signal: controller.signal })
+      .then(async response => {
+        const json = await response.json()
+        if (!response.ok) throw new Error(json.error ?? 'Nie udało się pobrać formatu.')
+        if (json.status !== 'published') {
+          throw new Error('Do nowego wydarzenia można przypisać tylko opublikowany format.')
+        }
+        setHasResults(true)
+        setCompetitionFormatId(json.id)
+        setCompetitionDefinition(json.definition as CompetitionFormatDefinition)
+        setCompetitionValues({})
+        setPreselectedFormatName(`${json.name} · wersja ${json.version}`)
+        setPreselectedFormatStatus('ready')
+      })
+      .catch(loadError => {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return
+        setPreselectedFormatStatus('error')
+        setPreselectedFormatError(loadError instanceof Error
+          ? loadError.message
+          : 'Nie udało się pobrać wybranego formatu.')
+      })
+
+    return () => controller.abort()
+  }, [preselectedFormatRetry])
+
   const selectedType = EVENT_TYPES.find(t => t.id === eventTypeId)
   const selectedVisual = selectedType ? getEventVisual(selectedType.id, selectedType.name) : null
   const groupableFields = useMemo(
@@ -212,6 +271,27 @@ export default function NewEventPage() {
   const visibleLocation = locationSummary || 'Lokalizacja do uzupełnienia'
   const seatsLabel = maxParticipants ? `${maxParticipants} miejsc` : 'Bez limitu miejsc'
   const feeLabel = entryFeeEnabled ? formatMoney(entryFee) : 'Bezpłatne'
+  const preselectedFormatBlocking =
+    isPreselectedFormatBlocking(preselectedFormatStatus)
+
+  useEffect(() => {
+    if (!error) return
+    const target = errorFieldId
+      ? document.getElementById(errorFieldId)
+      : document.getElementById(CREATOR_ERROR_ID)
+    target?.focus({ preventScroll: false })
+  }, [currentStep, error, errorFieldId])
+
+  function clearCreatorError(fieldId?: string) {
+    if (fieldId && errorFieldId && errorFieldId !== fieldId) return
+    setError(null)
+    setErrorFieldId(null)
+  }
+
+  function showCreatorError(message: string, fieldId?: string) {
+    setError(message)
+    setErrorFieldId(fieldId ?? null)
+  }
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
@@ -249,38 +329,44 @@ export default function NewEventPage() {
   }
 
   function validateStep(step: number) {
-    setError(null)
+    clearCreatorError()
 
     if (step === 0) {
       if (!eventTypeId) {
-        setError('Wybierz typ wydarzenia.')
+        showCreatorError('Wybierz typ wydarzenia.', 'event-type-options')
         return false
       }
       if (!title.trim()) {
-        setError('Podaj nazwę wydarzenia.')
+        showCreatorError('Podaj nazwę wydarzenia.', 'event-title')
         return false
       }
     }
 
     if (step === 1) {
       if (!startAt) {
-        setError('Wybierz datę rozpoczęcia wydarzenia.')
+        showCreatorError('Wybierz datę rozpoczęcia wydarzenia.', 'event-start-at')
         return false
       }
       if (startAt && endAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
-        setError('Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.')
+        showCreatorError(
+          'Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.',
+          'event-end-at',
+        )
         return false
       }
     }
 
     if (step === 2) {
       if (entryFeeEnabled && !entryFee.trim()) {
-        setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
+        showCreatorError(
+          'Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.',
+          'event-entry-fee',
+        )
         return false
       }
       const formIssues = validateFormFieldDefinitions(formFields)
       if (formIssues.length > 0) {
-        setError(formIssues[0].message)
+        showCreatorError(formIssues[0].message, 'registration-form')
         return false
       }
     }
@@ -291,7 +377,7 @@ export default function NewEventPage() {
         competitionDefinition,
       )
       if (dependencyIssues.length > 0) {
-        setError(`${dependencyIssues[0].message} Wróć do kroku rejestracji, aby poprawić formularz.`)
+        showCreatorError(`${dependencyIssues[0].message} Wróć do kroku rejestracji, aby poprawić formularz.`)
         return false
       }
       const valueIssues = validateCompetitionFieldValues(
@@ -302,10 +388,11 @@ export default function NewEventPage() {
         const field = competitionDefinition.eventFields.find(candidate =>
           valueIssues[0].path.includes(candidate.id)
         )
-        setError(
+        showCreatorError(
           field
             ? `Uzupełnij pole „${field.label}” w ustawieniach wyników.`
             : valueIssues[0].message,
+          field ? `competition-event-field-${field.id}` : undefined,
         )
         return false
       }
@@ -315,9 +402,10 @@ export default function NewEventPage() {
   }
 
   function goToStep(nextStep: number) {
+    if (preselectedFormatBlocking) return
     if (nextStep === currentStep) return
     if (nextStep < currentStep) {
-      setError(null)
+      clearCreatorError()
       setCurrentStep(nextStep)
       return
     }
@@ -332,12 +420,13 @@ export default function NewEventPage() {
   }
 
   function goNext() {
+    if (preselectedFormatBlocking) return
     if (!validateStep(currentStep)) return
     setCurrentStep(step => Math.min(STEPS.length - 1, step + 1))
   }
 
   function goBack() {
-    setError(null)
+    clearCreatorError()
     if (currentStep === 0) {
       router.back()
       return
@@ -346,6 +435,7 @@ export default function NewEventPage() {
   }
 
   async function saveEvent(status: 'draft' | 'upcoming') {
+    if (preselectedFormatBlocking) return
     const isDraft = status === 'draft'
 
     if (!isDraft) {
@@ -359,7 +449,7 @@ export default function NewEventPage() {
 
     setLoading(true)
     setSavingMode(isDraft ? 'draft' : 'publish')
-    setError(null)
+    clearCreatorError()
 
     const payload = {
       title: title.trim() || 'Szkic wydarzenia',
@@ -402,7 +492,7 @@ export default function NewEventPage() {
       router.push('/organizer')
       router.refresh()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Nieznany błąd')
+      showCreatorError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setLoading(false)
       setSavingMode(null)
@@ -414,7 +504,7 @@ export default function NewEventPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Nowe wydarzenie</p>
-          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator Wydarzenia</h1>
+          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator wydarzenia</h1>
           <p className="mt-2 text-muted-foreground">
             Krok {currentStep + 1}: {STEPS[currentStep].label}
           </p>
@@ -442,8 +532,69 @@ export default function NewEventPage() {
         onManualComplete={() => setTutorialSession(0)}
       />
 
+      {preselectedFormatStatus === 'loading' && (
+        <div
+          role="status"
+          className="flex gap-3 rounded-2xl border border-sage-200 bg-sage-50 px-4 py-3 text-sm text-sage-800"
+        >
+          <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-accent" />
+          <p>
+            <strong>Ładuję wybrany format wyników…</strong>
+            {' '}Możesz uzupełniać ten krok. Przejście dalej odblokuje się po bezpiecznym
+            przypięciu formatu.
+          </p>
+        </div>
+      )}
+
+      {preselectedFormatStatus === 'error' && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex gap-3">
+            <Trophy className="mt-0.5 h-5 w-5 shrink-0" />
+            <p>
+              <strong>Nie udało się przypiąć formatu.</strong>
+              {' '}{preselectedFormatError}
+              {' '}Kreator nie pozwoli zapisać wydarzenia bez rozstrzygnięcia tego błędu.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setPreselectedFormatRetry(value => value + 1)}
+              className="btn btn-secondary btn-sm"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Spróbuj ponownie
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/organizer/formats')}
+              className="btn btn-secondary btn-sm"
+            >
+              Wróć do formatów
+            </button>
+          </div>
+        </div>
+      )}
+
+      {preselectedFormatStatus === 'ready' && preselectedFormatName && (
+        <div className="flex gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          <Trophy className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            Format <strong>{preselectedFormatName}</strong> jest już przypięty.
+            Uzupełnij wydarzenie od początku; ustawienia klasyfikacji znajdziesz w kroku „Wyniki”.
+          </p>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
-        <WizardStepper currentStep={currentStep} onStepChange={goToStep} />
+        <WizardStepper
+          currentStep={currentStep}
+          onStepChange={goToStep}
+          disabled={preselectedFormatBlocking}
+        />
 
         <div className="p-5 sm:p-8 lg:p-10">
           {currentStep === 0 && (
@@ -455,10 +606,18 @@ export default function NewEventPage() {
               imageUrl={imageUrl}
               galleryImages={galleryImages}
               selectedTypeName={selectedType?.name}
-              onTitleChange={setTitle}
+              errorFieldId={errorFieldId}
+              errorMessageId={CREATOR_ERROR_ID}
+              onTitleChange={value => {
+                setTitle(value)
+                if (value.trim()) clearCreatorError('event-title')
+              }}
               onOrganizerNameChange={setOrganizerName}
               onDescriptionChange={setDescription}
-              onEventTypeChange={handleEventTypeChange}
+              onEventTypeChange={value => {
+                handleEventTypeChange(value)
+                clearCreatorError('event-type-options')
+              }}
               onImageUrlChange={setImageUrl}
               onGalleryImagesChange={setGalleryImages}
             />
@@ -473,10 +632,26 @@ export default function NewEventPage() {
               startAt={startAt}
               endAt={endAt}
               duration={durationLabel(startAt, endAt)}
+              errorFieldId={errorFieldId}
+              errorMessageId={CREATOR_ERROR_ID}
               onVenueNameChange={setVenueName}
               onLocationChange={handleMapLocation}
-              onStartAtChange={setStartAt}
-              onEndAtChange={setEndAt}
+              onStartAtChange={value => {
+                setStartAt(value)
+                if (
+                  value
+                  && (!endAt || new Date(endAt).getTime() >= new Date(value).getTime())
+                  && (errorFieldId === 'event-start-at' || errorFieldId === 'event-end-at')
+                ) clearCreatorError()
+              }}
+              onEndAtChange={value => {
+                setEndAt(value)
+                if (
+                  !value
+                  || !startAt
+                  || new Date(value).getTime() >= new Date(startAt).getTime()
+                ) clearCreatorError('event-end-at')
+              }}
             />
           )}
 
@@ -494,13 +669,21 @@ export default function NewEventPage() {
               groupingField={groupingField}
               formFieldsCount={formFields.length}
               formFields={formFields}
+              errorFieldId={errorFieldId}
+              errorMessageId={CREATOR_ERROR_ID}
               onMaxParticipantsChange={setMaxParticipants}
               onRegistrationDeadlineChange={setRegistrationDeadline}
               onEntryFeeEnabledChange={checked => {
                 setEntryFeeEnabled(checked)
-                if (!checked) setEntryFee('')
+                if (!checked) {
+                  setEntryFee('')
+                  clearCreatorError('event-entry-fee')
+                }
               }}
-              onEntryFeeChange={setEntryFee}
+              onEntryFeeChange={value => {
+                setEntryFee(value)
+                if (value.trim()) clearCreatorError('event-entry-fee')
+              }}
               onAutoConfirmChange={setAutoConfirm}
               onHasScheduleChange={setHasSchedule}
               onTemplateSelect={handleTemplateSelect}
@@ -523,6 +706,8 @@ export default function NewEventPage() {
               formatId={competitionFormatId}
               definition={competitionDefinition}
               values={competitionValues}
+              errorFieldId={errorFieldId}
+              errorMessageId={CREATOR_ERROR_ID}
               onEnabledChange={checked => {
                 setHasResults(checked)
                 if (!checked) {
@@ -564,7 +749,12 @@ export default function NewEventPage() {
         </div>
 
         {error && (
-          <div className="mx-5 mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-8 lg:mx-10">
+          <div
+            id={CREATOR_ERROR_ID}
+            role="alert"
+            tabIndex={-1}
+            className="mx-5 mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 outline-none focus:ring-2 focus:ring-red-400 sm:mx-8 lg:mx-10"
+          >
             {error}
           </div>
         )}
@@ -580,16 +770,21 @@ export default function NewEventPage() {
           </button>
 
           {currentStep < STEPS.length - 1 ? (
-            <button type="button" onClick={goNext} className="btn btn-primary min-h-12 px-8 shadow-primary/10">
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={preselectedFormatBlocking}
+              className="btn btn-primary min-h-12 px-8 shadow-primary/10"
+            >
               Dalej
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={() => saveEvent('draft')} disabled={loading} className="btn btn-secondary min-h-12 px-8">
+              <button type="button" onClick={() => saveEvent('draft')} disabled={loading || preselectedFormatBlocking} className="btn btn-secondary min-h-12 px-8">
                 {loading && savingMode === 'draft' ? 'Zapisywanie...' : 'Zapisz jako szkic'}
               </button>
-              <button type="button" onClick={() => saveEvent('upcoming')} disabled={loading} className="btn btn-primary min-h-12 px-8 shadow-primary/10">
+              <button type="button" onClick={() => saveEvent('upcoming')} disabled={loading || preselectedFormatBlocking} className="btn btn-primary min-h-12 px-8 shadow-primary/10">
                 {loading && savingMode === 'publish' ? 'Publikowanie...' : 'Opublikuj teraz'}
                 <Rocket className="h-4 w-4" />
               </button>
@@ -604,9 +799,11 @@ export default function NewEventPage() {
 function WizardStepper({
   currentStep,
   onStepChange,
+  disabled = false,
 }: {
   currentStep: number
   onStepChange: (step: number) => void
+  disabled?: boolean
 }) {
   return (
     <div className="border-b border-sage-200 bg-white px-3 py-4 sm:px-8 lg:px-10">
@@ -620,6 +817,7 @@ function WizardStepper({
               key={label}
               type="button"
               onClick={() => onStepChange(index)}
+              disabled={disabled}
               className="group flex min-w-0 flex-col items-center gap-1 rounded-2xl p-1 text-center transition-colors hover:bg-sage-50 sm:flex-row sm:gap-2 sm:p-2 sm:text-left"
               title={label}
               aria-label={`Krok ${index + 1}: ${label}`}
@@ -663,6 +861,8 @@ function StepBasicInfo({
   imageUrl,
   galleryImages,
   selectedTypeName,
+  errorFieldId,
+  errorMessageId,
   onTitleChange,
   onOrganizerNameChange,
   onDescriptionChange,
@@ -677,6 +877,8 @@ function StepBasicInfo({
   imageUrl: string | null
   galleryImages: string[]
   selectedTypeName?: string
+  errorFieldId: string | null
+  errorMessageId: string
   onTitleChange: (value: string) => void
   onOrganizerNameChange: (value: string) => void
   onDescriptionChange: (value: string) => void
@@ -702,8 +904,9 @@ function StepBasicInfo({
 
           <div data-tutorial-id="event-details" className="space-y-5">
             <div>
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
+              <label htmlFor="event-title" className="form-label uppercase tracking-[0.16em] text-sage-500">Nazwa wydarzenia *</label>
               <input
+                id="event-title"
                 className="form-input min-h-14 bg-sage-50 text-base font-semibold"
                 name="title"
                 value={title}
@@ -714,12 +917,15 @@ function StepBasicInfo({
                     : 'Np. Międzynarodowe Zawody Agility'
                 }
                 required
+                aria-invalid={errorFieldId === 'event-title' ? true : undefined}
+                aria-describedby={errorFieldId === 'event-title' ? errorMessageId : undefined}
               />
             </div>
 
             <div>
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
+              <label htmlFor="event-organizer-name" className="form-label uppercase tracking-[0.16em] text-sage-500">Organizator</label>
               <input
+                id="event-organizer-name"
                 className="form-input min-h-12 bg-sage-50"
                 name="organizer_name"
                 value={organizerName}
@@ -729,8 +935,9 @@ function StepBasicInfo({
             </div>
 
             <div>
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Opis wydarzenia</label>
+              <label htmlFor="event-description" className="form-label uppercase tracking-[0.16em] text-sage-500">Opis wydarzenia</label>
               <textarea
+                id="event-description"
                 className="form-input min-h-36 bg-sage-50 text-base leading-7"
                 name="description"
                 value={description}
@@ -749,15 +956,49 @@ function StepBasicInfo({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
-            {EVENT_TYPES.map(type => {
+          <div
+            id="event-type-options"
+            role="radiogroup"
+            aria-label="Rodzaj wydarzenia"
+            aria-invalid={errorFieldId === 'event-type-options' ? true : undefined}
+            aria-describedby={errorFieldId === 'event-type-options' ? errorMessageId : undefined}
+            tabIndex={errorFieldId === 'event-type-options' ? -1 : undefined}
+            className="grid grid-cols-2 gap-2 outline-none focus:ring-2 focus:ring-accent/60 sm:grid-cols-3 xl:grid-cols-2"
+          >
+            {EVENT_TYPES.map((type, index) => {
               const visual = getEventVisual(type.id, type.name)
               const selected = eventTypeId === type.id
               return (
                 <button
                   key={type.id}
+                  id={`event-type-${type.id}`}
                   type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected || (!eventTypeId && index === 0) ? 0 : -1}
                   onClick={() => onEventTypeChange(type.id)}
+                  onKeyDown={event => {
+                    if (event.key === 'Home' || event.key === 'End') {
+                      event.preventDefault()
+                      const nextType = event.key === 'Home'
+                        ? EVENT_TYPES[0]
+                        : EVENT_TYPES[EVENT_TYPES.length - 1]
+                      onEventTypeChange(nextType.id)
+                      document.getElementById(`event-type-${nextType.id}`)?.focus()
+                      return
+                    }
+                    const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                      ? 1
+                      : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                        ? -1
+                        : 0
+                    if (direction === 0) return
+                    event.preventDefault()
+                    const nextIndex = (index + direction + EVENT_TYPES.length) % EVENT_TYPES.length
+                    const nextType = EVENT_TYPES[nextIndex]
+                    onEventTypeChange(nextType.id)
+                    document.getElementById(`event-type-${nextType.id}`)?.focus()
+                  }}
                   className={cn(
                     'group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md',
                     selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200',
@@ -840,6 +1081,8 @@ function StepLocationTime({
   startAt,
   endAt,
   duration,
+  errorFieldId,
+  errorMessageId,
   onVenueNameChange,
   onLocationChange,
   onStartAtChange,
@@ -852,6 +1095,8 @@ function StepLocationTime({
   startAt: string | null
   endAt: string | null
   duration: string
+  errorFieldId: string | null
+  errorMessageId: string
   onVenueNameChange: (value: string) => void
   onLocationChange: (lat: number, lng: number, address: string) => void
   onStartAtChange: (value: string | null) => void
@@ -870,8 +1115,9 @@ function StepLocationTime({
 
         <div className="mt-6 space-y-5">
           <div>
-            <label className="form-label">Nazwa obiektu</label>
+            <label htmlFor="event-venue-name" className="form-label">Nazwa obiektu</label>
             <input
+              id="event-venue-name"
               className="form-input min-h-12 bg-sage-50"
               value={venueName}
               onChange={e => onVenueNameChange(e.target.value)}
@@ -898,12 +1144,27 @@ function StepLocationTime({
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="form-label">Data rozpoczęcia *</label>
-            <DateTimePicker value={startAt} onChange={onStartAtChange} required placeholder="Wybierz datę startu" />
+            <label htmlFor="event-start-at" className="form-label">Data rozpoczęcia *</label>
+            <DateTimePicker
+              id="event-start-at"
+              value={startAt}
+              onChange={onStartAtChange}
+              required
+              placeholder="Wybierz datę startu"
+              invalid={errorFieldId === 'event-start-at'}
+              describedBy={errorFieldId === 'event-start-at' ? errorMessageId : undefined}
+            />
           </div>
           <div>
-            <label className="form-label">Data zakończenia</label>
-            <DateTimePicker value={endAt} onChange={onEndAtChange} placeholder="Opcjonalnie" />
+            <label htmlFor="event-end-at" className="form-label">Data zakończenia</label>
+            <DateTimePicker
+              id="event-end-at"
+              value={endAt}
+              onChange={onEndAtChange}
+              placeholder="Opcjonalnie"
+              invalid={errorFieldId === 'event-end-at'}
+              describedBy={errorFieldId === 'event-end-at' ? errorMessageId : undefined}
+            />
           </div>
         </div>
 
@@ -946,6 +1207,8 @@ function StepRegistration({
   groupingField,
   formFieldsCount,
   formFields,
+  errorFieldId,
+  errorMessageId,
   onMaxParticipantsChange,
   onRegistrationDeadlineChange,
   onEntryFeeEnabledChange,
@@ -968,6 +1231,8 @@ function StepRegistration({
   groupingField: string
   formFieldsCount: number
   formFields: FormField[]
+  errorFieldId: string | null
+  errorMessageId: string
   onMaxParticipantsChange: (value: string) => void
   onRegistrationDeadlineChange: (value: string | null) => void
   onEntryFeeEnabledChange: (checked: boolean) => void
@@ -987,7 +1252,13 @@ function StepRegistration({
 
   return (
     <div className="space-y-8">
-      <Panel Icon={FileText} title="Formularz zapisów" tutorialId="registration-form">
+      <Panel
+        Icon={FileText}
+        title="Formularz zapisów"
+        tutorialId="registration-form"
+        invalid={errorFieldId === 'registration-form'}
+        errorMessageId={errorMessageId}
+      >
         <p className="mb-5 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Dane właściciela i psa są dodawane automatycznie. Poniżej możesz od razu ustawić wszystkie pytania potrzebne przy tym wydarzeniu.
         </p>
@@ -1043,11 +1314,13 @@ function StepRegistration({
         </details>
 
         <div className="mt-5 rounded-2xl border border-sage-200 bg-sage-50/60 p-4">
-          <label className="form-label">Grupowanie listy zapisów</label>
+          <label htmlFor="event-registration-grouping" className="form-label">Grupowanie listy zapisów</label>
           <select
+            id="event-registration-grouping"
             className="form-input min-h-11"
             value={groupingField}
             onChange={e => onGroupingFieldChange(e.target.value)}
+            aria-describedby="event-registration-grouping-help"
           >
             <option value="">Bez grupowania — jedna lista</option>
             {eventTypeId === 'speedway' && (
@@ -1059,7 +1332,7 @@ function StepRegistration({
               <option key={field.id} value={field.id}>Odpowiedź: {field.label}</option>
             ))}
           </select>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
+          <p id="event-registration-grouping-help" className="mt-2 text-xs leading-5 text-slate-500">
             To ustawienie zmienia widok listy zapisów organizatora. Nie zmienia sposobu liczenia rankingu.
           </p>
         </div>
@@ -1088,9 +1361,10 @@ function StepRegistration({
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Panel Icon={Users} title="Limity uczestników" tutorialId="registration-limits">
-          <label className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
+          <label htmlFor="event-max-participants" className="form-label uppercase tracking-[0.16em] text-sage-500">Całkowita liczba miejsc</label>
           <div className="relative">
             <input
+              id="event-max-participants"
               className="form-input min-h-14 pr-16 text-lg"
               type="number"
               min="1"
@@ -1110,14 +1384,19 @@ function StepRegistration({
         <Panel Icon={CalendarDays} title="Terminy zapisów" tutorialId="registration-dates">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</label>
+              <p className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</p>
               <div className="flex min-h-12 items-center rounded-xl border border-sage-200 bg-sage-50 px-3 text-sm text-sage-600">
                 Po opublikowaniu wydarzenia
               </div>
             </div>
             <div>
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
-              <DateTimePicker value={registrationDeadline} onChange={onRegistrationDeadlineChange} placeholder="Opcjonalnie" />
+              <label htmlFor="event-registration-deadline" className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
+              <DateTimePicker
+                id="event-registration-deadline"
+                value={registrationDeadline}
+                onChange={onRegistrationDeadlineChange}
+                placeholder="Opcjonalnie"
+              />
             </div>
           </div>
           <div className="mt-6 rounded-2xl border border-sage-200 bg-sage-50 p-4 text-sm leading-6 text-sage-700">
@@ -1137,9 +1416,10 @@ function StepRegistration({
           />
           {entryFeeEnabled && (
             <div className="mt-5">
-              <label className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
+              <label htmlFor="event-entry-fee" className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
               <div className="relative">
                 <input
+                  id="event-entry-fee"
                   className="form-input min-h-14 pr-16 text-lg"
                   type="number"
                   min="0"
@@ -1147,6 +1427,8 @@ function StepRegistration({
                   placeholder="0.00"
                   value={entryFee}
                   onChange={e => onEntryFeeChange(e.target.value)}
+                  aria-invalid={errorFieldId === 'event-entry-fee' ? true : undefined}
+                  aria-describedby={errorFieldId === 'event-entry-fee' ? errorMessageId : undefined}
                 />
                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-accent">
                   PLN
@@ -1260,7 +1542,7 @@ function StepPreview({
         <div className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm">
           <h2 className="section-title">Wymagania i ustawienia</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricTile label="Formularz" value={`${formFieldsCount} pól`} />
+            <MetricTile label="Formularz" value={formatPolishCount(formFieldsCount, POLISH_FORMS.field)} />
             <MetricTile label="Galeria" value={`${galleryCount} zdjęć`} />
             <MetricTile label="Grafik startów" value={hasSchedule ? 'Włączony' : 'Wyłączony'} />
             <MetricTile label="Grupowanie" value={groupingEnabled ? 'Włączone' : 'Brak'} />
@@ -1269,7 +1551,7 @@ function StepPreview({
               <MetricTile label="Schemat liczenia" value={competitionName ?? 'Proste wyniki'} />
             )}
             <MetricTile
-              label="Widok live"
+              label="Wyniki na żywo"
               value={getLiveVisibilityLabel(hasResults, resultsPublic)}
             />
           </div>
@@ -1333,14 +1615,24 @@ function Panel({
   title,
   children,
   tutorialId,
+  invalid,
+  errorMessageId,
 }: {
   Icon: LucideIcon
   title: string
   children: React.ReactNode
   tutorialId?: string
+  invalid?: boolean
+  errorMessageId?: string
 }) {
   return (
-    <section data-tutorial-id={tutorialId} className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+    <section
+      id={tutorialId}
+      data-tutorial-id={tutorialId}
+      tabIndex={invalid ? -1 : undefined}
+      aria-describedby={invalid ? errorMessageId : undefined}
+      className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm outline-none focus:ring-2 focus:ring-red-400 sm:p-7"
+    >
       <div className="mb-6 flex items-center gap-4">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
           <Icon className="h-5 w-5" />

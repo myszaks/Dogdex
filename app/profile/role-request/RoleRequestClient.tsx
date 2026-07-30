@@ -206,13 +206,18 @@ export default function RoleRequestClient({
           Masz już pełny dostęp organizatora i trenera. Nie musisz składać kolejnego wniosku.
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          aria-describedby={error ? 'role-request-error' : undefined}
+          className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-6"
+        >
           <div>
             <h2 className="font-heading font-semibold text-foreground mb-3">Zakres dostępu</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               {options.map(option => (
                 <label
                   key={option}
+                  htmlFor={`role-request-${option}`}
                   className={`rounded-2xl border p-4 cursor-pointer transition-colors ${
                     form.requestedRole === option
                       ? 'border-accent bg-accent/5'
@@ -220,6 +225,7 @@ export default function RoleRequestClient({
                   }`}
                 >
                   <input
+                    id={`role-request-${option}`}
                     type="radio"
                     name="requestedRole"
                     value={option}
@@ -242,8 +248,9 @@ export default function RoleRequestClient({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Imię i nazwisko *</label>
+              <label htmlFor="role-request-full-name" className="block text-sm font-medium text-foreground mb-1.5">Imię i nazwisko *</label>
               <input
+                id="role-request-full-name"
                 value={form.fullName}
                 onChange={event => update('fullName', event.target.value)}
                 className="form-input"
@@ -252,12 +259,13 @@ export default function RoleRequestClient({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">E-mail</label>
-              <input value={email} className="form-input opacity-60 cursor-not-allowed" disabled />
+              <label htmlFor="role-request-email" className="block text-sm font-medium text-foreground mb-1.5">E-mail</label>
+              <input id="role-request-email" value={email} className="form-input opacity-60 cursor-not-allowed" disabled />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Klub / firma</label>
+              <label htmlFor="role-request-business-name" className="block text-sm font-medium text-foreground mb-1.5">Klub / firma</label>
               <input
+                id="role-request-business-name"
                 value={form.businessName}
                 onChange={event => update('businessName', event.target.value)}
                 className="form-input"
@@ -266,8 +274,9 @@ export default function RoleRequestClient({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Miasto</label>
+              <label htmlFor="role-request-city" className="block text-sm font-medium text-foreground mb-1.5">Miasto</label>
               <input
+                id="role-request-city"
                 value={form.city}
                 onChange={event => update('city', event.target.value)}
                 className="form-input"
@@ -276,8 +285,9 @@ export default function RoleRequestClient({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Telefon kontaktowy</label>
+              <label htmlFor="role-request-phone" className="block text-sm font-medium text-foreground mb-1.5">Telefon kontaktowy</label>
               <input
+                id="role-request-phone"
                 value={form.phone}
                 onChange={event => update('phone', event.target.value)}
                 className="form-input"
@@ -288,8 +298,9 @@ export default function RoleRequestClient({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Doświadczenie / działalność *</label>
+            <label htmlFor="role-request-experience" className="block text-sm font-medium text-foreground mb-1.5">Doświadczenie / działalność *</label>
             <textarea
+              id="role-request-experience"
               value={form.experience}
               onChange={event => update('experience', event.target.value)}
               className="form-input min-h-[140px] resize-y"
@@ -301,8 +312,9 @@ export default function RoleRequestClient({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Linki weryfikacyjne</label>
+              <label htmlFor="role-request-verification-links" className="block text-sm font-medium text-foreground mb-1.5">Linki weryfikacyjne</label>
               <textarea
+                id="role-request-verification-links"
                 value={form.verificationLinks}
                 onChange={event => update('verificationLinks', event.target.value)}
                 className="form-input min-h-[110px] resize-y"
@@ -310,8 +322,9 @@ export default function RoleRequestClient({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Certyfikaty / uprawnienia</label>
+              <label htmlFor="role-request-certification-urls" className="block text-sm font-medium text-foreground mb-1.5">Certyfikaty / uprawnienia</label>
               <textarea
+                id="role-request-certification-urls"
                 value={form.certificationUrls}
                 onChange={event => update('certificationUrls', event.target.value)}
                 className="form-input min-h-[110px] resize-y"
@@ -326,8 +339,9 @@ export default function RoleRequestClient({
           </div>
 
           <div className="space-y-3">
-            <label className="flex items-start gap-3 text-sm text-foreground">
+            <label htmlFor="role-request-pricing-acknowledged" className="flex items-start gap-3 text-sm text-foreground">
               <input
+                id="role-request-pricing-acknowledged"
                 type="checkbox"
                 checked={form.pricingAcknowledged}
                 onChange={event => update('pricingAcknowledged', event.target.checked)}
@@ -336,8 +350,9 @@ export default function RoleRequestClient({
               />
               <span>Rozumiem, że korzystanie z funkcji organizatora lub trenera może wiązać się z prowizją albo subskrypcją.</span>
             </label>
-            <label className="flex items-start gap-3 text-sm text-foreground">
+            <label htmlFor="role-request-terms-accepted" className="flex items-start gap-3 text-sm text-foreground">
               <input
+                id="role-request-terms-accepted"
                 type="checkbox"
                 checked={form.termsAccepted}
                 onChange={event => update('termsAccepted', event.target.checked)}
@@ -348,7 +363,7 @@ export default function RoleRequestClient({
             </label>
           </div>
 
-          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
+          {error && <div id="role-request-error" role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
           {success && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">{success}</div>}
 
           <button type="submit" disabled={saving || loading} className="btn btn-primary w-full">

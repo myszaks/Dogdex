@@ -129,6 +129,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   const submittingRef = useRef(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Dog picker state (only when logged in)
@@ -179,10 +180,15 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
     const name = e.target.name
     setBase(prev => ({ ...prev, [name]: e.target.value }))
     if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: '' }))
+    setError(null)
   }
 
   function handleDynamic(id: string, value: string) {
     setDynamic(prev => ({ ...prev, [id]: value }))
+    if (invalidFieldId === id && value.trim()) {
+      setInvalidFieldId(null)
+      setError(null)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -191,6 +197,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
     submittingRef.current = true
     setLoading(true)
     setError(null)
+    setInvalidFieldId(null)
 
     // Validate required dynamic fields
     for (const field of formFields) {
@@ -201,6 +208,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           : !val?.trim()
         if (isEmpty) {
           setError(`Pole „${field.label}" jest wymagane.`)
+          setInvalidFieldId(field.id)
           setLoading(false)
           submittingRef.current = false
           return
@@ -269,7 +277,11 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      aria-describedby={error ? 'registration-form-error' : undefined}
+      className="card space-y-4"
+    >
 
       {/* ── Zalogowany: info o użytkowniku + picker psa ── */}
       {isLoggedIn ? (
@@ -281,8 +293,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
 
           {userDogs.length > 0 && (
             <div>
-              <label className="form-label">Wybierz psa z profilu</label>
+              <label htmlFor="registration-dog-picker" className="form-label">Wybierz psa z profilu</label>
               <select
+                id="registration-dog-picker"
                 className="form-input"
                 value={selectedDogId}
                 onChange={e => handleDogSelect(e.target.value)}
@@ -298,24 +311,28 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           )}
 
           <div>
-            <label className="form-label">Imię psa *</label>
+            <label htmlFor="registration-dog-name" className="form-label">Imię psa *</label>
             <input
+              id="registration-dog-name"
               className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogName"
               value={base.dogName}
               onChange={handleBase}
               required
+              aria-invalid={Boolean(fieldErrors.dogName)}
+              aria-describedby={fieldErrors.dogName ? 'registration-dog-name-error' : undefined}
               placeholder="Burek"
               disabled={!!selectedDogId}
             />
             {fieldErrors.dogName && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+              <p id="registration-dog-name-error" role="alert" className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Rasa psa</label>
+            <label htmlFor="registration-dog-breed" className="form-label">Rasa psa</label>
             <input
+              id="registration-dog-breed"
               className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogBreed"
               value={base.dogBreed}
@@ -329,8 +346,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         /* ── Niezalogowany: pełne pola ── */
         <>
           <div>
-            <label className="form-label">Imię i nazwisko właściciela *</label>
+            <label htmlFor="registration-owner-name" className="form-label">Imię i nazwisko właściciela *</label>
             <input
+              id="registration-owner-name"
               className="form-input"
               name="ownerName"
               value={base.ownerName}
@@ -342,40 +360,47 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           </div>
 
           <div>
-            <label className="form-label">Adres e-mail *</label>
+            <label htmlFor="registration-owner-email" className="form-label">Adres e-mail *</label>
             <input
+              id="registration-owner-email"
               className="form-input"
               type="email"
               name="ownerEmail"
               value={base.ownerEmail}
               onChange={handleBase}
               required
+              aria-invalid={Boolean(fieldErrors.ownerEmail)}
+              aria-describedby={fieldErrors.ownerEmail ? 'registration-owner-email-error' : undefined}
               placeholder="jan@example.com"
               autoComplete="email"
             />
             {fieldErrors.ownerEmail && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
+              <p id="registration-owner-email-error" role="alert" className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Imię psa *</label>
+            <label htmlFor="registration-dog-name" className="form-label">Imię psa *</label>
             <input
+              id="registration-dog-name"
               className="form-input"
               name="dogName"
               value={base.dogName}
               onChange={handleBase}
               required
+              aria-invalid={Boolean(fieldErrors.dogName)}
+              aria-describedby={fieldErrors.dogName ? 'registration-dog-name-error' : undefined}
               placeholder="Burek"
             />
             {fieldErrors.dogName && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+              <p id="registration-dog-name-error" role="alert" className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Rasa psa</label>
+            <label htmlFor="registration-dog-breed" className="form-label">Rasa psa</label>
             <input
+              id="registration-dog-breed"
               className="form-input"
               name="dogBreed"
               value={base.dogBreed}
@@ -393,11 +418,13 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           field={field}
           value={dynamic[field.id] ?? ''}
           onChange={val => handleDynamic(field.id, val)}
+          invalid={invalidFieldId === field.id}
+          errorMessage={invalidFieldId === field.id ? error : null}
         />
       ))}
 
       {error && (
-        <div className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
+        <div id="registration-form-error" role="alert" className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
           ⚠️ {error}
         </div>
       )}
@@ -441,21 +468,42 @@ function DynamicField({
   field,
   value,
   onChange,
+  invalid,
+  errorMessage,
 }: {
   field: FormField
   value: string
   onChange: (val: string) => void
+  invalid: boolean
+  errorMessage: string | null
 }) {
+  const inputId = `registration-field-${field.id}`
+  const hintId = `${inputId}-hint`
+  const errorId = `${inputId}-error`
+  const labelId = `${inputId}-label`
+  const describedBy = [
+    field.description ? hintId : null,
+    invalid && errorMessage ? errorId : null,
+  ].filter(Boolean).join(' ') || undefined
   const label = (
-    <label className="form-label">
+    <label htmlFor={inputId} className="form-label">
       {field.label}
       {field.required && ' *'}
     </label>
   )
 
   const hint = field.description ? (
-    <p className="text-xs text-slate-400 mt-0.5">{field.description}</p>
+    <p id={hintId} className="text-xs text-slate-400 mt-0.5">{field.description}</p>
   ) : null
+  const validationMessage = invalid && errorMessage ? (
+    <p id={errorId} role="alert" className="text-xs text-red-600 mt-1">{errorMessage}</p>
+  ) : null
+  const groupLabel = (
+    <p id={labelId} className="form-label">
+      {field.label}
+      {field.required && ' *'}
+    </p>
+  )
 
   switch (field.type) {
     case 'multidate':
@@ -463,10 +511,15 @@ function DynamicField({
         const selected = value.split(',').filter(Boolean)
         return (
           <div>
-            {label}
-            {field.description && <p className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
-            <div className="space-y-1.5 mt-1">
-              {field.options?.map(opt => {
+            {groupLabel}
+            {field.description && <p id={hintId} className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
+            <div
+              role="group"
+              aria-labelledby={labelId}
+              aria-describedby={describedBy}
+              className="space-y-1.5 mt-1"
+            >
+              {field.options?.map((opt, optionIndex) => {
                 const dateLabel = (() => {
                   try {
                     return formatDateShort(opt)
@@ -476,12 +529,15 @@ function DynamicField({
                 })()
                 const checked = selected.includes(opt)
                 return (
-                  <label key={opt} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                  <label key={opt} htmlFor={`${inputId}-${optionIndex}`} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
                     <input
+                      id={`${inputId}-${optionIndex}`}
                       type="checkbox"
                       className="rounded"
                       checked={checked}
-                      onChange={e => {
+                      aria-invalid={invalid}
+                      aria-describedby={describedBy}
+                      onChange={() => {
                         const next = checked
                           ? selected.filter(v => v !== opt)
                           : [...selected, opt]
@@ -493,9 +549,7 @@ function DynamicField({
                 )
               })}
             </div>
-            {field.required && !value && (
-              <p className="text-xs text-orange-500 mt-1">Wybierz co najmniej jedną opcję</p>
-            )}
+            {validationMessage}
           </div>
         )
       }
@@ -503,19 +557,27 @@ function DynamicField({
     case 'multiselect':
       return (
         <div>
-          {label}
-          {field.description && <p className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
-          <div className="space-y-1.5 mt-1">
-            {field.options?.map(opt => {
+          {groupLabel}
+          {field.description && <p id={hintId} className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
+          <div
+            role="group"
+            aria-labelledby={labelId}
+            aria-describedby={describedBy}
+            className="space-y-1.5 mt-1"
+          >
+            {field.options?.map((opt, optionIndex) => {
               const selected = value.split(',').filter(Boolean)
               const checked = selected.includes(opt)
               return (
-                <label key={opt} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                <label key={opt} htmlFor={`${inputId}-${optionIndex}`} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
                   <input
+                    id={`${inputId}-${optionIndex}`}
                     type="checkbox"
                     className="rounded"
                     checked={checked}
-                    onChange={e => {
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                    onChange={() => {
                       const next = checked
                         ? selected.filter(v => v !== opt)
                         : [...selected, opt]
@@ -527,9 +589,7 @@ function DynamicField({
               )
             })}
           </div>
-          {field.required && !value && (
-            <p className="text-xs text-orange-500 mt-1">Wybierz co najmniej jedną opcję</p>
-          )}
+          {validationMessage}
         </div>
       )
 
@@ -538,10 +598,13 @@ function DynamicField({
         <div>
           {label}
           <select
+            id={inputId}
             className="form-input"
             value={value}
             onChange={e => onChange(e.target.value)}
             required={field.required}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
           >
             <option value="">— wybierz —</option>
             {field.options?.map(opt => (
@@ -551,6 +614,7 @@ function DynamicField({
             ))}
           </select>
           {hint}
+          {validationMessage}
         </div>
       )
 
@@ -559,32 +623,40 @@ function DynamicField({
         <div>
           {label}
           <textarea
+            id={inputId}
             className="form-input"
             rows={3}
             value={value}
             onChange={e => onChange(e.target.value)}
             required={field.required}
             placeholder={field.placeholder}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
           />
           {hint}
+          {validationMessage}
         </div>
       )
 
     case 'checkbox':
       return (
         <div>
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+          <label htmlFor={inputId} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
             <input
+              id={inputId}
               type="checkbox"
               checked={value === 'true'}
               onChange={e => onChange(e.target.checked ? 'true' : '')}
               required={field.required}
               className="rounded"
+              aria-invalid={invalid}
+              aria-describedby={describedBy}
             />
             {field.label}
             {field.required && ' *'}
           </label>
           {hint}
+          {validationMessage}
         </div>
       )
 
@@ -593,14 +665,18 @@ function DynamicField({
         <div>
           {label}
           <input
+            id={inputId}
             className="form-input"
             type={field.type}
             value={value}
             onChange={e => onChange(e.target.value)}
             required={field.required}
             placeholder={field.placeholder}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
           />
           {hint}
+          {validationMessage}
         </div>
       )
   }

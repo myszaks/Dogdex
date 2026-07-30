@@ -17,14 +17,14 @@ describe('blind organizer journeys through the event creator', () => {
   it('lets a walk organizer ignore results without seeing a misleading live status', () => {
     expect(isLikelyNonCompetitiveEvent('spacer')).toBe(true)
     expect(getRecommendedCompetitionPreset('spacer')).toBeNull()
-    expect(getLiveVisibilityLabel(false, true)).toBe('Wyłączony')
+    expect(getLiveVisibilityLabel(false, true)).toBe('Wyłączone')
     expect(validateFormFieldDefinitions([])).toEqual([])
   })
 
   it('lets a workshop organizer proceed without choosing any scoring language', () => {
     expect(isLikelyNonCompetitiveEvent('wykłady')).toBe(true)
     expect(getRecommendedCompetitionPreset('wykłady')).toBeNull()
-    expect(getLiveVisibilityLabel(false, false)).toBe('Wyłączony')
+    expect(getLiveVisibilityLabel(false, false)).toBe('Wyłączone')
     expect(validateFormFieldDefinitions([{
       id: 'workshop_date',
       label: 'Wybierz termin',

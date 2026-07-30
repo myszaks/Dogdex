@@ -90,11 +90,16 @@ export default function ContactModal({ open, onClose }: Props) {
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          aria-describedby={status === 'error' ? 'contact-form-error' : undefined}
+          className="space-y-4"
+        >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Imię *</label>
+              <label htmlFor="contact-name" className="form-label">Imię *</label>
               <input
+                id="contact-name"
                 type="text"
                 required
                 maxLength={120}
@@ -105,8 +110,9 @@ export default function ContactModal({ open, onClose }: Props) {
               />
             </div>
             <div>
-              <label className="form-label">E-mail *</label>
+              <label htmlFor="contact-email" className="form-label">E-mail *</label>
               <input
+                id="contact-email"
                 type="email"
                 required
                 value={email}
@@ -118,8 +124,9 @@ export default function ContactModal({ open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="form-label">Temat *</label>
+            <label htmlFor="contact-subject" className="form-label">Temat *</label>
             <input
+              id="contact-subject"
               type="text"
               required
               maxLength={200}
@@ -131,8 +138,9 @@ export default function ContactModal({ open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="form-label">Wiadomość *</label>
+            <label htmlFor="contact-message" className="form-label">Wiadomość *</label>
             <textarea
+              id="contact-message"
               required
               rows={5}
               maxLength={5000}
@@ -145,7 +153,7 @@ export default function ContactModal({ open, onClose }: Props) {
           </div>
 
           {status === 'error' && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
+            <p id="contact-form-error" role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{errorMsg}</p>
           )}
 
           <div className="flex gap-3 pt-1">

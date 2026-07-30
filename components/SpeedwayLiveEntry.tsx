@@ -12,6 +12,7 @@ import {
   TRACK_DISTANCE_MIN_M,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -698,7 +699,11 @@ export default function SpeedwayLiveEntry({
         <div>
           <div className="flex justify-between text-xs text-slate-400 mb-1">
             <span>{SIZE_CLASS_LABELS[currentClass]} · {runLabel(currentRun)}</span>
-            <span>{doneInThisRound}/{classParticipants.length} psów</span>
+            <span>
+              {formatPolishCount(doneInThisRound, POLISH_FORMS.dog)}
+              {' / '}
+              {formatPolishCount(classParticipants.length, POLISH_FORMS.dog)}
+            </span>
           </div>
           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
             <div
@@ -758,7 +763,7 @@ export default function SpeedwayLiveEntry({
               ≡ Lista wyników
             </button>
             <a href={`/live/${eventSlug}`} className="btn btn-primary">
-              🏆 Podium live
+              🏆 Podium na żywo
             </a>
           </div>
         </div>
@@ -891,7 +896,7 @@ export default function SpeedwayLiveEntry({
 
             {/* Time input */}
             <div className="mb-4">
-              <label className="form-label text-sm">{runLabel(currentRun)} — czas (sekundy)</label>
+              <label htmlFor="speedway-live-time" className="form-label text-sm">{runLabel(currentRun)} — czas (sekundy)</label>
               {currentStatus ? (
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-bold text-orange-500">{currentStatus}</span>
@@ -913,6 +918,7 @@ export default function SpeedwayLiveEntry({
                 </div>
               ) : (
                 <input
+                  id="speedway-live-time"
                   ref={inputRef}
                   type="number"
                   inputMode="decimal"

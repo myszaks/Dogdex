@@ -7,7 +7,7 @@ import { requireRole } from '@/lib/getServerUser'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { hydrateTrainingBookings, type TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
 
-export const metadata: Metadata = { title: 'Panel Trenera' }
+export const metadata: Metadata = { title: 'Panel trenera' }
 export const dynamic = 'force-dynamic'
 
 function getStatusBadge(status: string) {
@@ -79,9 +79,9 @@ export default async function TrainerPage() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="page-title mb-1">Panel Trenera</h1>
+          <h1 className="page-title mb-1">Panel trenera</h1>
           <p className="text-muted-foreground">
-            {isActive ? 'Twoj profil jest aktywny' : 'Aktywuj profil, aby rozpoczac przyjmowanie rezerwacji'}
+            {isActive ? 'Twój profil jest aktywny' : 'Aktywuj profil, aby rozpocząć przyjmowanie rezerwacji'}
           </p>
         </div>
         <Link href="/trainer/profile" className="btn btn-primary">
@@ -94,7 +94,7 @@ export default async function TrainerPage() {
         <div className="card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Rodzaje treningow</p>
+              <p className="text-sm text-muted-foreground mb-1">Rodzaje treningów</p>
               <p className="text-3xl font-bold">{typesCount}</p>
             </div>
             <BookOpen className="w-8 h-8 text-accent opacity-30" />
@@ -109,7 +109,7 @@ export default async function TrainerPage() {
         <div className="card p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Nadchodzace rezerwacje</p>
+              <p className="text-sm text-muted-foreground mb-1">Nadchodzące rezerwacje</p>
               <p className="text-3xl font-bold">{bookingsCount}</p>
             </div>
             <Calendar className="w-8 h-8 text-accent opacity-30" />
@@ -138,8 +138,8 @@ export default async function TrainerPage() {
                 <Plus className="w-6 h-6 text-accent" />
               </div>
               <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Rodzaje treningow</h3>
-                <p className="text-sm text-muted-foreground">Dodaj lub edytuj rodzaje treningow</p>
+                <h3 className="font-heading font-semibold text-lg mb-1">Rodzaje treningów</h3>
+                <p className="text-sm text-muted-foreground">Dodaj lub edytuj rodzaje treningów</p>
               </div>
             </div>
           </Link>
@@ -151,7 +151,7 @@ export default async function TrainerPage() {
               </div>
               <div>
                 <h3 className="font-heading font-semibold text-lg mb-1">Dostepnosc</h3>
-                <p className="text-sm text-muted-foreground">Ustaw dni i godziny dostepnosci</p>
+                <p className="text-sm text-muted-foreground">Ustaw dni i godziny dostępności</p>
               </div>
             </div>
           </Link>
@@ -161,7 +161,7 @@ export default async function TrainerPage() {
       {bookingsCount > 0 && (
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-heading font-semibold text-xl">Nadchodzace rezerwacje</h2>
+            <h2 className="font-heading font-semibold text-xl">Nadchodzące rezerwacje</h2>
             <Link href="/trainer/bookings" className="text-sm text-accent hover:underline">
               Wszystkie {'->'}
             </Link>
@@ -193,7 +193,7 @@ export default async function TrainerPage() {
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(booking.status)}`}>
                       {getStatusLabel(booking.status)}
                     </span>
-                    <span className="text-sm font-medium text-accent">Szczegoly {'->'}</span>
+                    <span className="text-sm font-medium text-accent">Szczegóły →</span>
                   </div>
                 </div>
               </Link>

@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Lightbulb, X } from 'lucide-react'
 import useUser from '@/hooks/useUser'
+import {
+  chooseTutorialVerticalSide,
+  type TutorialVerticalSide,
+} from '@/lib/tutorialPosition'
+import { fetchWithAuthRetry } from '@/lib/authFetch'
 
 interface TutorialPrompt {
   id: string
@@ -102,7 +107,7 @@ const PROMPTS_BY_STEP: Record<number, TutorialPrompt[]> = {
     {
       id: 'results-visibility',
       target: 'results-visibility',
-      title: 'Widoczność live',
+      title: 'Widoczność wyników na żywo',
       description: 'Wyniki mogą być publiczne od razu albo pozostać prywatne do chwili, gdy zdecydujesz się je opublikować.',
     },
   ],
@@ -126,7 +131,7 @@ const STEP_LABELS = [
   'Informacje',
   'Lokalizacja i czas',
   'Rejestracja',
-  'Wyniki i live',
+  'Wyniki',
   'Podgląd',
 ]
 
@@ -144,8 +149,12 @@ export default function EventCreatorTutorial({
   const [active, setActive] = useState(forceStart)
   const [promptIndex, setPromptIndex] = useState(0)
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null)
+  const [dialogSide, setDialogSide] = useState<TutorialVerticalSide>('bottom')
+  const dialogRef = useRef<HTMLElement>(null)
+  const titleRef = useRef<HTMLHeadingElement>(null)
 
   const prompt = prompts[promptIndex]
+  const targetReady = targetRect !== null
 
   useEffect(() => {
     if (forceStart || !user?.id || prompts.length === 0) return
@@ -153,15 +162,25 @@ export default function EventCreatorTutorial({
     const completedKey = `dogdex:event-creator-tutorial:${user.id}`
     const locallyCompleted = window.localStorage.getItem(completedKey) === 'seen'
 
-    if (locallyCompleted) return
+    if (locallyCompleted) {
+      if (window.localStorage.getItem(syncPendingStorageKey(user.id)) === 'pending') {
+        void persistTutorialSeen(user.id)
+      }
+      return
+    }
 
-    fetch('/api/profile')
+    fetchWithAuthRetry('/api/profile')
       .then(async response => {
         if (!response.ok) throw new Error('profile unavailable')
         return response.json()
       })
       .then(profile => {
-        if (cancelled || profile.event_creator_tutorial_seen_at) return
+        if (cancelled) return
+        if (profile.event_creator_tutorial_seen_at) {
+          window.localStorage.setItem(completedKey, 'seen')
+          window.localStorage.removeItem(syncPendingStorageKey(user.id))
+          return
+        }
         const nextIndex = firstAvailablePromptIndex(prompts, readSeenPromptIds(user.id))
         if (nextIndex >= 0) {
           setPromptIndex(nextIndex)
@@ -190,17 +209,26 @@ export default function EventCreatorTutorial({
     if (!target) return
     const targetElement = target
 
-    const isSmallScreen = window.innerWidth < 640
     targetElement.scrollIntoView({
       behavior: 'auto',
-      block: isSmallScreen ? 'start' : 'center',
+      block: 'center',
     })
-    if (isSmallScreen) {
-      window.scrollBy({ top: -84, behavior: 'auto' })
-    }
 
     function updatePosition() {
       const rect = targetElement.getBoundingClientRect()
+      const activeElement = document.activeElement instanceof HTMLElement
+        && targetElement.contains(document.activeElement)
+        ? document.activeElement
+        : null
+      const anchorRect = activeElement?.getBoundingClientRect() ?? rect
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      if (window.innerWidth < 640) {
+        setDialogSide(chooseTutorialVerticalSide(
+          anchorRect.top,
+          anchorRect.bottom,
+          viewportHeight,
+        ))
+      }
       setTargetRect({
         top: rect.top,
         left: rect.left,
@@ -215,6 +243,7 @@ export default function EventCreatorTutorial({
     observer.observe(targetElement)
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('focusin', updatePosition)
     window.visualViewport?.addEventListener('resize', updatePosition)
     window.visualViewport?.addEventListener('scroll', updatePosition)
     return () => {
@@ -222,10 +251,26 @@ export default function EventCreatorTutorial({
       observer.disconnect()
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('focusin', updatePosition)
       window.visualViewport?.removeEventListener('resize', updatePosition)
       window.visualViewport?.removeEventListener('scroll', updatePosition)
     }
   }, [active, prompt])
+
+  useEffect(() => {
+    if (!active || !prompt || !targetReady) return
+    const frame = window.requestAnimationFrame(() => titleRef.current?.focus())
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeCurrentStep()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  // closeCurrentStep intentionally uses the current prompt and step.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, prompt?.id, targetReady])
 
   if (!active || !prompt || !targetRect) return null
 
@@ -296,12 +341,9 @@ export default function EventCreatorTutorial({
     }
     if (!user?.id) return
     window.localStorage.setItem(`dogdex:event-creator-tutorial:${user.id}`, 'seen')
+    window.localStorage.setItem(syncPendingStorageKey(user.id), 'pending')
     window.localStorage.removeItem(progressStorageKey(user.id))
-    void fetch('/api/profile', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event_creator_tutorial_seen: true }),
-    })
+    void persistTutorialSeen(user.id)
   }
 
   return (
@@ -325,10 +367,16 @@ export default function EventCreatorTutorial({
       />
 
       <section
+        ref={dialogRef}
         role="dialog"
+        aria-modal="false"
         aria-live="polite"
-        aria-labelledby="event-creator-prompt-title"
-        className="fixed bottom-3 left-3 right-3 z-[130] overflow-hidden rounded-2xl border border-orange-200 bg-white shadow-2xl sm:bottom-6 sm:left-auto sm:right-6 sm:w-[380px]"
+        aria-labelledby={`event-creator-prompt-title-${prompt.id}`}
+        aria-describedby={`event-creator-prompt-description-${prompt.id}`}
+        data-tutorial-side={dialogSide}
+        className={`fixed left-3 right-3 z-[130] flex max-h-[min(42dvh,320px)] flex-col overflow-hidden rounded-2xl border border-orange-200 bg-white shadow-2xl ${
+          dialogSide === 'top' ? 'top-[64px]' : 'bottom-3'
+        } sm:bottom-6 sm:left-auto sm:right-6 sm:top-auto sm:max-h-[70vh] sm:w-[380px]`}
       >
         <div className="flex items-center justify-between border-b border-sage-100 px-5 py-3">
           <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent">
@@ -346,11 +394,21 @@ export default function EventCreatorTutorial({
           </button>
         </div>
 
-        <div className="p-5">
-          <h2 id="event-creator-prompt-title" className="font-heading text-xl font-bold text-primary">
+        <div className="overflow-y-auto p-5">
+          <h2
+            ref={titleRef}
+            id={`event-creator-prompt-title-${prompt.id}`}
+            tabIndex={-1}
+            className="font-heading text-xl font-bold text-primary outline-none"
+          >
             {prompt.title}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{prompt.description}</p>
+          <p
+            id={`event-creator-prompt-description-${prompt.id}`}
+            className="mt-2 text-sm leading-6 text-muted-foreground"
+          >
+            {prompt.description}
+          </p>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-sage-100 bg-sage-50 px-5 py-3">
@@ -394,6 +452,25 @@ export default function EventCreatorTutorial({
 
 function progressStorageKey(userId: string) {
   return `dogdex:event-creator-tutorial-progress:${userId}`
+}
+
+function syncPendingStorageKey(userId: string) {
+  return `dogdex:event-creator-tutorial-sync-pending:${userId}`
+}
+
+async function persistTutorialSeen(userId: string) {
+  try {
+    const response = await fetchWithAuthRetry('/api/profile', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event_creator_tutorial_seen: true }),
+    })
+    if (!response.ok) return
+    window.localStorage.removeItem(syncPendingStorageKey(userId))
+  } catch {
+    // The local preference still hides the tutorial on this device. The
+    // pending marker retries profile synchronization on the next visit.
+  }
 }
 
 function readSeenPromptIds(userId: string): Set<string> {

@@ -7,6 +7,7 @@ import type { CancellationRequest } from '@/types'
 import { cn } from '@/lib/utils'
 import { createAuthClient } from '@/lib/supabaseServer'
 import MyTrainingsContent from '@/app/moje-treningi/MyTrainingsContent'
+import { splitRegistrationHistory } from '@/lib/registrationManagement'
 
 export const metadata: Metadata = { title: 'Moje zapisy' }
 export const dynamic = 'force-dynamic'
@@ -56,7 +57,7 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
           .from('registrations')
           .select('*, participants(*), events(*)')
           .in('participant_id', participantIds)
-          .in('status', ['confirmed', 'pending'])
+          .in('status', ['confirmed', 'pending', 'cancelled'])
           .order('created_at', { ascending: false })
         ).data ?? []
       : []
@@ -76,6 +77,9 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
 
     const seen = new Set<string>()
     for (const registration of registrations) {
+      if (registration.status === 'cancelled') {
+        continue
+      }
       const event = registration.events as Record<string, unknown> | null
       if (!event) {
         continue
@@ -123,6 +127,11 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
     }
   }
 
+  const {
+    active: activeRegistrations,
+    cancelled: cancelledRegistrations,
+  } = splitRegistrationHistory(registrations)
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-8">
@@ -157,30 +166,67 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">🐕</span>
               </div>
-              <p className="font-heading font-semibold text-foreground text-lg">Brak zapisow</p>
+              <p className="font-heading font-semibold text-foreground text-lg">Brak zapisów</p>
               <p className="text-muted-foreground text-sm mt-1 mb-6">
-                Zapisz sie na wydarzenie, zeby zobaczyc je tutaj.
+                Zapisz się na wydarzenie, żeby zobaczyć je tutaj.
               </p>
               <Link href="/" className="btn btn-primary btn-sm inline-flex">
-                Przegladaj wydarzenia
+                Przeglądaj wydarzenia
               </Link>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {registrations.map(registration => (
-                <RegistrationEventCard
-                  key={registration.id as string}
-                  event={registration.events as import('@/types').DogEvent}
-                  registration={{
-                    id: registration.id as string,
-                    status: registration.status as string,
-                    created_at: registration.created_at as string,
-                    form_data: registration.form_data as Record<string, unknown>,
-                  }}
-                  participant={registration.participants as import('@/types').Participant}
-                  pendingCancellationRequest={pendingRequestMap.get(registration.id as string) ?? null}
-                />
-              ))}
+            <div className="space-y-10">
+              {activeRegistrations.length > 0 && (
+                <section>
+                  <h2 className="mb-4 font-heading text-xl font-semibold text-foreground">
+                    Aktywne zapisy
+                  </h2>
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {activeRegistrations.map(registration => (
+                      <RegistrationEventCard
+                        key={registration.id as string}
+                        event={registration.events as import('@/types').DogEvent}
+                        registration={{
+                          id: registration.id as string,
+                          status: registration.status as string,
+                          created_at: registration.created_at as string,
+                          form_data: registration.form_data as Record<string, unknown>,
+                        }}
+                        participant={registration.participants as import('@/types').Participant}
+                        pendingCancellationRequest={pendingRequestMap.get(registration.id as string) ?? null}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {cancelledRegistrations.length > 0 && (
+                <section>
+                  <div className="mb-4 flex items-baseline gap-2">
+                    <h2 className="font-heading text-xl font-semibold text-foreground">
+                      Historia anulowanych
+                    </h2>
+                    <span className="text-sm text-muted-foreground">
+                      ({cancelledRegistrations.length})
+                    </span>
+                  </div>
+                  <div className="grid gap-5 opacity-90 sm:grid-cols-2 lg:grid-cols-3">
+                    {cancelledRegistrations.map(registration => (
+                      <RegistrationEventCard
+                        key={registration.id as string}
+                        event={registration.events as import('@/types').DogEvent}
+                        registration={{
+                          id: registration.id as string,
+                          status: registration.status as string,
+                          created_at: registration.created_at as string,
+                          form_data: registration.form_data as Record<string, unknown>,
+                        }}
+                        participant={registration.participants as import('@/types').Participant}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
         </>

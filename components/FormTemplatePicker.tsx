@@ -5,6 +5,7 @@ import { getEventType } from '@/lib/eventTypes'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { Check, FilePlus2, Pencil, Trash2, X } from 'lucide-react'
 import type { FormField } from '@/types'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 interface TemplateMeta {
   id: string
@@ -262,13 +263,16 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, on
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div>
-                <label className="form-label">Nazwa szablonu *</label>
+                <label htmlFor="form-template-name" className="form-label">Nazwa szablonu *</label>
                 <input
+                  id="form-template-name"
                   className="form-input min-h-11"
                   value={modalName}
                   onChange={e => setModalName(e.target.value)}
                   placeholder="np. Agility A1–A3, Rejestracja standardowa..."
                   autoFocus
+                  aria-invalid={saveError ? true : undefined}
+                  aria-describedby={saveError ? 'form-template-save-error' : undefined}
                 />
               </div>
               <FormBuilder
@@ -280,7 +284,11 @@ export default function FormTemplatePicker({ eventTypeId, selectedTemplateId, on
               />
             </div>
             <div className="shrink-0 space-y-2 border-t border-[#e4ebe0] bg-white px-5 py-4">
-              {saveError && <p className="text-sm text-red-600">⚠ {saveError}</p>}
+              {saveError && (
+                <p id="form-template-save-error" role="alert" className="text-sm text-red-600">
+                  {saveError}
+                </p>
+              )}
               <div className="flex gap-3">
                 <button type="button" onClick={closeModal} className="btn btn-secondary flex-1">Anuluj</button>
                 <button
@@ -338,7 +346,7 @@ function TemplateCard({
           <p className="truncate font-semibold text-[#43513d]">{template.name}</p>
           <p className="mt-0.5 text-xs text-[#71806a]">
             {template.fields.length > 0
-              ? `${template.fields.length} pól dodatkowych`
+              ? `${formatPolishCount(template.fields.length, POLISH_FORMS.field)} dodatkowych`
               : 'Tylko pola podstawowe'}
             {eventType && (
               <span className="ml-2 text-slate-300">· {eventType.icon} {eventType.name}</span>

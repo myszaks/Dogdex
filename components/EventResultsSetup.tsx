@@ -24,6 +24,7 @@ import {
   isLikelyNonCompetitiveEvent,
 } from '@/lib/eventCompetitionSetup'
 import { cn } from '@/lib/utils'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import type {
   CompetitionFieldDefinition,
   CompetitionFormatDefinition,
@@ -37,6 +38,8 @@ interface Props {
   formatId: string | null
   definition: CompetitionFormatDefinition | null
   values: Record<string, CompetitionScalar>
+  errorFieldId?: string | null
+  errorMessageId?: string
   onEnabledChange: (enabled: boolean) => void
   onResultsPublicChange: (isPublic: boolean) => void
   onFormatSelect: (
@@ -53,6 +56,8 @@ export default function EventResultsSetup({
   formatId,
   definition,
   values,
+  errorFieldId,
+  errorMessageId,
   onEnabledChange,
   onResultsPublicChange,
   onFormatSelect,
@@ -143,7 +148,7 @@ export default function EventResultsSetup({
             </span>
             <div>
               <h2 className="text-xl font-heading font-bold text-primary">
-                Czy wydarzenie potrzebuje wyników lub transmisji live?
+                Czy wydarzenie potrzebuje modułu wyników?
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Włącz tę część tylko dla zawodów, konkursów lub wydarzeń z ocenami.
@@ -151,8 +156,9 @@ export default function EventResultsSetup({
               </p>
             </div>
           </div>
-          <label className="inline-flex min-h-12 shrink-0 cursor-pointer items-center gap-3 rounded-2xl border border-sage-200 bg-sage-50 px-4">
+          <label htmlFor="event-results-enabled" className="inline-flex min-h-12 shrink-0 cursor-pointer items-center gap-3 rounded-2xl border border-sage-200 bg-sage-50 px-4">
             <input
+              id="event-results-enabled"
               type="checkbox"
               checked={enabled}
               onChange={event => toggleResults(event.target.checked)}
@@ -263,7 +269,11 @@ export default function EventResultsSetup({
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Ustawienia wybranego schematu</p>
                   <h2 className="mt-1 text-xl font-heading font-bold text-primary">{definition.name}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {definition.resultFields.length} pól wyniku · {definition.computedFields.length} obliczeń · {definition.views.length} widoki
+                    {formatPolishCount(definition.resultFields.length, POLISH_FORMS.field)} wyniku
+                    {' · '}
+                    {formatPolishCount(definition.computedFields.length, POLISH_FORMS.calculation)}
+                    {' · '}
+                    {formatPolishCount(definition.views.length, POLISH_FORMS.view)}
                   </p>
                 </div>
               </div>
@@ -272,6 +282,8 @@ export default function EventResultsSetup({
                 fields={definition.eventFields}
                 values={values}
                 onChange={onValuesChange}
+                errorFieldId={errorFieldId}
+                errorMessageId={errorMessageId}
               />
 
               {eventTypeId === 'speedway' && (
@@ -330,7 +342,7 @@ export default function EventResultsSetup({
               <VisibilityCard
                 selected={resultsPublic}
                 Icon={Eye}
-                title="Wyniki i live publiczne"
+                title="Wyniki na żywo są publiczne"
                 description="Uczestnicy mogą śledzić przebieg i bieżącą klasyfikację."
                 onClick={() => onResultsPublicChange(true)}
               />
@@ -426,10 +438,14 @@ function EventParameterFields({
   fields,
   values,
   onChange,
+  errorFieldId,
+  errorMessageId,
 }: {
   fields: CompetitionFieldDefinition[]
   values: Record<string, CompetitionScalar>
   onChange: (values: Record<string, CompetitionScalar>) => void
+  errorFieldId?: string | null
+  errorMessageId?: string
 }) {
   if (fields.length === 0) return null
 
@@ -443,19 +459,26 @@ function EventParameterFields({
         Uzupełnij dla tego wydarzenia
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map(field => (
-          <label key={field.id} className="block">
-            <span className="form-label">{field.label}{field.required ? ' *' : ''}</span>
+        {fields.map(field => {
+          const inputId = `competition-event-field-${field.id}`
+          const invalid = errorFieldId === inputId
+          return (
+          <div key={field.id} className="block">
+            <label htmlFor={inputId} className="form-label">{field.label}{field.required ? ' *' : ''}</label>
             {field.type === 'boolean' ? (
               <input
+                id={inputId}
                 type="checkbox"
                 checked={values[field.id] === true}
                 onChange={event => updateValue(field.id, event.target.checked)}
                 className="h-5 w-5 rounded border-sage-300"
+                aria-invalid={invalid ? true : undefined}
+                aria-describedby={invalid ? errorMessageId : undefined}
               />
             ) : (
               <div className="relative">
                 <input
+                  id={inputId}
                   type={field.type === 'text' ? 'text' : 'number'}
                   min={field.min}
                   max={field.max}
@@ -468,6 +491,8 @@ function EventParameterFields({
                       : event.target.value === '' ? null : Number(event.target.value),
                   )}
                   className="form-input"
+                  aria-invalid={invalid ? true : undefined}
+                  aria-describedby={invalid ? errorMessageId : undefined}
                 />
                 {field.unit && (
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-sage-500">
@@ -476,8 +501,9 @@ function EventParameterFields({
                 )}
               </div>
             )}
-          </label>
-        ))}
+          </div>
+          )
+        })}
       </div>
     </div>
   )

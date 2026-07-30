@@ -46,7 +46,7 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="font-heading font-semibold text-foreground capitalize">
+        <span className="font-heading font-semibold text-foreground">
           {format(current, 'LLLL yyyy', { locale: pl })}
         </span>
         <button

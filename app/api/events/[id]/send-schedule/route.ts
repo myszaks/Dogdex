@@ -64,7 +64,7 @@ export async function POST(req: Request, { params }: Params) {
   const { data: assignments } = await assignQuery
 
   if (!assignments?.length) {
-    return NextResponse.json({ error: 'Brak uczestników z przypisanym slotem' }, { status: 400 })
+    return NextResponse.json({ error: 'Brak uczestników z przypisanym terminem' }, { status: 400 })
   }
 
   // Fetch slots

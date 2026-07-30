@@ -1,11 +1,7 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useId } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
 import { GripVertical, Plus, X } from 'lucide-react'
-
-function genId() {
-  return Math.random().toString(36).slice(2, 9)
-}
 
 type FieldType = 'select' | 'multiselect' | 'multidate' | string
 
@@ -18,17 +14,13 @@ export default function OptionReorder({
   onChange: (next: string[]) => void
   type?: FieldType
 }) {
-  const [items, setItems] = useState(() => (options || []).map(o => ({ id: genId(), value: o })))
-
-  // Keep internal items in sync when parent options change
-  useEffect(() => {
-    setItems(prev =>
-      (options || []).map((opt, i) => (prev[i] ? { id: prev[i].id, value: opt } : { id: genId(), value: opt }))
-    )
-  }, [options])
+  const idPrefix = `option-${useId().replace(/:/g, '')}`
+  const items = (options || []).map((value, index) => ({
+    id: `${idPrefix}-${index}`,
+    value,
+  }))
 
   function commit(next: { id: string; value: string }[]) {
-    setItems(next)
     onChange(next.map(x => x.value))
   }
 
@@ -56,7 +48,7 @@ export default function OptionReorder({
 
   function addNew() {
     const newVal = type === 'multidate' ? new Date().toISOString().slice(0, 10) : ''
-    const next = [...items, { id: genId(), value: newVal }]
+    const next = [...items, { id: `${idPrefix}-${items.length}`, value: newVal }]
     commit(next)
   }
 
@@ -89,18 +81,30 @@ export default function OptionReorder({
                       </div>
 
                       {type === 'multidate' ? (
-                        <input
-                          type="date"
-                          className="form-input min-h-11 flex-1 text-sm"
-                          value={it.value}
-                          onChange={e => updateValue(idx, e.target.value)}
-                        />
+                        <>
+                          <label htmlFor={`${idPrefix}-${it.id}`} className="sr-only">
+                            Termin {idx + 1}
+                          </label>
+                          <input
+                            id={`${idPrefix}-${it.id}`}
+                            type="date"
+                            className="form-input min-h-11 flex-1 text-sm"
+                            value={it.value}
+                            onChange={e => updateValue(idx, e.target.value)}
+                          />
+                        </>
                       ) : (
-                        <input
-                          className="form-input min-h-11 flex-1 text-sm"
-                          value={it.value}
-                          onChange={e => updateValue(idx, e.target.value)}
-                        />
+                        <>
+                          <label htmlFor={`${idPrefix}-${it.id}`} className="sr-only">
+                            Opcja {idx + 1}
+                          </label>
+                          <input
+                            id={`${idPrefix}-${it.id}`}
+                            className="form-input min-h-11 flex-1 text-sm"
+                            value={it.value}
+                            onChange={e => updateValue(idx, e.target.value)}
+                          />
+                        </>
                       )}
 
                       <button

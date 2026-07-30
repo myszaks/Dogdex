@@ -8,14 +8,28 @@ import { format } from 'date-fns'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, X } from 'lucide-react'
 
 interface Props {
+  id: string
   value: string | null
   onChange: (iso: string | null) => void
   required?: boolean
   placeholder?: string
   minDate?: Date
+  describedBy?: string
+  invalid?: boolean
+  clearLabel?: string
 }
 
-export default function DateTimePicker({ value, onChange, required, placeholder, minDate }: Props) {
+export default function DateTimePicker({
+  id,
+  value,
+  onChange,
+  required,
+  placeholder,
+  minDate,
+  describedBy,
+  invalid = false,
+  clearLabel = 'Wyczyść datę i godzinę',
+}: Props) {
   const selected = value ? new Date(value) : null
   const pickerRef = useRef<DatePicker>(null)
 
@@ -23,6 +37,7 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
     <div className="relative">
       <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-sage-500" />
       <DatePicker
+        id={id}
         ref={pickerRef}
         selected={selected}
         onChange={(date: Date | null) => onChange(date ? date.toISOString() : null)}
@@ -38,6 +53,8 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
         calendarClassName="dogdex-date-picker"
         popperClassName="dogdex-date-picker-popper"
         required={required}
+        ariaDescribedBy={describedBy}
+        ariaInvalid={invalid ? 'true' : undefined}
         showPopperArrow={false}
         minDate={minDate}
         calendarStartDay={1}
@@ -88,7 +105,7 @@ export default function DateTimePicker({ value, onChange, required, placeholder,
           type="button"
           onClick={() => onChange(null)}
           className="absolute right-1.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-sage-500 hover:bg-sage-100 hover:text-primary"
-          aria-label="Wyczyść datę"
+          aria-label={clearLabel}
         >
           <X className="h-4 w-4" />
         </button>

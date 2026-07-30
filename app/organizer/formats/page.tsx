@@ -1,7 +1,13 @@
 import Link from 'next/link'
-import { Calculator, Edit3, Plus } from 'lucide-react'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { Calculator, CalendarDays, CheckCircle2, Clock3, Plus } from 'lucide-react'
+import CompetitionFormatActions from '@/components/CompetitionFormatActions'
+import {
+  createAuthClient,
+  createServerClient,
+  hasServiceRoleKey,
+} from '@/lib/supabaseServer'
 import { requireRole } from '@/lib/getServerUser'
+import { formatDate, plForm } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,19 +16,46 @@ export default async function CompetitionFormatsPage() {
   const supabase = await createAuthClient()
   let query = supabase
     .from('competition_formats')
-    .select('id, name, description, version, status, is_system, created_by, updated_at')
+    .select('id, family_id, name, description, version, status, is_system, created_by, published_at, created_at, updated_at')
     .order('updated_at', { ascending: false })
   if (role !== 'admin') {
     query = query.or(`created_by.eq.${user.id},and(is_system.eq.true,status.eq.published)`)
   }
   const { data: formats } = await query
+  const formatIds = (formats ?? []).map(format => format.id)
+  const usageClient = hasServiceRoleKey() ? createServerClient() : supabase
+  const { data: usingEvents } = formatIds.length > 0
+    ? await usageClient
+        .from('events')
+        .select('competition_format_id')
+        .in('competition_format_id', formatIds)
+    : { data: [] }
+
+  const usageByFormat = new Map<string, number>()
+  for (const event of usingEvents ?? []) {
+    if (!event.competition_format_id) continue
+    usageByFormat.set(
+      event.competition_format_id,
+      (usageByFormat.get(event.competition_format_id) ?? 0) + 1,
+    )
+  }
+
+  const latestByFamily = new Map<string, { id: string; version: number }>()
+  const draftByFamily = new Map<string, string>()
+  for (const format of formats ?? []) {
+    const latest = latestByFamily.get(format.family_id)
+    if (!latest || format.version > latest.version) {
+      latestByFamily.set(format.family_id, { id: format.id, version: format.version })
+    }
+    if (format.status === 'draft') draftByFamily.set(format.family_id, format.id)
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">Silnik zawodów</p>
-          <h1 className="page-title mt-2">Formaty wyników i live</h1>
+          <h1 className="page-title mt-2">Formaty wyników</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Twórz wersjonowane reguły prób, obliczeń, rankingów i widoków.
           </p>
@@ -41,8 +74,24 @@ export default async function CompetitionFormatsPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(formats ?? []).map(format => (
-            <article key={format.id} className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+          {(formats ?? []).map(format => {
+            const usageCount = usageByFormat.get(format.id) ?? 0
+            const latest = latestByFamily.get(format.family_id)
+            const existingDraftId = draftByFamily.get(format.family_id)
+            const canManage = role === 'admin'
+              || (format.created_by === user.id && !format.is_system)
+            const canCreateVersion = format.status === 'published'
+              && (role === 'admin' || canManage || format.is_system)
+
+            return (
+            <article
+              key={format.id}
+              className={`rounded-3xl border bg-card p-6 shadow-sm ${
+                format.status === 'archived'
+                  ? 'border-sage-200 bg-sage-50/60 opacity-80'
+                  : 'border-border'
+              }`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-heading text-lg font-bold text-foreground">{format.name}</h2>
@@ -55,20 +104,42 @@ export default async function CompetitionFormatsPage() {
               <p className="mt-4 min-h-10 text-sm text-muted-foreground">
                 {format.description || 'Bez opisu.'}
               </p>
-              <div className="mt-5 border-t border-sage-100 pt-4">
-                {format.status === 'draft' && (role === 'admin' || format.created_by === user.id) ? (
-                  <Link href={`/organizer/formats/${format.id}/edit`} className="btn btn-secondary btn-sm">
-                    <Edit3 className="h-4 w-4" />
-                    Edytuj szkic
-                  </Link>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Opublikowana wersja jest niezmienna.
+              <dl className="mt-5 grid gap-2 border-t border-sage-100 pt-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-3.5 w-3.5 text-accent" />
+                  <span>{plForm(usageCount, 'wydarzenie używa', 'wydarzenia używają', 'wydarzeń używa')} tej wersji</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock3 className="h-3.5 w-3.5 text-accent" />
+                  <span>
+                    {format.published_at
+                      ? `Opublikowano ${formatDate(format.published_at)}`
+                      : `Utworzono ${formatDate(format.created_at)}`}
                   </span>
-                )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
+                  <span>
+                    {latest?.id === format.id
+                      ? 'To jest najnowsza wersja'
+                      : `Najnowsza jest wersja ${latest?.version ?? format.version}`}
+                  </span>
+                </div>
+              </dl>
+              <div className="mt-5">
+                <CompetitionFormatActions
+                  formatId={format.id}
+                  status={format.status}
+                  usageCount={usageCount}
+                  canManage={canManage}
+                  canCreateVersion={canCreateVersion}
+                  existingDraftId={existingDraftId === format.id ? null : existingDraftId}
+                  compact
+                />
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

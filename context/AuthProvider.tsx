@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { getSupabaseBrowserClient, requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 import type { User, Session, RealtimeChannel } from '@supabase/supabase-js'
+import { fetchWithAuthRetry } from '@/lib/authFetch'
 
 type AuthContextValue = {
   user: User | null
@@ -131,7 +132,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function login(email: string, password: string) {
     const client = requireSupabaseBrowserClient()
-    await client.auth.signInWithPassword({ email, password })
+    const { error } = await client.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    const response = await fetchWithAuthRetry('/api/profile')
+    if (response.status === 401) {
+      throw new Error('Sesja nie została jeszcze zsynchronizowana.')
+    }
   }
 
   async function logout() {

@@ -132,16 +132,17 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {group.overrides.map(override => (
-              <label key={override.key}>
-                <span className="form-label text-xs">
+              <div key={override.key}>
+                <label htmlFor={`speedway-override-${override.key}`} className="form-label text-xs">
                   {override.key === 'sport' ? 'Nazwa klasy sportowej' : 'Nazwa klasy chartów'}
-                </span>
+                </label>
                 <input
+                  id={`speedway-override-${override.key}`}
                   className="form-input min-h-11"
                   value={override.label}
                   onChange={event => updateOverrideLabel(override.key, event.target.value)}
                 />
-              </label>
+              </div>
             ))}
           </div>
         </div>
@@ -153,9 +154,10 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
             key={bucket.key}
             className="grid items-center gap-3 rounded-xl border border-orange-100 bg-white p-3 sm:grid-cols-[minmax(150px,1fr)_150px_minmax(160px,1fr)_44px]"
           >
-            <label>
-              <span className="form-label text-xs">Nazwa klasy</span>
+            <div>
+              <label htmlFor={`speedway-class-${bucket.key}-label`} className="form-label text-xs">Nazwa klasy</label>
               <input
+                id={`speedway-class-${bucket.key}-label`}
                 className="form-input min-h-11"
                 value={bucket.label}
                 onChange={event => updateBuckets(buckets.map((candidate, bucketIndex) =>
@@ -164,7 +166,7 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
                     : candidate
                 ))}
               />
-            </label>
+            </div>
 
             {index === 0 ? (
               <div>
@@ -176,6 +178,7 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
             ) : (
               <BoundaryInput
                 key={`${bucket.key}-${bucket.min}`}
+                id={`speedway-class-${bucket.key}-minimum`}
                 value={bucket.min ?? 0}
                 min={(buckets[index - 1]?.min ?? 0) + 0.1}
                 max={(buckets[index + 1]?.min ?? 200) - 0.1}
@@ -218,11 +221,13 @@ export default function SpeedwayClassEditor({ definition, onChange }: Props) {
 }
 
 function BoundaryInput({
+  id,
   value,
   min,
   max,
   onCommit,
 }: {
+  id: string
   value: number
   min: number
   max: number
@@ -240,10 +245,11 @@ function BoundaryInput({
   }
 
   return (
-    <label>
-      <span className="form-label text-xs">Od wzrostu</span>
+    <div>
+      <label htmlFor={id} className="form-label text-xs">Od wzrostu</label>
       <div className="relative">
         <input
+          id={id}
           className="form-input min-h-11 pr-10"
           type="number"
           min={min}
@@ -260,6 +266,6 @@ function BoundaryInput({
           cm
         </span>
       </div>
-    </label>
+    </div>
   )
 }

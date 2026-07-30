@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 
+function profileFailure(operation: 'read' | 'update', error: { code?: string; message: string }) {
+  console.error(`[profile] ${operation} failed`, {
+    code: error.code,
+    message: error.message,
+  })
+
+  return NextResponse.json(
+    {
+      error: operation === 'read'
+        ? 'Nie udało się pobrać profilu. Spróbuj ponownie.'
+        : 'Nie udało się zapisać zmian. Spróbuj ponownie.',
+    },
+    { status: 500 },
+  )
+}
+
 export async function GET() {
   const supabase = await createAuthClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -12,7 +28,7 @@ export async function GET() {
     .eq('id', user.id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return profileFailure('read', error)
   return NextResponse.json({ ...data, email: user.email })
 }
 
@@ -47,6 +63,6 @@ export async function PATCH(req: Request) {
     .select('id, full_name, company, role, event_creator_tutorial_seen_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return profileFailure('update', error)
   return NextResponse.json(data)
 }

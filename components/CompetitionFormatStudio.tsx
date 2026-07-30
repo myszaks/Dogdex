@@ -24,6 +24,7 @@ import type {
   CompetitionFieldDefinition,
   CompetitionFieldType,
   CompetitionFormatDefinition,
+  CompetitionStageDefinition,
   CompetitionViewBlockType,
 } from '@/types/competition'
 import { validateCompetitionFormatDefinition } from '@/lib/competitionEngine'
@@ -63,7 +64,7 @@ const VIEW_BLOCK_LABELS: Record<CompetitionViewBlockType, string> = {
   current_entry: 'Aktualnie startuje',
   next_up: 'Następni zawodnicy',
   result_table: 'Tabela wyników',
-  leaderboard: 'Klasyfikacja live',
+  leaderboard: 'Klasyfikacja na żywo',
   podium: 'Podium',
   metric: 'Wyróżniona metryka',
   progress: 'Postęp zawodów',
@@ -233,24 +234,69 @@ export default function CompetitionFormatStudio({
         label: collection === 'eventFields' ? 'Nowy parametr' : 'Nowy wynik',
         type: 'number',
         required: true,
+        ...(collection === 'resultFields' && definition.stages.length > 1
+          ? { stageIds: [definition.stages[0].id] }
+          : {}),
       },
     ])
   }
 
-  function setAttemptCount(count: number) {
+  function setAttemptCount(stageIndex: number, count: number) {
     const safeCount = Math.max(1, Math.min(20, count))
-    const firstStage = definition.stages[0] ?? { id: 'main', label: 'Etap główny', attempts: [] }
+    const stages = structuredClone(definition.stages)
+    const stage = stages[stageIndex]
+    if (!stage) return
+    const attempts = stage.attempts.slice(0, safeCount)
+    while (attempts.length < safeCount) {
+      attempts.push({
+        id: nextIdentifier(attempts.map(attempt => attempt.id), 'attempt'),
+        label: `Próba ${attempts.length + 1}`,
+      })
+    }
+    stage.attempts = attempts
+    updateDefinition({ stages })
+  }
+
+  function addStage() {
+    const id = nextIdentifier(definition.stages.map(stage => stage.id), 'stage')
     updateDefinition({
-      stages: [{
-        ...firstStage,
-        attempts: Array.from({ length: safeCount }, (_, index) =>
-          firstStage.attempts[index] ?? {
-            id: `attempt_${index + 1}`,
-            label: `Próba ${index + 1}`,
-          }
-        ),
-      }],
+      stages: [
+        ...definition.stages,
+        {
+          id,
+          label: `Etap ${definition.stages.length + 1}`,
+          attempts: [{ id: 'attempt_1', label: 'Próba 1' }],
+        },
+      ],
     })
+  }
+
+  function updateStage(stageIndex: number, stage: CompetitionStageDefinition) {
+    const stages = [...definition.stages]
+    stages[stageIndex] = stage
+    updateDefinition({ stages })
+  }
+
+  function removeStage(stageIndex: number) {
+    if (definition.stages.length <= 1) {
+      setError('Format musi zawierać co najmniej jeden etap.')
+      return
+    }
+    const removedStageId = definition.stages[stageIndex]?.id
+    if (!removedStageId) return
+    const stages = definition.stages.filter((_, index) => index !== stageIndex)
+    const resultFields = definition.resultFields.map(field => {
+      if (field.stageIds === undefined || !field.stageIds.includes(removedStageId)) {
+        return field
+      }
+      const stageIds = field.stageIds.filter(stageId => stageId !== removedStageId)
+      return {
+        ...field,
+        stageIds: stageIds.length > 0 ? stageIds : [stages[0].id],
+      }
+    })
+    setError(null)
+    updateDefinition({ stages, resultFields })
   }
 
   function addComputedField() {
@@ -623,15 +669,17 @@ export default function CompetitionFormatStudio({
             </div>
           )}
           <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
-            <label className="form-label">Nazwa formatu</label>
+            <label htmlFor="competition-format-name" className="form-label">Nazwa formatu</label>
             <input
+              id="competition-format-name"
               className="form-input min-h-11"
               value={name}
               onChange={event => setName(event.target.value)}
               title={name}
             />
-            <label className="form-label mt-4">Opis</label>
+            <label htmlFor="competition-format-description" className="form-label mt-4">Opis</label>
             <textarea
+              id="competition-format-description"
               className="form-input min-h-24"
               value={description}
               onChange={event => setDescription(event.target.value)}
@@ -692,68 +740,123 @@ export default function CompetitionFormatStudio({
                 onChange={fields => updateFields('eventFields', fields)}
                 onAdd={() => addField('eventFields')}
                 addLabel="Dodaj ustawienie wydarzenia"
+                idPrefix="competition-event-setting"
               />
 
               <StudioHeading
-                title="2. Co sędzia lub operator będzie wpisywać?"
-                description="Każde pole pojawi się przy zawodniku, np. czas, punkty za technikę, bonus lub kara."
+                title="2. Jak przebiegają zawody?"
+                description="Dodaj osobne etapy, a w każdym z nich ustaw liczbę prób. Te nazwy zobaczy operator wyników."
+              />
+              <div className="space-y-4">
+                {definition.stages.map((stage, stageIndex) => (
+                  <article
+                    key={stage.id}
+                    className="space-y-4 rounded-2xl border border-sage-200 bg-sage-50 p-4"
+                  >
+                    <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                      <div>
+                        <label
+                          htmlFor={`competition-stage-${stage.id}-name`}
+                          className="form-label"
+                        >
+                          Nazwa etapu {stageIndex + 1}
+                        </label>
+                        <input
+                          id={`competition-stage-${stage.id}-name`}
+                          className="form-input bg-white"
+                          value={stage.label}
+                          onChange={event => updateStage(stageIndex, {
+                            ...stage,
+                            label: event.target.value,
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor={`competition-stage-${stage.id}-attempt-count`}
+                          className="form-label"
+                        >
+                          Liczba prób
+                        </label>
+                        <input
+                          id={`competition-stage-${stage.id}-attempt-count`}
+                          className="form-input bg-white"
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={stage.attempts.length}
+                          onChange={event => setAttemptCount(stageIndex, Number(event.target.value))}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeStage(stageIndex)}
+                        disabled={definition.stages.length <= 1}
+                        className="mt-6 rounded-xl p-3 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={definition.stages.length <= 1
+                          ? 'Format musi zawierać co najmniej jeden etap'
+                          : `Usuń etap ${stage.label}`}
+                        aria-label={`Usuń etap ${stage.label}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-3 rounded-xl border border-sage-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-sage-500">
+                        Nazwy prób w tym etapie
+                      </p>
+                      {stage.attempts.map((attempt, attemptIndex) => (
+                        <div
+                          key={attempt.id}
+                          className="grid gap-2 sm:grid-cols-[110px_1fr] sm:items-center"
+                        >
+                          <label
+                            htmlFor={`competition-attempt-${stage.id}-${attempt.id}`}
+                            className="text-sm font-semibold text-sage-700"
+                          >
+                            Próba {attemptIndex + 1}
+                          </label>
+                          <input
+                            id={`competition-attempt-${stage.id}-${attempt.id}`}
+                            className="form-input"
+                            value={attempt.label}
+                            onChange={event => {
+                              const attempts = [...stage.attempts]
+                              attempts[attemptIndex] = {
+                                ...attempt,
+                                label: event.target.value,
+                              }
+                              updateStage(stageIndex, { ...stage, attempts })
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+                <button
+                  type="button"
+                  onClick={addStage}
+                  disabled={definition.stages.length >= 20}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Dodaj kolejny etap
+                </button>
+              </div>
+
+              <StudioHeading
+                title="3. Co sędzia lub operator będzie wpisywać?"
+                description="Dodaj czas, punkty, bonus lub karę i wskaż etap, w którym dane pole ma się pojawić."
               />
               <FieldCollection
                 fields={definition.resultFields}
+                stages={definition.stages}
                 onChange={fields => updateFields('resultFields', fields)}
                 onAdd={() => addField('resultFields')}
                 addLabel="Dodaj pole wyniku"
+                idPrefix="competition-result-field"
               />
-
-              <StudioHeading
-                title="3. Ile razy oceniany jest każdy zawodnik?"
-                description="Nazwij etap i próby tak, jak mówi o nich obsługa zawodów. Te nazwy zobaczy operator."
-              />
-              <div className="grid gap-4 rounded-2xl border border-sage-200 bg-sage-50 p-4 sm:grid-cols-2">
-                <label>
-                  <span className="form-label">Nazwa etapu</span>
-                  <input
-                    className="form-input"
-                    value={definition.stages[0]?.label ?? ''}
-                    onChange={event => {
-                      const stage = definition.stages[0]
-                      if (stage) updateDefinition({ stages: [{ ...stage, label: event.target.value }] })
-                    }}
-                  />
-                </label>
-                <label>
-                  <span className="form-label">Liczba prób</span>
-                  <input
-                    className="form-input"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={definition.stages[0]?.attempts.length ?? 1}
-                    onChange={event => setAttemptCount(Number(event.target.value))}
-                  />
-                </label>
-              </div>
-              <div className="space-y-3 rounded-2xl border border-sage-200 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-sage-500">
-                  Nazwy prób
-                </p>
-                {definition.stages[0]?.attempts.map((attempt, attemptIndex) => (
-                  <label key={attempt.id} className="grid gap-2 sm:grid-cols-[110px_1fr] sm:items-center">
-                    <span className="text-sm font-semibold text-sage-700">
-                      Próba {attemptIndex + 1}
-                    </span>
-                    <input
-                      className="form-input"
-                      value={attempt.label}
-                      onChange={event => {
-                        const stages = structuredClone(definition.stages)
-                        stages[0].attempts[attemptIndex].label = event.target.value
-                        updateDefinition({ stages })
-                      }}
-                    />
-                  </label>
-                ))}
-              </div>
             </div>
           )}
 
@@ -794,9 +897,10 @@ export default function CompetitionFormatStudio({
                 return (
                   <div key={field.id} className="space-y-4 rounded-2xl border border-sage-200 p-4">
                     <div className="grid gap-3 md:grid-cols-[1fr_120px_100px_auto]">
-                      <label>
-                        <span className="form-label text-xs">Nazwa wyniku</span>
+                      <div>
+                        <label htmlFor={`competition-computed-${field.id}-label`} className="form-label text-xs">Nazwa wyniku</label>
                         <input
+                          id={`competition-computed-${field.id}-label`}
                           className="form-input"
                           value={field.label}
                           onChange={event => updateComputedField(index, {
@@ -804,10 +908,11 @@ export default function CompetitionFormatStudio({
                           })}
                           placeholder="Nazwa wyniku"
                         />
-                      </label>
-                      <label>
-                        <span className="form-label text-xs">Jednostka</span>
+                      </div>
+                      <div>
+                        <label htmlFor={`competition-computed-${field.id}-unit`} className="form-label text-xs">Jednostka</label>
                         <input
+                          id={`competition-computed-${field.id}-unit`}
                           className="form-input"
                           value={field.unit ?? ''}
                           onChange={event => updateComputedField(index, {
@@ -815,10 +920,11 @@ export default function CompetitionFormatStudio({
                           })}
                           placeholder="pkt, s"
                         />
-                      </label>
-                      <label>
-                        <span className="form-label text-xs">Precyzja</span>
+                      </div>
+                      <div>
+                        <label htmlFor={`competition-computed-${field.id}-precision`} className="form-label text-xs">Precyzja</label>
                         <input
+                          id={`competition-computed-${field.id}-precision`}
                           className="form-input"
                           type="number"
                           min={0}
@@ -828,7 +934,7 @@ export default function CompetitionFormatStudio({
                             precision: event.target.value === '' ? undefined : Number(event.target.value),
                           })}
                         />
-                      </label>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeComputedField(index)}
@@ -840,9 +946,10 @@ export default function CompetitionFormatStudio({
                     </div>
                     {reducer ? (
                       <div className="grid gap-3 rounded-xl bg-sage-50 p-3 sm:grid-cols-2">
-                        <label>
-                          <span className="form-label text-xs">Jak połączyć próby?</span>
+                        <div>
+                          <label htmlFor={`competition-computed-${field.id}-aggregation`} className="form-label text-xs">Jak połączyć próby?</label>
                         <select
+                          id={`competition-computed-${field.id}-aggregation`}
                           className="form-input"
                           value={reducer.operator}
                           onChange={event => updateReducer(index, event.target.value as ReducerOperator, reducer.source)}
@@ -851,10 +958,11 @@ export default function CompetitionFormatStudio({
                               <option key={operator} value={operator}>{AGGREGATION_LABELS[operator]}</option>
                             ))}
                         </select>
-                        </label>
-                        <label>
-                          <span className="form-label text-xs">Z którego pola?</span>
+                        </div>
+                        <div>
+                          <label htmlFor={`competition-computed-${field.id}-source`} className="form-label text-xs">Z którego pola?</label>
                         <select
+                          id={`competition-computed-${field.id}-source`}
                           className="form-input"
                           value={reducer.source}
                           onChange={event => updateReducer(index, reducer.operator, event.target.value)}
@@ -863,7 +971,7 @@ export default function CompetitionFormatStudio({
                             <option key={resultField.id} value={resultField.id}>{resultField.label}</option>
                           ))}
                         </select>
-                        </label>
+                        </div>
                       </div>
                     ) : (
                       <div className="rounded-xl bg-violet-50 p-3 text-sm text-violet-700">
@@ -891,9 +999,10 @@ export default function CompetitionFormatStudio({
                 return (
                   <div key={ranking.id} className="space-y-6 rounded-2xl border border-sage-200 bg-sage-50 p-5">
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <label>
-                        <span className="form-label">Nazwa klasyfikacji</span>
+                      <div>
+                        <label htmlFor={`competition-ranking-${ranking.id}-label`} className="form-label">Nazwa klasyfikacji</label>
                         <input
+                          id={`competition-ranking-${ranking.id}-label`}
                           className="form-input"
                           value={ranking.label}
                           onChange={event => {
@@ -902,10 +1011,11 @@ export default function CompetitionFormatStudio({
                             updateDefinition({ rankings })
                           }}
                         />
-                      </label>
-                      <label>
-                        <span className="form-label">Jak numerować prawdziwy remis?</span>
+                      </div>
+                      <div>
+                        <label htmlFor={`competition-ranking-${ranking.id}-ties`} className="form-label">Jak numerować prawdziwy remis?</label>
                         <select
+                          id={`competition-ranking-${ranking.id}-ties`}
                           className="form-input"
                           value={ranking.ties}
                           onChange={event => {
@@ -921,7 +1031,7 @@ export default function CompetitionFormatStudio({
                           <option value="dense">Wspólne miejsce, bez luki: 1, 2, 2, 3</option>
                           <option value="ordinal">Zawsze osobne miejsca: 1, 2, 3, 4</option>
                         </select>
-                      </label>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -941,9 +1051,51 @@ export default function CompetitionFormatStudio({
                               {orderIndex === 0 ? '1. Główny wynik' : `${orderIndex + 1}. Rozstrzygnięcie remisu`}
                             </div>
                             {selectedMetric ? (
+                              <div>
+                                <label htmlFor={`competition-ranking-${ranking.id}-criterion-${orderIndex}-metric`} className="sr-only">
+                                  Wynik dla kryterium {orderIndex + 1}
+                                </label>
+                                <select
+                                  id={`competition-ranking-${ranking.id}-criterion-${orderIndex}-metric`}
+                                  className="form-input"
+                                  value={selectedMetric}
+                                  onChange={event => {
+                                    const rankings = [...definition.rankings]
+                                    rankings[index] = {
+                                      ...ranking,
+                                      orderBy: ranking.orderBy.map((criterion, criterionIndex) =>
+                                        criterionIndex === orderIndex
+                                          ? {
+                                              ...criterion,
+                                              expression: {
+                                                op: 'ref',
+                                                path: `computed.${event.target.value}`,
+                                              },
+                                            }
+                                          : criterion
+                                      ),
+                                    }
+                                    updateDefinition({ rankings })
+                                  }}
+                                >
+                                  {computedOptions.map(option => (
+                                    <option key={option.id} value={option.id}>{option.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              <div className="flex items-center rounded-xl bg-violet-50 px-3 text-xs font-semibold text-violet-700">
+                                Kryterium z szablonu
+                              </div>
+                            )}
+                            <div>
+                              <label htmlFor={`competition-ranking-${ranking.id}-criterion-${orderIndex}-direction`} className="sr-only">
+                                Kierunek kryterium {orderIndex + 1}
+                              </label>
                               <select
+                                id={`competition-ranking-${ranking.id}-criterion-${orderIndex}-direction`}
                                 className="form-input"
-                                value={selectedMetric}
+                                value={order.direction}
                                 onChange={event => {
                                   const rankings = [...definition.rankings]
                                   rankings[index] = {
@@ -952,10 +1104,7 @@ export default function CompetitionFormatStudio({
                                       criterionIndex === orderIndex
                                         ? {
                                             ...criterion,
-                                            expression: {
-                                              op: 'ref',
-                                              path: `computed.${event.target.value}`,
-                                            },
+                                            direction: event.target.value as 'asc' | 'desc',
                                           }
                                         : criterion
                                     ),
@@ -963,37 +1112,10 @@ export default function CompetitionFormatStudio({
                                   updateDefinition({ rankings })
                                 }}
                               >
-                                {computedOptions.map(option => (
-                                  <option key={option.id} value={option.id}>{option.label}</option>
-                                ))}
+                                <option value="desc">Więcej = lepiej</option>
+                                <option value="asc">Mniej = lepiej</option>
                               </select>
-                            ) : (
-                              <div className="flex items-center rounded-xl bg-violet-50 px-3 text-xs font-semibold text-violet-700">
-                                Kryterium z szablonu
-                              </div>
-                            )}
-                            <select
-                              className="form-input"
-                              value={order.direction}
-                              onChange={event => {
-                                const rankings = [...definition.rankings]
-                                rankings[index] = {
-                                  ...ranking,
-                                  orderBy: ranking.orderBy.map((criterion, criterionIndex) =>
-                                    criterionIndex === orderIndex
-                                      ? {
-                                          ...criterion,
-                                          direction: event.target.value as 'asc' | 'desc',
-                                        }
-                                      : criterion
-                                  ),
-                                }
-                                updateDefinition({ rankings })
-                              }}
-                            >
-                              <option value="desc">Więcej = lepiej</option>
-                              <option value="asc">Mniej = lepiej</option>
-                            </select>
+                            </div>
                             <button
                               type="button"
                               disabled={orderIndex === 0}
@@ -1035,7 +1157,9 @@ export default function CompetitionFormatStudio({
                       </div>
                       {threshold ? (
                         <div className="grid gap-3 rounded-xl border border-sage-200 bg-white p-3 sm:grid-cols-[1fr_190px_140px_auto]">
+                          <label htmlFor={`competition-ranking-${ranking.id}-threshold-metric`} className="sr-only">Wynik progu klasyfikacji</label>
                           <select
+                            id={`competition-ranking-${ranking.id}-threshold-metric`}
                             className="form-input"
                             value={threshold.metricId}
                             onChange={event => updateRankingThreshold(index, {
@@ -1047,7 +1171,9 @@ export default function CompetitionFormatStudio({
                               <option key={option.id} value={option.id}>{option.label}</option>
                             ))}
                           </select>
+                          <label htmlFor={`competition-ranking-${ranking.id}-threshold-operator`} className="sr-only">Warunek progu klasyfikacji</label>
                           <select
+                            id={`competition-ranking-${ranking.id}-threshold-operator`}
                             className="form-input"
                             value={threshold.operator}
                             onChange={event => updateRankingThreshold(index, {
@@ -1060,7 +1186,9 @@ export default function CompetitionFormatStudio({
                             <option value="lte">co najwyżej</option>
                             <option value="lt">mniej niż</option>
                           </select>
+                          <label htmlFor={`competition-ranking-${ranking.id}-threshold-value`} className="sr-only">Wartość progu klasyfikacji</label>
                           <input
+                            id={`competition-ranking-${ranking.id}-threshold-value`}
                             className="form-input"
                             type="number"
                             value={threshold.value}
@@ -1123,9 +1251,10 @@ export default function CompetitionFormatStudio({
                       <article key={block.id} className="space-y-4 rounded-2xl border border-sage-200 p-4">
                         <div className="grid items-end gap-3 sm:grid-cols-[auto_1fr_auto_auto]">
                           <Eye className="mb-3 h-4 w-4 shrink-0 text-accent" />
-                          <label>
-                            <span className="form-label text-xs">Tytuł sekcji</span>
+                          <div>
+                            <label htmlFor={`competition-view-${view.id}-block-${block.id}-title`} className="form-label text-xs">Tytuł sekcji</label>
                             <input
+                              id={`competition-view-${view.id}-block-${block.id}-title`}
                               className="form-input"
                               value={block.title ?? ''}
                               onChange={event => {
@@ -1134,7 +1263,7 @@ export default function CompetitionFormatStudio({
                                 updateDefinition({ views })
                               }}
                             />
-                          </label>
+                          </div>
                           <span className="mb-2 shrink-0 rounded-full bg-sage-100 px-3 py-1 text-xs font-semibold text-sage-700">
                             {VIEW_BLOCK_LABELS[block.type]}
                           </span>
@@ -1156,9 +1285,10 @@ export default function CompetitionFormatStudio({
                           <div className="space-y-4 rounded-xl bg-sage-50 p-3">
                             <div className="grid gap-3 sm:grid-cols-2">
                               {RANKING_VIEW_BLOCKS.has(block.type) && (
-                                <label>
-                                  <span className="form-label text-xs">Która klasyfikacja?</span>
+                                <div>
+                                  <label htmlFor={`competition-view-${view.id}-block-${block.id}-ranking`} className="form-label text-xs">Która klasyfikacja?</label>
                                   <select
+                                    id={`competition-view-${view.id}-block-${block.id}-ranking`}
                                     className="form-input"
                                     value={block.rankingId ?? ''}
                                     onChange={event => {
@@ -1172,12 +1302,13 @@ export default function CompetitionFormatStudio({
                                       <option key={ranking.id} value={ranking.id}>{ranking.label}</option>
                                     ))}
                                   </select>
-                                </label>
+                                </div>
                               )}
                               {LIMITED_VIEW_BLOCKS.has(block.type) && (
-                                <label>
-                                  <span className="form-label text-xs">Maksymalna liczba pozycji</span>
+                                <div>
+                                  <label htmlFor={`competition-view-${view.id}-block-${block.id}-limit`} className="form-label text-xs">Maksymalna liczba pozycji</label>
                                   <input
+                                    id={`competition-view-${view.id}-block-${block.id}-limit`}
                                     className="form-input"
                                     type="number"
                                     min={1}
@@ -1192,7 +1323,7 @@ export default function CompetitionFormatStudio({
                                       updateDefinition({ views })
                                     }}
                                   />
-                                </label>
+                                </div>
                               )}
                             </div>
                             {FIELD_VIEW_BLOCKS.has(block.type) && (
@@ -1204,6 +1335,7 @@ export default function CompetitionFormatStudio({
                                     const selected = block.fields?.includes(path) ?? false
                                     return (
                                       <label
+                                        htmlFor={`competition-view-${view.id}-block-${block.id}-field-${computedField.id}`}
                                         key={computedField.id}
                                         className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                                           selected
@@ -1212,6 +1344,7 @@ export default function CompetitionFormatStudio({
                                         }`}
                                       >
                                         <input
+                                          id={`competition-view-${view.id}-block-${block.id}-field-${computedField.id}`}
                                           type="checkbox"
                                           checked={selected}
                                           onChange={event => {
@@ -1339,26 +1472,29 @@ function WeightedScoreEditor({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-[1fr_120px_120px]">
-        <label>
-          <span className="form-label text-xs">Nazwa wyniku końcowego</span>
+        <div>
+          <label htmlFor={`weighted-${field.id}-label`} className="form-label text-xs">Nazwa wyniku końcowego</label>
           <input
+            id={`weighted-${field.id}-label`}
             className="form-input"
             value={field.label}
             onChange={event => onFieldChange({ label: event.target.value })}
           />
-        </label>
-        <label>
-          <span className="form-label text-xs">Jednostka</span>
+        </div>
+        <div>
+          <label htmlFor={`weighted-${field.id}-unit`} className="form-label text-xs">Jednostka</label>
           <input
+            id={`weighted-${field.id}-unit`}
             className="form-input"
             value={field.unit ?? ''}
             onChange={event => onFieldChange({ unit: event.target.value || undefined })}
             placeholder="pkt"
           />
-        </label>
-        <label>
-          <span className="form-label text-xs">Miejsca po przecinku</span>
+        </div>
+        <div>
+          <label htmlFor={`weighted-${field.id}-precision`} className="form-label text-xs">Miejsca po przecinku</label>
           <input
+            id={`weighted-${field.id}-precision`}
             className="form-input"
             type="number"
             min={0}
@@ -1369,7 +1505,7 @@ function WeightedScoreEditor({
               precision: Math.max(0, Math.min(8, Number(event.target.value))),
             })}
           />
-        </label>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -1378,9 +1514,10 @@ function WeightedScoreEditor({
             key={`${term.fieldId}-${termIndex}`}
             className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3 lg:grid-cols-[130px_1fr_190px_120px_auto]"
           >
-            <label>
-              <span className="form-label text-xs">Działanie</span>
+            <div>
+              <label htmlFor={`weighted-${field.id}-term-${termIndex}-operation`} className="form-label text-xs">Działanie</label>
               <select
+                id={`weighted-${field.id}-term-${termIndex}-operation`}
                 className="form-input"
                 value={term.operation}
                 onChange={event => updateTerm(termIndex, {
@@ -1390,10 +1527,11 @@ function WeightedScoreEditor({
                 <option value="add">Dodaj</option>
                 <option value="subtract">Odejmij jako karę</option>
               </select>
-            </label>
-            <label>
-              <span className="form-label text-xs">Pole wyniku</span>
+            </div>
+            <div>
+              <label htmlFor={`weighted-${field.id}-term-${termIndex}-field`} className="form-label text-xs">Pole wyniku</label>
               <select
+                id={`weighted-${field.id}-term-${termIndex}-field`}
                 className="form-input"
                 value={term.fieldId}
                 onChange={event => updateTerm(termIndex, { fieldId: event.target.value })}
@@ -1404,10 +1542,11 @@ function WeightedScoreEditor({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="form-label text-xs">Gdy jest kilka prób</span>
+            </div>
+            <div>
+              <label htmlFor={`weighted-${field.id}-term-${termIndex}-aggregation`} className="form-label text-xs">Gdy jest kilka prób</label>
               <select
+                id={`weighted-${field.id}-term-${termIndex}-aggregation`}
                 className="form-input"
                 value={term.aggregation}
                 onChange={event => updateTerm(termIndex, {
@@ -1420,10 +1559,11 @@ function WeightedScoreEditor({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="form-label text-xs">Mnożnik / waga</span>
+            </div>
+            <div>
+              <label htmlFor={`weighted-${field.id}-term-${termIndex}-multiplier`} className="form-label text-xs">Mnożnik / waga</label>
               <input
+                id={`weighted-${field.id}-term-${termIndex}-multiplier`}
                 className="form-input"
                 type="number"
                 min={0}
@@ -1433,7 +1573,7 @@ function WeightedScoreEditor({
                   multiplier: Math.max(0, Number(event.target.value)),
                 })}
               />
-            </label>
+            </div>
             <button
               type="button"
               disabled={recipe.terms.length === 1}
@@ -1495,9 +1635,10 @@ function WeightedScoreEditor({
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {sampleFieldIds.map(fieldId => (
-            <label key={fieldId}>
-              <span className="form-label text-xs">{labels[fieldId] ?? fieldId}</span>
+            <div key={fieldId}>
+              <label htmlFor={`weighted-${field.id}-sample-${fieldId}`} className="form-label text-xs">{labels[fieldId] ?? fieldId}</label>
               <input
+                id={`weighted-${field.id}-sample-${fieldId}`}
                 className="form-input"
                 type="number"
                 value={sampleValues[fieldId] ?? ''}
@@ -1507,7 +1648,7 @@ function WeightedScoreEditor({
                 }))}
                 placeholder="0"
               />
-            </label>
+            </div>
           ))}
         </div>
         <div className="rounded-xl bg-green-50 p-4 text-center">
@@ -1525,23 +1666,28 @@ function WeightedScoreEditor({
 
 function FieldCollection({
   fields,
+  stages,
   onChange,
   onAdd,
   addLabel,
+  idPrefix,
 }: {
   fields: CompetitionFieldDefinition[]
+  stages?: CompetitionStageDefinition[]
   onChange: (fields: CompetitionFieldDefinition[]) => void
   onAdd: () => void
   addLabel: string
+  idPrefix: string
 }) {
   return (
     <div className="space-y-3">
       {fields.map((field, index) => (
         <article key={`${field.id}-${index}`} className="space-y-4 rounded-2xl border border-sage-200 p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_180px_120px_auto]">
-            <label>
-              <span className="form-label text-xs">Nazwa widoczna dla operatora</span>
+            <div>
+              <label htmlFor={`${idPrefix}-${field.id}-label`} className="form-label text-xs">Nazwa widoczna dla operatora</label>
               <input
+                id={`${idPrefix}-${field.id}-label`}
                 className="form-input"
                 value={field.label}
                 onChange={event => {
@@ -1554,10 +1700,11 @@ function FieldCollection({
                 }}
                 placeholder="Np. Punkty za technikę"
               />
-            </label>
-            <label>
-              <span className="form-label text-xs">Rodzaj danych</span>
+            </div>
+            <div>
+              <label htmlFor={`${idPrefix}-${field.id}-type`} className="form-label text-xs">Rodzaj danych</label>
               <select
+                id={`${idPrefix}-${field.id}-type`}
                 className="form-input"
                 value={field.type}
                 onChange={event => {
@@ -1573,10 +1720,11 @@ function FieldCollection({
                   <option key={type} value={type}>{FIELD_TYPE_LABELS[type]}</option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="form-label text-xs">Jednostka</span>
+            </div>
+            <div>
+              <label htmlFor={`${idPrefix}-${field.id}-unit`} className="form-label text-xs">Jednostka</label>
               <input
+                id={`${idPrefix}-${field.id}-unit`}
                 className="form-input"
                 value={field.unit ?? ''}
                 onChange={event => {
@@ -1586,7 +1734,7 @@ function FieldCollection({
                 }}
                 placeholder="pkt, m, s"
               />
-            </label>
+            </div>
             <button
               type="button"
               onClick={() => onChange(fields.filter((_, itemIndex) => itemIndex !== index))}
@@ -1596,9 +1744,45 @@ function FieldCollection({
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
+          {stages && stages.length > 0 && (
+            <div className="rounded-xl border border-sage-200 bg-white p-3">
+              <label
+                htmlFor={`${idPrefix}-${field.id}-stage`}
+                className="form-label text-xs"
+              >
+                W którym etapie operator wpisuje to pole?
+              </label>
+              <select
+                id={`${idPrefix}-${field.id}-stage`}
+                className="form-input"
+                value={field.stageIds?.[0] ?? '__all'}
+                onChange={event => {
+                  const next = [...fields]
+                  next[index] = {
+                    ...field,
+                    stageIds: event.target.value === '__all'
+                      ? undefined
+                      : [event.target.value],
+                  }
+                  onChange(next)
+                }}
+              >
+                <option value="__all">We wszystkich etapach</option>
+                {stages.map(stage => (
+                  <option key={stage.id} value={stage.id}>
+                    Tylko: {stage.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Pole pojawi się wyłącznie przy próbach wybranego etapu.
+              </p>
+            </div>
+          )}
           <div className="grid gap-3 rounded-xl bg-sage-50 p-3 sm:grid-cols-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-sage-700">
+            <label htmlFor={`${idPrefix}-${field.id}-required`} className="flex items-center gap-2 text-sm font-medium text-sage-700">
               <input
+                id={`${idPrefix}-${field.id}-required`}
                 type="checkbox"
                 checked={field.required === true}
                 onChange={event => {
@@ -1612,9 +1796,10 @@ function FieldCollection({
             </label>
             {(field.type === 'number' || field.type === 'duration_ms') && (
               <>
-                <label>
-                  <span className="form-label text-xs">Minimum</span>
+                <div>
+                  <label htmlFor={`${idPrefix}-${field.id}-min`} className="form-label text-xs">Minimum</label>
                   <input
+                    id={`${idPrefix}-${field.id}-min`}
                     className="form-input"
                     type="number"
                     value={field.min ?? ''}
@@ -1627,10 +1812,11 @@ function FieldCollection({
                       onChange(next)
                     }}
                   />
-                </label>
-                <label>
-                  <span className="form-label text-xs">Maksimum</span>
+                </div>
+                <div>
+                  <label htmlFor={`${idPrefix}-${field.id}-max`} className="form-label text-xs">Maksimum</label>
                   <input
+                    id={`${idPrefix}-${field.id}-max`}
                     className="form-input"
                     type="number"
                     value={field.max ?? ''}
@@ -1643,10 +1829,11 @@ function FieldCollection({
                       onChange(next)
                     }}
                   />
-                </label>
-                <label>
-                  <span className="form-label text-xs">Miejsca po przecinku</span>
+                </div>
+                <div>
+                  <label htmlFor={`${idPrefix}-${field.id}-precision`} className="form-label text-xs">Miejsca po przecinku</label>
                   <input
+                    id={`${idPrefix}-${field.id}-precision`}
                     className="form-input"
                     type="number"
                     min={0}
@@ -1661,7 +1848,7 @@ function FieldCollection({
                       onChange(next)
                     }}
                   />
-                </label>
+                </div>
               </>
             )}
           </div>

@@ -34,7 +34,7 @@ export default function TrainingsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="page-title mb-2">Treningi Indywidualne</h1>
+        <h1 className="page-title mb-2">Treningi indywidualne</h1>
         <p className="text-muted-foreground">
           Znajdź i zarezerwuj trening z doświadczonym trenerem psów
         </p>

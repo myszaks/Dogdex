@@ -9,7 +9,7 @@ import { createAuthClient, createServerClient, hasServiceRoleKey } from '@/lib/s
 import type { TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
 import TrainerBookingActions from './TrainerBookingActions'
 
-export const metadata: Metadata = { title: 'Szczegoly rezerwacji' }
+export const metadata: Metadata = { title: 'Szczegóły rezerwacji' }
 export const dynamic = 'force-dynamic'
 
 interface TrainerBookingDetails extends TrainingBookingWithRelations {
@@ -75,8 +75,8 @@ async function getTrainerBookingDetails(
     return null
   }
 
-  let userName = 'Uzytkownik'
-  let userEmail = 'Kontakt niedostepny'
+  let userName = 'Użytkownik'
+  let userEmail = 'Kontakt niedostępny'
   let dog = null as { id: string; name: string } | null
 
   if (privilegedClient) {
@@ -124,14 +124,14 @@ export default async function TrainerBookingDetailPage({ params }: TrainerBookin
     <div className="max-w-5xl mx-auto px-4 py-8">
       <Link href="/trainer/bookings" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
-        Wroc do rezerwacji
+        Wróć do rezerwacji
       </Link>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
           <h1 className="page-title mb-2">{booking.training_types?.name ?? 'Rezerwacja treningu'}</h1>
           <p className="text-muted-foreground">
-            Szczegoly rezerwacji i dane klienta.
+            Szczegóły rezerwacji i dane klienta.
           </p>
         </div>
         <span className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold ${getStatusBadge(booking.status)}`}>
@@ -185,7 +185,7 @@ export default async function TrainerBookingDetailPage({ params }: TrainerBookin
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Adres e-mail</p>
-                  {booking.user_email === 'Kontakt niedostepny' ? (
+                  {booking.user_email === 'Kontakt niedostępny' ? (
                     <p className="font-semibold text-foreground">{booking.user_email}</p>
                   ) : (
                     <a href={`mailto:${booking.user_email}`} className="font-semibold text-accent hover:underline">

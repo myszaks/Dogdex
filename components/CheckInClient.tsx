@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { formatPolishCount } from '@/lib/polish'
 
 interface CheckInParticipant {
   registrationId: string
@@ -89,7 +90,13 @@ export default function CheckInClient({
             Odprawa: <span className="text-2xl font-bold">{checkedInCount}</span>
             <span className="text-sky-500"> / {participants.length}</span>
           </p>
-          <p className="text-xs text-sky-600 mt-0.5">psów przeszło odprawę</p>
+          <p className="text-xs text-sky-600 mt-0.5">
+            {formatPolishCount(checkedInCount, [
+              'pies przeszedł odprawę',
+              'psy przeszły odprawę',
+              'psów przeszło odprawę',
+            ])}
+          </p>
           {eventClosed && (
             <p className="text-xs text-slate-500 mt-1">
               Zawody są zakończone. Odprawa jest tylko do podglądu.

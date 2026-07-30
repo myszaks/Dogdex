@@ -9,6 +9,7 @@ import {
   statusLabel,
   statusBadgeClasses,
 } from '@/lib/utils'
+import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
 import EventMapClient from '@/components/EventMapClient'
@@ -194,7 +195,7 @@ export default async function EventDetailPage({ params }: Props) {
           {dispStatus === 'ongoing' && event.has_results && event.results_public && (
             <Link href={`/live/${event.slug}`} className="btn btn-primary shrink-0 px-6 py-2.5 text-sm font-semibold shadow-lg">
               <Radio className="w-4 h-4 animate-pulse" />
-              Wyniki live
+              Wyniki na żywo
             </Link>
           )}
         </div>
@@ -296,7 +297,9 @@ export default async function EventDetailPage({ params }: Props) {
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Pozostało</span>
-                <span className="font-semibold text-foreground ml-auto">{daysRemaining} {daysRemaining === 1 ? 'dzień' : 'dni'}</span>
+                <span className="font-semibold text-foreground ml-auto">
+                  {formatPolishCount(daysRemaining, POLISH_FORMS.day)}
+                </span>
               </div>
             )}
 
@@ -364,7 +367,7 @@ export default async function EventDetailPage({ params }: Props) {
             {dispStatus === 'ongoing' && event.has_results && event.results_public && (
               <Link href={`/live/${event.slug}`} className="btn btn-primary w-full py-2.5">
                 <Radio className="w-4 h-4 animate-pulse" />
-                Wyniki live
+                Wyniki na żywo
               </Link>
             )}
           </div>

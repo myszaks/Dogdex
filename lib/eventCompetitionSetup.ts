@@ -68,7 +68,7 @@ export function cloneCompetitionPreset(
 export function getLiveVisibilityLabel(
   hasResults: boolean,
   resultsPublic: boolean,
-): 'Wyłączony' | 'Prywatny' | 'Publiczny' {
-  if (!hasResults) return 'Wyłączony'
-  return resultsPublic ? 'Publiczny' : 'Prywatny'
+): 'Wyłączone' | 'Prywatne' | 'Publiczne' {
+  if (!hasResults) return 'Wyłączone'
+  return resultsPublic ? 'Publiczne' : 'Prywatne'
 }

@@ -1,6 +1,7 @@
 'use client'
 import 'leaflet/dist/leaflet.css'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { LeafletMouseEvent, Map as LeafletMap, Marker } from 'leaflet'
 
 interface Props {
   lat: number | null
@@ -15,10 +16,16 @@ const DEFAULT_ZOOM = 6
 
 export default function MapPicker({ lat, lng, location, onLocationChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const markerRef = useRef<any>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
+  const markerRef = useRef<Marker | null>(null)
   const [geocoding, setGeocoding] = useState(false)
   const [searchInput, setSearchInput] = useState(location ?? '')
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const generatedId = useId()
+  const searchId = `map-address-${generatedId}`
+  const helpId = `${searchId}-help`
+  const errorId = `${searchId}-error`
+  const statusId = `${searchId}-status`
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -31,8 +38,10 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
       if (cancelled || !containerRef.current) return
 
       // Fix default icon path issue with webpack
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl
+      const defaultIconPrototype = L.Icon.Default.prototype as typeof L.Icon.Default.prototype & {
+        _getIconUrl?: unknown
+      }
+      delete defaultIconPrototype._getIconUrl
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
@@ -58,7 +67,7 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
         markerRef.current = L.marker([lat, lng]).addTo(map)
       }
 
-      map.on('click', async (e: any) => {
+      map.on('click', async (e: LeafletMouseEvent) => {
         const { lat: clickLat, lng: clickLng } = e.latlng
 
         if (markerRef.current) {
@@ -80,9 +89,14 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
           )
           const data = await res.json()
           const address = data.display_name ?? `${clickLat.toFixed(5)}, ${clickLng.toFixed(5)}`
+          setSearchInput(address)
+          setSearchError(null)
           onLocationChange(clickLat, clickLng, address)
         } catch {
-          onLocationChange(clickLat, clickLng, `${clickLat.toFixed(5)}, ${clickLng.toFixed(5)}`)
+          const fallbackAddress = `${clickLat.toFixed(5)}, ${clickLng.toFixed(5)}`
+          setSearchInput(fallbackAddress)
+          setSearchError(null)
+          onLocationChange(clickLat, clickLng, fallbackAddress)
         } finally {
           setGeocoding(false)
         }
@@ -108,12 +122,8 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
     if (markerRef.current) {
       markerRef.current.setLatLng([lat, lng])
     }
+    mapRef.current.invalidateSize()
   }, [lat, lng])
-
-  // Keep searchInput in sync when location prop changes from outside
-  useEffect(() => {
-    if (location !== undefined) setSearchInput(location)
-  }, [location])
 
   async function handleSearch(e?: React.FormEvent | React.KeyboardEvent) {
     e?.preventDefault()
@@ -121,6 +131,7 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
     if (!query) return
 
     setGeocoding(true)
+    setSearchError(null)
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
@@ -133,7 +144,7 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
       )
       const data = await res.json()
       if (!data || data.length === 0) {
-        alert('Nie znaleziono lokalizacji. Spróbuj wpisać dokładniejszy adres.')
+        setSearchError('Nie znaleziono lokalizacji. Wpisz dokładniejszy adres.')
         return
       }
       const { lat: foundLat, lon: foundLng, display_name } = data[0]
@@ -153,7 +164,7 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
         }
       }
     } catch {
-      alert('Błąd podczas wyszukiwania adresu.')
+      setSearchError('Nie udało się wyszukać adresu. Spróbuj ponownie.')
     } finally {
       setGeocoding(false)
     }
@@ -162,20 +173,30 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
   return (
     <div className="space-y-2">
       {/* Address search input */}
+      <label htmlFor={searchId} className="form-label">
+        Adres wydarzenia
+      </label>
       <div className="flex gap-2">
         <input
+          id={searchId}
           type="text"
           value={searchInput}
-          onChange={e => setSearchInput(e.target.value)}
+          onChange={e => {
+            setSearchInput(e.target.value)
+            if (searchError) setSearchError(null)
+          }}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearch() } }}
           placeholder="Wpisz adres i kliknij Szukaj…"
           className="form-input flex-1"
+          aria-describedby={`${helpId}${searchError ? ` ${errorId}` : ''}`}
+          aria-invalid={searchError ? true : undefined}
         />
         <button
           type="button"
           onClick={() => handleSearch()}
           disabled={geocoding}
           className="btn btn-secondary btn-sm shrink-0 px-3"
+          aria-describedby={statusId}
         >
           {geocoding ? '⏳' : '🔍 Szukaj'}
         </button>
@@ -183,10 +204,20 @@ export default function MapPicker({ lat, lng, location, onLocationChange }: Prop
 
       <div
         ref={containerRef}
-        className="w-full h-64 rounded-xl overflow-hidden border border-slate-200 z-0"
+        className={`w-full rounded-xl overflow-hidden border border-slate-200 z-0 transition-[height] ${
+          lat === null || lng === null ? 'h-40 sm:h-48' : 'h-52 sm:h-64'
+        }`}
+        aria-label="Mapa wyboru lokalizacji wydarzenia"
       />
-      {geocoding && <p className="text-xs text-slate-400">⏳ Pobieranie adresu...</p>}
-      <p className="text-xs text-slate-400">
+      <p id={statusId} role="status" aria-live="polite" className="text-xs text-slate-500">
+        {geocoding ? 'Pobieranie adresu…' : ''}
+      </p>
+      {searchError && (
+        <p id={errorId} role="alert" className="text-xs font-medium text-red-600">
+          {searchError}
+        </p>
+      )}
+      <p id={helpId} className="text-xs text-slate-500">
         Wpisz adres i kliknij Szukaj, lub kliknij bezpośrednio na mapie, aby ustawić pin.
       </p>
     </div>

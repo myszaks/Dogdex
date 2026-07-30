@@ -134,7 +134,7 @@ export default function EventCard({ event, registeredCount, extraActions, hidePu
               {dispStatus === 'ongoing' && event.has_results && event.results_public && (
                 <Link href={`/live/${event.slug}`} className="btn btn-primary btn-sm">
                   <Radio className="w-3.5 h-3.5" />
-                  Wyniki live
+                  Wyniki na żywo
                 </Link>
               )}
               <Link href={detailHref} className="btn btn-secondary btn-sm">

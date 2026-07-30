@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Modal from './Modal'
 import { requireSupabaseBrowserClient } from '@/lib/supabaseClient'
+import { fetchWithAuthRetry } from '@/lib/authFetch'
 
 type View = 'login' | 'register' | 'forgot'
 type Props = { open: boolean; onClose: () => void }
@@ -42,6 +44,7 @@ function normalizeEmail(email: string) {
 }
 
 export default function AuthModal({ open, onClose }: Props) {
+  const router = useRouter()
   const [view, setView] = useState<View>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -117,9 +120,27 @@ export default function AuthModal({ open, onClose }: Props) {
     setLoading(true)
     reset()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      setLoading(false)
+      setError(translateAuthError(error.message))
+      return
+    }
+
+    let profileResponse = await fetchWithAuthRetry('/api/profile')
+    if (profileResponse.status === 401) {
+      const { error: refreshError } = await supabase.auth.refreshSession()
+      if (!refreshError) {
+        profileResponse = await fetchWithAuthRetry('/api/profile')
+      }
+    }
     setLoading(false)
-    if (error) setError(translateAuthError(error.message))
-    else onClose()
+    if (profileResponse.status === 401) {
+      setError('Sesja nie została jeszcze zsynchronizowana. Spróbuj zalogować się ponownie.')
+      return
+    }
+
+    router.refresh()
+    onClose()
   }
 
   async function signUpWithEmail() {

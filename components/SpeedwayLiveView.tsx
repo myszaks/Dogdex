@@ -335,7 +335,7 @@ export default function SpeedwayLiveView({
         <p className="text-4xl mb-3">🏁</p>
         <p className="font-semibold text-slate-700">Brak odprawionych zawodników</p>
         <p className="text-sm mt-1">
-          Lista startowa i wyniki live pojawią się po odprawieniu psów przez organizatora.
+          Lista startowa i wyniki na żywo pojawią się po odprawieniu psów przez organizatora.
         </p>
       </div>
     )

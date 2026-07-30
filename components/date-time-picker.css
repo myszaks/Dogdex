@@ -30,7 +30,6 @@
 .dogdex-date-picker__header > span {
   font-weight: 700;
   text-align: center;
-  text-transform: capitalize;
 }
 
 .dogdex-date-picker__header button {

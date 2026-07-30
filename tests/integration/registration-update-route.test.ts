@@ -224,4 +224,69 @@ describe('PATCH /api/registrations/[id]', () => {
       error: 'Ten pies ma już aktywny zapis na to wydarzenie',
     })
   })
+
+  it('cancels explicitly and removes schedule assignments for the registration', async () => {
+    const registration = {
+      id: 'reg-1',
+      event_id: 'event-1',
+      status: 'confirmed',
+      participants: {
+        id: 'participant-1',
+        owner_email: 'ala@example.com',
+        dog_name: 'Figa',
+      },
+      events: {
+        id: 'event-1',
+        created_by: 'organizer-1',
+      },
+    }
+    const updatedRegistration = {
+      ...registration,
+      status: 'cancelled',
+    }
+    let registrationCalls = 0
+    createAuthClient.mockResolvedValue({
+      from: vi.fn((table: string) => {
+        if (table !== 'registrations') throw new Error(`Unexpected table ${table}`)
+        registrationCalls += 1
+        if (registrationCalls === 1) return registrationFetch(registration)
+        return {
+          update: vi.fn(() => ({
+            eq: () => ({
+              select: () => ({
+                single: async () => ({ data: updatedRegistration, error: null }),
+              }),
+            }),
+          })),
+        }
+      }),
+    })
+
+    const assignmentEq = vi.fn(async () => ({ error: null }))
+    const assignmentDelete = vi.fn(() => ({ eq: assignmentEq }))
+    createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table !== 'schedule_assignments') throw new Error(`Unexpected table ${table}`)
+        return { delete: assignmentDelete }
+      }),
+    })
+
+    const { PATCH } = await import('@/app/api/registrations/[id]/route')
+    const response = await PATCH(
+      new Request('http://localhost/api/registrations/reg-1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      }),
+      { params: Promise.resolve({ id: 'reg-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: 'reg-1',
+      status: 'cancelled',
+    })
+    expect(assignmentDelete).toHaveBeenCalledOnce()
+    expect(assignmentEq).toHaveBeenCalledWith('registration_id', 'reg-1')
+  })
 })

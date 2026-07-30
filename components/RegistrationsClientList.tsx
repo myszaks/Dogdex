@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   DragDropContext,
   Droppable,
@@ -23,25 +23,22 @@ import {
 } from '@/lib/competitionViews'
 
 interface Props {
-  initialRegistrations: Registration[]
+  registrations: Registration[]
+  onRegistrationsChange: (registrations: Registration[]) => void
+  onRegistrationUpdated: (registration: Partial<Registration> & Pick<Registration, 'id'>) => void
   eventFormFields: FormField[]
   groupingField: string | null
   competitionDefinition: CompetitionFormatDefinition | null
-  eventId: string
 }
 
 export default function RegistrationsClientList({
-  initialRegistrations,
+  registrations,
+  onRegistrationsChange,
+  onRegistrationUpdated,
   eventFormFields,
   groupingField,
   competitionDefinition,
 }: Props) {
-  const sorted = useMemo(() => [...initialRegistrations].sort((a, b) => {
-    if (a.order_index != null && b.order_index != null) return a.order_index - b.order_index
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  }), [initialRegistrations])
-
-  const [registrations, setRegistrations] = useState<Registration[]>(sorted)
   const [saving, setSaving] = useState(false)
 
   function formatFormValue(value: unknown, field?: FormField): string {
@@ -75,7 +72,7 @@ export default function RegistrationsClientList({
     const newList = [...registrations]
     const [moved] = newList.splice(source.index, 1)
     newList.splice(destination.index, 0, moved)
-    setRegistrations(newList)
+    onRegistrationsChange(newList)
 
     setSaving(true)
     try {
@@ -134,7 +131,7 @@ export default function RegistrationsClientList({
       })
 
     return (
-      <Card size="sm" className="relative transition-shadow hover:shadow-md">
+      <Card size="sm" className="relative overflow-visible transition-shadow hover:shadow-md">
         <CardHeader className="border-b pb-2">
           <div className="flex items-start gap-1.5 min-w-0">
             {dragHandle}
@@ -157,6 +154,7 @@ export default function RegistrationsClientList({
               regId={reg.id}
               status={reg.status}
               multidateDates={multidateDates}
+              onUpdated={onRegistrationUpdated}
             />
           </CardAction>
         </CardHeader>

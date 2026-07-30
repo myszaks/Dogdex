@@ -84,6 +84,12 @@ export async function POST(req: Request) {
 
     if (formatError) return NextResponse.json({ error: formatError.message }, { status: 500 })
     if (!format) return NextResponse.json({ error: 'Nie znaleziono wybranego formatu zawodów.' }, { status: 404 })
+    if (format.status === 'archived') {
+      return NextResponse.json(
+        { error: 'Archiwalnego formatu nie można przypisać do nowego wydarzenia.' },
+        { status: 409 },
+      )
+    }
     if (nextStatus !== 'draft' && format.status !== 'published') {
       return NextResponse.json(
         { error: 'Przed publikacją wydarzenia opublikuj jego format zawodów.' },

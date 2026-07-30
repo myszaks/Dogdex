@@ -40,7 +40,7 @@ export const EVENT_TYPES: EventType[] = [
         type: 'number',
         required: true,
         placeholder: 'np. 45',
-        description: 'Klasa startowa zostanie przydzielona automatycznie według progów ustawionych w kroku „Wyniki i live”.',
+        description: 'Klasa startowa zostanie przydzielona automatycznie według progów ustawionych w kroku „Wyniki”.',
       },
       {
         id: 'sport_class',

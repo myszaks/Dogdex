@@ -101,7 +101,7 @@ export default async function HomePage({ searchParams }: Props) {
           <h1 className="text-2xl font-heading font-bold text-foreground leading-tight">
             Wydarzenia
           </h1>
-          <p className="text-sm text-muted-foreground">Zawody, eventy i spacery dla Ciebie i Twojego psa</p>
+          <p className="text-sm text-muted-foreground">Zawody, wydarzenia i spacery dla Ciebie i Twojego psa</p>
         </div>
       </div>
 

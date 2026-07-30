@@ -138,7 +138,7 @@ export default function DateAvailabilityManager() {
         }
         return [...prev, data]
       })
-      showSuccess(selectedSlot ? 'Slot zaktualizowany' : 'Slot dodany')
+      showSuccess(selectedSlot ? 'Dostępność zaktualizowana' : 'Dostępność dodana')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -162,7 +162,7 @@ export default function DateAvailabilityManager() {
       if (!response.ok) throw new Error('Nie udało się usunąć dostępności')
 
       setSlots(prev => prev.filter(slot => slot.id !== selectedSlot.id))
-      showSuccess('Slot usunięty')
+      showSuccess('Dostępność usunięta')
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -191,7 +191,7 @@ export default function DateAvailabilityManager() {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="text-center">
-            <p className="font-heading font-bold text-2xl capitalize">
+            <p className="font-heading font-bold text-2xl">
               {format(currentMonth, 'LLLL yyyy', { locale: pl })}
             </p>
             <p className="text-xs text-muted-foreground">Kliknij dzień, żeby dodać albo edytować godziny</p>
@@ -266,42 +266,46 @@ export default function DateAvailabilityManager() {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {selectedSlot ? 'Edytuj slot' : 'Nowy slot'}
+                {selectedSlot ? 'Edytuj dostępność' : 'Nowa dostępność'}
               </p>
-              <h2 className="font-heading font-bold text-xl capitalize">
+              <h2 className="font-heading font-bold text-xl">
                 {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
               </h2>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-2">
+            <label htmlFor="availability-start-time" className="space-y-2">
               <span className="block text-sm font-semibold">Od</span>
               <input
+                id="availability-start-time"
                 type="time"
                 step={3600}
                 value={startTime}
                 onChange={e => setStartTime(e.target.value)}
                 className="form-input"
+                aria-describedby={error ? 'availability-error' : undefined}
               />
             </label>
-            <label className="space-y-2">
+            <label htmlFor="availability-end-time" className="space-y-2">
               <span className="block text-sm font-semibold">Do</span>
               <input
+                id="availability-end-time"
                 type="time"
                 step={3600}
                 value={endTime}
                 onChange={e => setEndTime(e.target.value)}
                 className="form-input"
+                aria-describedby={error ? 'availability-error' : undefined}
               />
             </label>
           </div>
 
           <div className="rounded-2xl bg-secondary px-4 py-3 text-sm text-muted-foreground">
-            W bookingu z tego zakresu pokażą się pełne godziny, np. 10:00, 11:00, 12:00.
+            W formularzu rezerwacji z tego zakresu pojawią się pełne godziny, np. 10:00, 11:00 i 12:00.
           </div>
 
-          {error && <div className="bg-red-50 text-red-700 px-4 py-3 rounded-2xl text-sm">{error}</div>}
+          {error && <div id="availability-error" role="alert" className="bg-red-50 text-red-700 px-4 py-3 rounded-2xl text-sm">{error}</div>}
           {success && <div className="bg-green-50 text-green-700 px-4 py-3 rounded-2xl text-sm">{success}</div>}
 
           <div className="flex gap-2">
@@ -311,7 +315,7 @@ export default function DateAvailabilityManager() {
               className="btn btn-primary flex-1"
             >
               <Save className="w-4 h-4" />
-              {submitting ? 'Zapisywanie...' : selectedSlot ? 'Zapisz zmiany' : 'Dodaj slot'}
+              {submitting ? 'Zapisywanie...' : selectedSlot ? 'Zapisz zmiany' : 'Dodaj dostępność'}
             </button>
             {selectedSlot && (
               <button
@@ -329,7 +333,7 @@ export default function DateAvailabilityManager() {
         <section className="bg-card border border-border rounded-2xl shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-accent" />
-            <h2 className="font-heading font-bold text-xl">Najbliższe sloty</h2>
+            <h2 className="font-heading font-bold text-xl">Najbliższe terminy</h2>
           </div>
 
           {upcomingSlots.length === 0 ? (
@@ -348,7 +352,7 @@ export default function DateAvailabilityManager() {
                   className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3 text-left hover:border-accent/60 hover:bg-secondary/60 transition-colors"
                 >
                   <span>
-                    <span className="block text-sm font-semibold capitalize">
+                    <span className="block text-sm font-semibold">
                       {format(parseISO(slot.available_date), 'd MMMM, EEEE', { locale: pl })}
                     </span>
                     <span className="block text-xs text-muted-foreground">

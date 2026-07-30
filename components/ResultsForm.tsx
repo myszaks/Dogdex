@@ -174,8 +174,9 @@ export default function ResultsForm({ eventId, participants }: Props) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
             <div>
-              <label className="form-label">Miejsce</label>
+              <label htmlFor={`result-rank-${row.participantId}`} className="form-label">Miejsce</label>
               <input
+                id={`result-rank-${row.participantId}`}
                 className="form-input"
                 type="number"
                 min="1"
@@ -185,8 +186,9 @@ export default function ResultsForm({ eventId, participants }: Props) {
               />
             </div>
             <div>
-              <label className="form-label">Czas (s)</label>
+              <label htmlFor={`result-time-${row.participantId}`} className="form-label">Czas (s)</label>
               <input
+                id={`result-time-${row.participantId}`}
                 className="form-input"
                 type="number"
                 step="0.01"
@@ -194,11 +196,13 @@ export default function ResultsForm({ eventId, participants }: Props) {
                 placeholder="12.34"
                 value={row.timeInput}
                 onChange={e => updateRow(i, 'timeInput', e.target.value)}
+                aria-describedby={row.error ? `result-error-${row.participantId}` : undefined}
               />
             </div>
             <div>
-              <label className="form-label">Uwagi</label>
+              <label htmlFor={`result-notes-${row.participantId}`} className="form-label">Uwagi</label>
               <input
+                id={`result-notes-${row.participantId}`}
                 className="form-input"
                 placeholder="np. dyskwal."
                 value={row.notes}
@@ -208,7 +212,7 @@ export default function ResultsForm({ eventId, participants }: Props) {
           </div>
 
           {row.error && (
-            <p className="text-red-600 text-xs mb-2">⚠️ {row.error}</p>
+            <p id={`result-error-${row.participantId}`} role="alert" className="text-red-600 text-xs mb-2">⚠️ {row.error}</p>
           )}
 
           <button

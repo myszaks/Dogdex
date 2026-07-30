@@ -138,3 +138,8 @@
   }
 }
 
+@media (max-width: 767px) {
+  html.dogdex-mobile-nav-hidden #dogdex-main-content {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+  }
+}

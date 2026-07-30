@@ -69,47 +69,47 @@ export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="form-label">Imię psa *</label>
-          <input className="form-input" value={form.name ?? ''} onChange={e => set('name', e.target.value)} placeholder="Burek" required />
+          <label htmlFor="dog-name" className="form-label">Imię psa *</label>
+          <input id="dog-name" className="form-input" value={form.name ?? ''} onChange={e => set('name', e.target.value)} placeholder="Burek" required />
         </div>
         <div>
-          <label className="form-label">Rasa</label>
-          <input className="form-input" value={form.breed ?? ''} onChange={e => set('breed', e.target.value)} placeholder="Border Collie" />
+          <label htmlFor="dog-breed" className="form-label">Rasa</label>
+          <input id="dog-breed" className="form-input" value={form.breed ?? ''} onChange={e => set('breed', e.target.value)} placeholder="Border Collie" />
         </div>
         <div>
-          <label className="form-label">Płeć</label>
-          <select className="form-input" value={form.gender ?? ''} onChange={e => set('gender', e.target.value || null)}>
+          <label htmlFor="dog-gender" className="form-label">Płeć</label>
+          <select id="dog-gender" className="form-input" value={form.gender ?? ''} onChange={e => set('gender', e.target.value || null)}>
             <option value="">— wybierz —</option>
             <option value="male">Pies (♂)</option>
             <option value="female">Suka (♀)</option>
           </select>
         </div>
         <div>
-          <label className="form-label">Poziom agility</label>
-          <select className="form-input" value={form.agility_level ?? ''} onChange={e => set('agility_level', e.target.value || null)}>
+          <label htmlFor="dog-agility-level" className="form-label">Poziom agility</label>
+          <select id="dog-agility-level" className="form-input" value={form.agility_level ?? ''} onChange={e => set('agility_level', e.target.value || null)}>
             <option value="">— wybierz —</option>
             {AGILITY_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="form-label">Rodowód / nr chipa</label>
-          <input className="form-input" value={form.pedigree_or_chip ?? ''} onChange={e => set('pedigree_or_chip', e.target.value)} placeholder="PL12345..." />
+          <label htmlFor="dog-pedigree-or-chip" className="form-label">Rodowód / nr chipa</label>
+          <input id="dog-pedigree-or-chip" className="form-input" value={form.pedigree_or_chip ?? ''} onChange={e => set('pedigree_or_chip', e.target.value)} placeholder="PL12345..." />
         </div>
         <div>
-          <label className="form-label">Umaszczenie</label>
-          <input className="form-input" value={form.coat_color ?? ''} onChange={e => set('coat_color', e.target.value)} placeholder="Czarno-biały" />
+          <label htmlFor="dog-coat-color" className="form-label">Umaszczenie</label>
+          <input id="dog-coat-color" className="form-input" value={form.coat_color ?? ''} onChange={e => set('coat_color', e.target.value)} placeholder="Czarno-biały" />
         </div>
         <div>
-          <label className="form-label">Waga (kg)</label>
-          <input className="form-input" type="number" step="0.1" min="0" value={form.weight_kg ?? ''} onChange={e => set('weight_kg', e.target.value ? Number(e.target.value) : null)} placeholder="12.5" />
+          <label htmlFor="dog-weight" className="form-label">Waga (kg)</label>
+          <input id="dog-weight" className="form-input" type="number" step="0.1" min="0" value={form.weight_kg ?? ''} onChange={e => set('weight_kg', e.target.value ? Number(e.target.value) : null)} placeholder="12.5" />
         </div>
         <div>
-          <label className="form-label">Wzrost w kłębie (cm) *</label>
-          <input className="form-input" type="number" step="0.5" min="0" value={form.height_cm ?? ''} onChange={e => set('height_cm', e.target.value ? Number(e.target.value) : null)} placeholder="45" required />
+          <label htmlFor="dog-height" className="form-label">Wzrost w kłębie (cm) *</label>
+          <input id="dog-height" className="form-input" type="number" step="0.5" min="0" value={form.height_cm ?? ''} onChange={e => set('height_cm', e.target.value ? Number(e.target.value) : null)} placeholder="45" required />
         </div>
         <div className="sm:col-span-2">
-          <label className="form-label">Ważność szczepienia na wściekliznę *</label>
-          <input className="form-input" type="date" value={form.rabies_vaccine_expiry ?? ''} onChange={e => set('rabies_vaccine_expiry', e.target.value || null)} required />
+          <label htmlFor="dog-rabies-vaccine-expiry" className="form-label">Ważność szczepienia na wściekliznę *</label>
+          <input id="dog-rabies-vaccine-expiry" className="form-input" type="date" value={form.rabies_vaccine_expiry ?? ''} onChange={e => set('rabies_vaccine_expiry', e.target.value || null)} required />
         </div>
       </div>
 

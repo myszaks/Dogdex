@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import Link from 'next/link'
 import { Calculator, ExternalLink } from 'lucide-react'
 import type {
@@ -35,6 +35,8 @@ export default function CompetitionFormatPicker({
   const [formats, setFormats] = useState<FormatSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const generatedId = useId()
+  const selectId = `competition-format-${generatedId}`
 
   useEffect(() => {
     fetch('/api/competition-formats')
@@ -85,20 +87,23 @@ export default function CompetitionFormatPicker({
       ) : error ? (
         <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
       ) : (
-        <select
-          className="form-input"
-          value={selectedId ?? ''}
-          onChange={event => selectFormat(event.target.value)}
-        >
-          <option value="">Nie używaj zapisanego schematu</option>
-          {formats.map(format => (
-            <option key={format.id} value={format.id}>
-              {format.name} · v{format.version}
-              {format.status === 'draft' ? ' · szkic' : ''}
-              {format.is_system ? ' · Dogdex' : ''}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label htmlFor={selectId} className="sr-only">Zapisany schemat wyników</label>
+          <select
+            id={selectId}
+            className="form-input"
+            value={selectedId ?? ''}
+            onChange={event => selectFormat(event.target.value)}
+          >
+            <option value="">Nie używaj zapisanego schematu</option>
+            {formats.map(format => (
+              <option key={format.id} value={format.id}>
+                {format.name} · v{format.version}
+                {format.is_system ? ' · Dogdex' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       {formats.length === 0 && !loading && !error && (
@@ -114,14 +119,17 @@ export default function CompetitionFormatPicker({
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-sage-500">
             Parametry tego wydarzenia
           </p>
-          {selected.definition.eventFields.map(field => (
-            <label key={field.id} className="block">
-              <span className="form-label">
+          {selected.definition.eventFields.map(field => {
+            const inputId = `${selectId}-field-${field.id}`
+            return (
+            <div key={field.id} className="block">
+              <label htmlFor={inputId} className="form-label">
                 {field.label}
                 {field.required ? ' *' : ''}
-              </span>
+              </label>
               {field.type === 'boolean' ? (
                 <input
+                  id={inputId}
                   type="checkbox"
                   checked={values[field.id] === true}
                   onChange={event => updateValue(field.id, event.target.checked)}
@@ -130,6 +138,7 @@ export default function CompetitionFormatPicker({
               ) : (
                 <div className="relative">
                   <input
+                    id={inputId}
                     type={field.type === 'text' ? 'text' : 'number'}
                     min={field.min}
                     max={field.max}
@@ -148,8 +157,9 @@ export default function CompetitionFormatPicker({
                   )}
                 </div>
               )}
-            </label>
-          ))}
+            </div>
+            )
+          })}
         </div>
       )}
     </div>

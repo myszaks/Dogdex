@@ -41,7 +41,7 @@ export default function TrainerBookingActions({ bookingId, status }: TrainerBook
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udalo sie zaktualizowac rezerwacji')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się zaktualizować rezerwacji')
       }
 
       router.refresh()
@@ -75,7 +75,7 @@ export default function TrainerBookingActions({ bookingId, status }: TrainerBook
             className="btn btn-primary flex items-center justify-center gap-2"
           >
             <Check className="w-4 h-4" />
-            {updating ? 'Zapisywanie...' : 'Potwierdz rezerwacje'}
+            {updating ? 'Zapisywanie...' : 'Potwierdź rezerwację'}
           </button>
         )}
         <button
@@ -85,7 +85,7 @@ export default function TrainerBookingActions({ bookingId, status }: TrainerBook
           className="btn btn-secondary flex items-center justify-center gap-2 text-red-600 hover:bg-red-50"
         >
           <X className="w-4 h-4" />
-          {updating ? 'Zapisywanie...' : 'Anuluj rezerwacje'}
+          {updating ? 'Zapisywanie...' : 'Anuluj rezerwację'}
         </button>
       </div>
     </div>

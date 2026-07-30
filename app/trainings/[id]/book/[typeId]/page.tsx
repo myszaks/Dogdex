@@ -273,11 +273,11 @@ export default function BookTrainingPage({ params }: Props) {
 
         {/* Date Selection */}
         <div className="mb-6">
-          <label className="block text-sm font-semibold mb-3">
+          <p id="booking-date-label" className="block text-sm font-semibold mb-3">
             <Calendar className="inline w-4 h-4 mr-2" />
             Wybierz datę
-          </label>
-          <div className="grid grid-cols-7 gap-2">
+          </p>
+          <div role="group" aria-labelledby="booking-date-label" className="grid grid-cols-7 gap-2">
             {[...Array(14)].map((_, i) => {
               const date = addDays(startOfDay(new Date()), i)
               const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
@@ -313,10 +313,10 @@ export default function BookTrainingPage({ params }: Props) {
         {/* Time Selection */}
         {selectedDate && (
           <div className="mb-6">
-            <label className="block text-sm font-semibold mb-3">
+            <p id="booking-time-label" className="block text-sm font-semibold mb-3">
               <Clock className="inline w-4 h-4 mr-2" />
               Wybierz godzinę
-            </label>
+            </p>
 
             {availableSlots.length === 0 ? (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg flex items-start gap-3">
@@ -327,7 +327,7 @@ export default function BookTrainingPage({ params }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-2">
+              <div role="group" aria-labelledby="booking-time-label" className="grid grid-cols-4 gap-2">
                 {availableSlots.map(slot => (
                   <button
                     key={slot}
@@ -349,7 +349,7 @@ export default function BookTrainingPage({ params }: Props) {
 
         {/* Dog Selection (Optional) */}
         <div className="mb-6">
-          <label className="block text-sm font-semibold mb-3">Pies (opcjonalnie)</label>
+          <p id="booking-dog-label" className="block text-sm font-semibold mb-3">Pies (opcjonalnie)</p>
           {dogsLoading ? (
             <div className="form-input text-muted-foreground">Ładowanie psów...</div>
           ) : !canManageDogs ? (
@@ -362,7 +362,7 @@ export default function BookTrainingPage({ params }: Props) {
                 value={selectedDogId}
                 onValueChange={value => setSelectedDogId(value ?? '')}
               >
-                <SelectTrigger className="form-input h-12 w-full rounded-2xl px-4 py-0">
+                <SelectTrigger aria-labelledby="booking-dog-label" className="form-input h-12 w-full rounded-2xl px-4 py-0">
                   <SelectValue placeholder="Wybierz psa">
                     {value => {
                       if (!value) return 'Bez przypisanego psa'
@@ -420,11 +420,12 @@ export default function BookTrainingPage({ params }: Props) {
 
         {/* Notes */}
         <div className="mb-6">
-          <label className="block text-sm font-semibold mb-3">Notatki (opcjonalnie)</label>
+          <label htmlFor="booking-notes" className="block text-sm font-semibold mb-3">Notatki (opcjonalnie)</label>
           <textarea
+            id="booking-notes"
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            placeholder="Dodaj informacje dla trenera (problemy behawioralne, cele treningowe itp)"
+            placeholder="Dodaj informacje dla trenera (problemy behawioralne, cele treningowe itp.)."
             className="form-input resize-none"
             rows={3}
             maxLength={2000}
@@ -432,7 +433,7 @@ export default function BookTrainingPage({ params }: Props) {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
             {error}
           </div>
         )}

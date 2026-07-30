@@ -29,6 +29,13 @@ export async function PATCH(req: Request, { params }: Params) {
   if ('error' in authResult) return authResult.error
   const { id } = await params
 
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
+  }
+
   const supabase = await createAuthClient()
   const { data: existing, error: readError } = await supabase
     .from('competition_formats')
@@ -44,18 +51,45 @@ export async function PATCH(req: Request, { params }: Params) {
   ) {
     return NextResponse.json({ error: 'Brak uprawnień do edycji tego formatu.' }, { status: 403 })
   }
+
+  if (existing.status === 'published' && body.status === 'archived') {
+    const { count, error: countError } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('competition_format_id', id)
+
+    if (countError) {
+      return NextResponse.json({ error: countError.message }, { status: 500 })
+    }
+    if ((count ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          error: 'Nie można zarchiwizować formatu używanego przez wydarzenia.',
+          usageCount: count,
+        },
+        { status: 409 },
+      )
+    }
+
+    const { data, error } = await supabase
+      .from('competition_formats')
+      .update({
+        status: 'archived',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
   if (existing.status !== 'draft') {
     return NextResponse.json(
       { error: 'Opublikowany format jest niezmienny. Utwórz jego nową wersję.' },
       { status: 409 },
     )
-  }
-
-  let body: Record<string, unknown>
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }

@@ -7,7 +7,7 @@ import type { DogEvent } from '@/types'
 import type { Metadata } from 'next'
 import { Plus, Calendar, Calculator } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Panel Organizatora' }
+export const metadata: Metadata = { title: 'Panel organizatora' }
 export const dynamic = 'force-dynamic'
 
 export default async function OrganizerPage() {

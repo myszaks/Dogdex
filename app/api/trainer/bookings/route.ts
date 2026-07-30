@@ -23,7 +23,7 @@ export async function GET() {
 
   if (typesError) {
     console.error('[trainer-bookings][GET] Failed to load training types:', typesError)
-    return NextResponse.json({ error: 'Nie udalo sie pobrac rezerwacji' }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   }
 
   if (!types || types.length === 0) {
@@ -40,7 +40,7 @@ export async function GET() {
 
   if (error) {
     console.error('[trainer-bookings][GET] Failed to load bookings:', error)
-    return NextResponse.json({ error: 'Nie udalo sie pobrac rezerwacji' }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   }
 
   let bookings
@@ -50,7 +50,7 @@ export async function GET() {
     })
   } catch (relationsError) {
     console.error('[trainer-bookings][GET] Failed to hydrate relations:', relationsError)
-    return NextResponse.json({ error: 'Nie udalo sie pobrac rezerwacji' }, { status: 500 })
+    return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   }
 
   const userIds = [...new Set(bookings.map(booking => booking.user_id))]
@@ -72,7 +72,7 @@ export async function GET() {
             profile.id as string,
             typeof profile.full_name === 'string' && profile.full_name.trim().length > 0
               ? profile.full_name
-              : 'Uzytkownik',
+              : 'Użytkownik',
           ])
       )
     }
@@ -81,7 +81,7 @@ export async function GET() {
   return NextResponse.json(
     bookings.map(booking => ({
       ...booking,
-      user_name: userNameById.get(booking.user_id) ?? 'Uzytkownik',
+      user_name: userNameById.get(booking.user_id) ?? 'Użytkownik',
     }))
   )
 }

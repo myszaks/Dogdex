@@ -245,6 +245,14 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  if (update.status === 'cancelled' && isOrganizerOrAdmin) {
+    const serviceClient = createServerClient()
+    await serviceClient
+      .from('schedule_assignments')
+      .delete()
+      .eq('registration_id', id)
+  }
+
   // Send email when organizer confirms a registration
   if (update.status === 'confirmed' && isOrganizerOrAdmin) {
     const participant = (data as Record<string, unknown>).participants as Record<string, string> | null

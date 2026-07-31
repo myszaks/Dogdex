@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/training-bookings/reconcile",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/training-bookings/reminders",
-      "schedule": "0 * * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }

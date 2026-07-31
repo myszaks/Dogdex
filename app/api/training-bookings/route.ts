@@ -151,6 +151,15 @@ export async function POST(req: Request) {
     }
   }
 
+  // Vercel Hobby can schedule this cleanup only once per day. Reconcile here
+  // as well so an expired payment hold never blocks a new booking until the
+  // next scheduled run.
+  const { error: reconciliationError } = await serviceClient
+    .rpc('reconcile_training_booking_states')
+  if (reconciliationError) {
+    console.error('[training-bookings] Opportunistic reconciliation failed:', reconciliationError)
+  }
+
   const endTime = new Date(scheduledDate.getTime() + actualDuration * 60000)
 
   const { data: trainerTrainingTypes, error: trainerTrainingTypesError } = await serviceClient

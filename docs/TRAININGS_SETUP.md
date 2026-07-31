@@ -7,8 +7,9 @@
 - Darmowa rezerwacja jest automatycznie potwierdzana.
 - Płatna rezerwacja blokuje termin na 30 minut i jest potwierdzana atomowo
   razem z płatnością przez webhook Stripe.
-- Cron `/api/training-bookings/reconcile` zwalnia wygasłe płatności i oznacza
-  zakończone treningi jako `completed`.
+- Dzienny cron `/api/training-bookings/reconcile` zwalnia wygasłe płatności i
+  oznacza zakończone treningi jako `completed`. Wygasłe blokady płatności są
+  dodatkowo zwalniane przy próbie utworzenia nowej rezerwacji.
 - Status i kwota płatności są dostępne w panelu użytkownika i trenera.
 - Endpointy starej, tygodniowej tabeli `training_availability` zostały usunięte.
   Tabela pozostaje tymczasowo w bazie wyłącznie dla kompatybilności migracji.
@@ -34,8 +35,8 @@ oferta jest dodawana, jeśli ustawiono `DOGDEX_QA_STRIPE_ACCOUNT_ID`.
   przychód, zwroty i oceny w wybranym zakresie.
 - Trener konfiguruje bufor anulowania od 0 do 168 godzin. Anulowanie opłaconej
   rezerwacji przez klienta przed terminem bufora wykonuje automatyczny zwrot.
-- Cron `/api/training-bookings/reminders` co godzinę wysyła przypomnienia
-  około 24 godziny przed treningiem. Claim w bazie zapobiega duplikatom,
+- Dzienny cron `/api/training-bookings/reminders` wysyła przypomnienia
+  dzień przed treningiem. Claim w bazie zapobiega duplikatom,
   a nieudana wysyłka zwalnia claim do ponowienia.
 
 ### Migracja P1 na dev DB

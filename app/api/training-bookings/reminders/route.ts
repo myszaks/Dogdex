@@ -27,8 +27,10 @@ export async function GET(req: Request) {
 
   const supabase = createServerClient()
   const now = new Date()
-  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000)
-  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
+  // Vercel Hobby invokes this route once per day. A 24-hour claim window
+  // preserves one reminder per booking while covering every training time.
+  const windowStart = new Date(now.getTime() + 20 * 60 * 60 * 1000)
+  const windowEnd = new Date(now.getTime() + 44 * 60 * 60 * 1000)
   const { data: claimed, error: claimError } = await supabase.rpc('claim_training_reminders', {
     window_start: windowStart.toISOString(),
     window_end: windowEnd.toISOString(),

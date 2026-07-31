@@ -47,5 +47,9 @@ describe('GET /api/training-bookings/reminders', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ claimed: 0, sent: 0, failed: 0 })
     expect(rpc).toHaveBeenCalledWith('claim_training_reminders', expect.objectContaining({ batch_size: 100 }))
+    const params = rpc.mock.calls[0][1]
+    expect(
+      new Date(params.window_end).getTime() - new Date(params.window_start).getTime(),
+    ).toBe(24 * 60 * 60 * 1000)
   })
 })

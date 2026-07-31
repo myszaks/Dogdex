@@ -39,6 +39,8 @@ describe('GET /api/stripe/connect', () => {
 
     const location = new URL(response.headers.get('location')!)
     const state = location.searchParams.get('state')
+    expect(location.searchParams.get('response_type')).toBe('code')
+    expect(location.searchParams.get('scope')).toBe('read_write')
     expect(state).toMatch(/^[a-f0-9]{64}$/)
     expect(state).not.toBe('trainer-user-id')
     expect(location.searchParams.get('redirect_uri')).toBe('https://dogdex.example/api/stripe/callback')

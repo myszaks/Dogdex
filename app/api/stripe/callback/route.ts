@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { isTrainerRole } from '@/lib/roles'
 
@@ -48,6 +48,9 @@ export async function GET(req: NextRequest) {
     if (!user || !isTrainerRole(role)) {
       return redirectToProfile(req, 'error=Brak_autoryzacji')
     }
+    if (!hasServiceRoleKey()) {
+      return redirectToProfile(req, 'error=Stripe_persistence_not_configured')
+    }
 
     // Exchange code for stripe account ID
     const response = await stripe.oauth.token({
@@ -56,9 +59,14 @@ export async function GET(req: NextRequest) {
     })
 
     const stripeAccountId = response.stripe_user_id
+    if (!stripeAccountId) {
+      throw new Error('Stripe OAuth response is missing stripe_user_id')
+    }
 
-    // Save to profile
-    const supabase = await createAuthClient()
+    // These payment fields are server-managed. The authenticated role has no
+    // direct UPDATE grant on profiles, so persist only after all OAuth checks
+    // above using the service-role client.
+    const supabase = createServerClient()
     const { error } = await supabase
       .from('profiles')
       .update({

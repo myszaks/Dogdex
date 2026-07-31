@@ -9,6 +9,8 @@ import TrainerPhotoUploader from '@/components/TrainerPhotoUploader'
 
 const STRIPE_ERROR_MESSAGES: Record<string, string> = {
   Brak_autoryzacji: 'Brak autoryzacji Stripe. Spróbuj połączyć konto ponownie.',
+  Stripe_not_configured: 'Brakuje konfiguracji Stripe w środowisku aplikacji.',
+  Stripe_persistence_not_configured: 'Brakuje serwerowej konfiguracji zapisu konta Stripe.',
   Stripe_error: 'Nie udało się połączyć konta Stripe. Spróbuj ponownie za chwilę.',
 }
 

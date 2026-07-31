@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { formatDateShort } from '@/lib/utils'
 import type { FormField, Dog } from '@/types'
+import type { EventDatePrices, EventPricingMode } from '@/lib/eventPricing'
 import useUser from '@/hooks/useUser'
 import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 import { getSizeClass, type SizeClass } from '@/lib/speedway'
@@ -9,6 +10,11 @@ import { getSizeClass, type SizeClass } from '@/lib/speedway'
 interface Props {
   eventId: string
   formFields?: FormField[]
+  pricingMode?: EventPricingMode
+  entryFee?: number | null
+  datePrices?: EventDatePrices
+  currency?: string
+  autoConfirm?: boolean
   onSuccess?: () => void
 }
 
@@ -118,7 +124,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 }
 
 
-export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
+export default function RegisterForm({ eventId, formFields = [], pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, onSuccess }: Props) {
   const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
@@ -136,6 +142,14 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
   const [userDogs, setUserDogs] = useState<Dog[]>([])
   const [selectedDogId, setSelectedDogId] = useState<string>('')
   const [profileName, setProfileName] = useState<string>('')
+  const paymentTotal = pricingMode === 'flat'
+    ? Number(entryFee ?? 0)
+    : pricingMode === 'per_date'
+      ? formFields.filter(field => field.type === 'multidate').reduce((sum, field) => {
+          const selected = (dynamic[field.id] ?? '').split(',').filter(Boolean)
+          return sum + selected.reduce((dateSum, date) => dateSum + Number(datePrices[field.id]?.[date] ?? 0), 0)
+        }, 0)
+      : 0
 
   useEffect(() => {
     if (!isLoggedIn || !user || !supabase) return
@@ -252,6 +266,11 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           return
         }
         throw new Error(json.error ?? 'Błąd serwera')
+      }
+
+      if (typeof json.checkoutUrl === 'string' && json.checkoutUrl) {
+        window.location.assign(json.checkoutUrl)
+        return
       }
 
       setSuccess(true)
@@ -420,6 +439,8 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           onChange={val => handleDynamic(field.id, val)}
           invalid={invalidFieldId === field.id}
           errorMessage={invalidFieldId === field.id ? error : null}
+          optionPrices={datePrices[field.id]}
+          currency={currency}
         />
       ))}
 
@@ -429,8 +450,20 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         </div>
       )}
 
+      {paymentTotal > 0 && (
+        <div className="flex items-center justify-between rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          <span>Do zapłaty</span>
+          <strong>{paymentTotal.toLocaleString('pl-PL', { style: 'currency', currency })}</strong>
+        </div>
+      )}
       <button type="submit" disabled={loading} className="btn btn-primary w-full">
-        {loading ? 'Wysyłanie...' : '✓ Wyślij zapis'}
+        {loading
+          ? 'Wysyłanie...'
+          : paymentTotal > 0 && autoConfirm
+            ? 'Przejdź do płatności'
+            : paymentTotal > 0
+              ? 'Wyślij zapis do akceptacji'
+              : '✓ Wyślij zapis'}
       </button>
 
       <details className="group rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-500">
@@ -470,12 +503,16 @@ function DynamicField({
   onChange,
   invalid,
   errorMessage,
+  optionPrices,
+  currency,
 }: {
   field: FormField
   value: string
   onChange: (val: string) => void
   invalid: boolean
   errorMessage: string | null
+  optionPrices?: Record<string, number>
+  currency: string
 }) {
   const inputId = `registration-field-${field.id}`
   const hintId = `${inputId}-hint`
@@ -544,7 +581,12 @@ function DynamicField({
                         onChange(next.join(','))
                       }}
                     />
-                    {dateLabel}
+                    <span>{dateLabel}</span>
+                    {Number(optionPrices?.[opt]) > 0 && (
+                      <span className="ml-auto font-semibold text-accent">
+                        {Number(optionPrices?.[opt]).toLocaleString('pl-PL', { style: 'currency', currency })}
+                      </span>
+                    )}
                   </label>
                 )
               })}

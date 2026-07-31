@@ -35,6 +35,7 @@ async function resolveEvent(param: string) {
 
 interface Props {
   params: Promise<{ eventId: string }>
+  searchParams?: Promise<{ payment?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -78,8 +79,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic'
 
-export default async function EventDetailPage({ params }: Props) {
+export default async function EventDetailPage({ params, searchParams }: Props) {
   const { eventId } = await params
+  const paymentStatus = (await searchParams)?.payment
   const { event, redirectTo } = await resolveEvent(eventId)
   if (!event) notFound()
   if (event.status === 'draft') notFound()
@@ -128,6 +130,27 @@ export default async function EventDetailPage({ params }: Props) {
         <ArrowLeft className="w-4 h-4" />
         Powrót do wydarzeń
       </Link>
+
+      {paymentStatus === 'success' && (
+        <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+          Płatność została przyjęta. Potwierdzenie zapisu może potrwać chwilę.
+        </div>
+      )}
+      {paymentStatus === 'cancelled' && (
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+          Płatność anulowano, a nieopłacone miejsce zostało zwolnione.
+        </div>
+      )}
+      {paymentStatus === 'processing' && (
+        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+          Płatność jest przetwarzana. Odśwież stronę za chwilę.
+        </div>
+      )}
+      {paymentStatus === 'cancel_error' && (
+        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+          Nie udało się anulować płatności. Sprawdź jej status w Stripe lub spróbuj ponownie.
+        </div>
+      )}
 
       {/* ── Hero ───────────────────────────────────────────────── */}
       <div className="relative w-full aspect-[21/8] min-h-[220px] rounded-3xl overflow-hidden mb-8 shadow-lg">
@@ -187,6 +210,11 @@ export default async function EventDetailPage({ params }: Props) {
                 eventId={event.id}
                 eventTitle={event.title}
                 formFields={formFields}
+                pricingMode={event.pricing_mode ?? 'free'}
+                entryFee={event.entry_fee}
+                datePrices={event.date_prices ?? {}}
+                currency={event.currency ?? 'PLN'}
+                autoConfirm={event.auto_confirm}
                 triggerClassName="btn btn-primary px-6 py-2.5 text-sm font-semibold shadow-lg"
                 triggerLabel={<>Zapisz się <ChevronRight className="w-4 h-4" /></>}
               />
@@ -304,7 +332,14 @@ export default async function EventDetailPage({ params }: Props) {
             )}
 
             {/* Entry fee */}
-            {event.entry_fee != null && (
+            {event.pricing_mode === 'per_date' && (
+              <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
+                <Banknote className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Opłata</span>
+                <span className="font-semibold text-foreground ml-auto">za każdy wybrany termin</span>
+              </div>
+            )}
+            {event.pricing_mode === 'flat' && event.entry_fee != null && (
               <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
                 <Banknote className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">Wpisowe</span>

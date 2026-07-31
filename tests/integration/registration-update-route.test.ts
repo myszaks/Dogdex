@@ -266,6 +266,9 @@ describe('PATCH /api/registrations/[id]', () => {
     const assignmentDelete = vi.fn(() => ({ eq: assignmentEq }))
     createServerClient.mockReturnValue({
       from: vi.fn((table: string) => {
+        if (table === 'event_payments') return {
+          select: () => ({ eq: () => ({ in: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }),
+        }
         if (table !== 'schedule_assignments') throw new Error(`Unexpected table ${table}`)
         return { delete: assignmentDelete }
       }),

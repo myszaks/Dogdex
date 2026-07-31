@@ -8,6 +8,7 @@ import {
 } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
+import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -35,7 +36,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, pricing_mode, date_prices, currency, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
+
+  const normalizedPricingMode = typeof pricing_mode === 'string' ? pricing_mode : 'free'
+  if (!['free', 'flat', 'per_date'].includes(normalizedPricingMode)) {
+    return NextResponse.json({ error: 'Nieprawidłowy sposób naliczania opłat' }, { status: 400 })
+  }
+  const normalizedCurrency = typeof currency === 'string' ? currency.toUpperCase() : 'PLN'
+  if (normalizedCurrency !== 'PLN') {
+    return NextResponse.json({ error: 'Obecnie płatności za wydarzenia obsługują wyłącznie PLN' }, { status: 400 })
+  }
 
   const nextStatus = typeof status === 'string' ? status : 'upcoming'
   const normalizedTitle = typeof title === 'string' && title.trim() !== ''
@@ -54,6 +64,28 @@ export async function POST(req: Request) {
         { error: fieldIssues[0].message, issues: fieldIssues },
         { status: 400 },
       )
+    }
+    const pricingError = validateEventPricing({
+      title: normalizedTitle,
+      pricing_mode: normalizedPricingMode as 'free' | 'flat' | 'per_date',
+      entry_fee: typeof entry_fee === 'number' ? entry_fee : null,
+      date_prices,
+      currency: normalizedCurrency,
+      form_fields,
+    })
+    if (pricingError) return NextResponse.json({ error: pricingError }, { status: 400 })
+    if (normalizedPricingMode === 'flat' || normalizedPricingMode === 'per_date') {
+      const { data: payoutProfile } = await supabase
+        .from('profiles')
+        .select('stripe_account_id, stripe_onboarded')
+        .eq('id', authResult.user.id)
+        .maybeSingle()
+      if (!payoutProfile?.stripe_onboarded || !payoutProfile.stripe_account_id) {
+        return NextResponse.json(
+          { error: 'Połącz konto Stripe przed opublikowaniem płatnego wydarzenia' },
+          { status: 409 },
+        )
+      }
     }
   }
 
@@ -176,6 +208,9 @@ export async function POST(req: Request) {
       auto_confirm: typeof auto_confirm === 'boolean' ? auto_confirm : false,
       max_participants: typeof max_participants === 'number' ? max_participants : null,
       entry_fee: typeof entry_fee === 'number' ? entry_fee : null,
+      pricing_mode: normalizedPricingMode,
+      date_prices: normalizeEventDatePrices(date_prices),
+      currency: normalizedCurrency,
       image_url: (image_url as string | null) ?? null,
       organizer_name: (organizer_name as string | null) ?? null,
       created_by: authResult.user.id,

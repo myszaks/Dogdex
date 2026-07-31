@@ -23,6 +23,9 @@ export interface DogEvent {
   auto_confirm: boolean
   max_participants: number | null
   entry_fee: number | null
+  pricing_mode: 'free' | 'flat' | 'per_date'
+  date_prices: Record<string, Record<string, number>>
+  currency: string
   organizer_name: string | null
   grouping_field: string | null
   last_significant_change: string | null
@@ -63,6 +66,8 @@ export interface Registration {
   checked_in_at: string | null
   /** Tracks sent reminders. For regular events: ISO timestamp string. For multidate: Record<YYYY-MM-DD, true>. */
   reminder_sent_at: string | Record<string, boolean> | null
+  payment_expires_at: string | null
+  approved_at: string | null
   participants?: Participant
   events?: DogEvent
 }
@@ -280,6 +285,74 @@ export interface TrainingBooking {
   cancellation_allowed?: boolean
   cancellation_deadline?: string | null
   cancellation_buffer_hours?: number
+}
+
+export type EventPaymentStatus = 'pending' | 'completed' | 'failed' | 'partially_refunded' | 'refunded'
+
+export interface EventRegistrationItem {
+  id: string
+  registration_id: string
+  item_key: string
+  kind: 'entry' | 'date'
+  form_field_id: string | null
+  occurrence_date: string | null
+  label: string
+  amount: number
+  currency: string
+  status: 'pending_approval' | 'pending_payment' | 'paid' | 'cancelled' | 'refunded'
+  created_at: string
+  updated_at: string
+}
+
+export interface EventPayment {
+  id: string
+  registration_id: string
+  payee_user_id: string
+  payer_user_id: string | null
+  payer_email: string
+  amount: number
+  currency: string
+  status: EventPaymentStatus
+  refunded_amount: number
+  stripe_session_id: string | null
+  stripe_payment_intent_id: string | null
+  stripe_charge_id: string | null
+  receipt_url: string | null
+  stripe_account_id: string
+  checkout_token: string
+  checkout_url: string | null
+  expires_at: string | null
+  confirmation_sent_at: string | null
+  failure_code: string | null
+  failure_message: string | null
+  last_reconciled_at: string | null
+  reconciliation_status: 'not_checked' | 'ok' | 'attention' | 'error'
+  reconciliation_error: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type EventRefundStatus = 'pending' | 'requires_action' | 'succeeded' | 'failed' | 'canceled'
+
+export interface EventRefund {
+  id: string
+  payment_id: string
+  registration_id: string
+  requested_by: string | null
+  cancellation_request_id: string | null
+  amount: number
+  currency: string
+  status: EventRefundStatus
+  stripe_refund_id: string | null
+  requested_dates: string[] | null
+  new_form_data: Record<string, unknown>
+  cancel_registration: boolean
+  reason: string
+  error_code: string | null
+  error_message: string | null
+  last_reconciled_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface TrainingPayment {

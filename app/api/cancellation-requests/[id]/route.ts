@@ -3,6 +3,8 @@ import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendCancellationResultEmail } from '@/lib/email'
 import { isOrganizerRole } from '@/lib/roles'
+import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
+import { createEventRefund } from '@/lib/eventRefund'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -89,6 +91,58 @@ export async function PATCH(req: Request, { params }: Params) {
 
   // ── ACCEPT ──────────────────────────────────────────────────────────────
   const cancelledDates: string[] | null = request.cancelled_dates ?? null
+
+  const paymentClient = createServerClient()
+  const { data: activePayment } = await paymentClient
+    .from('event_payments')
+    .select('id, status')
+    .eq('registration_id', reg.id as string)
+    .in('status', ['pending', 'completed', 'partially_refunded'])
+    .limit(1)
+    .maybeSingle()
+  if (activePayment?.status === 'completed' || activePayment?.status === 'partially_refunded') {
+    try {
+      const refund = await createEventRefund({
+        registrationId: reg.id as string,
+        cancelledDates,
+        requestedBy: user.id,
+        cancellationRequestId: id,
+      })
+      const { data: refreshed } = await paymentClient.from('registrations')
+        .select('id, status, form_data').eq('id', reg.id as string).single()
+      return NextResponse.json({
+        ok: true,
+        action: refund.status === 'succeeded' ? 'accepted' : 'refund_pending',
+        refundId: refund.refundId,
+        refundStatus: refund.status,
+        registrationCancelled: refund.status === 'succeeded' && refund.cancelRegistration,
+        registration: refreshed ?? { id: reg.id, status: reg.status, form_data: reg.form_data },
+      }, { status: refund.status === 'succeeded' ? 200 : 202 })
+    } catch (refundError) {
+      console.error('[event-refund] Cancellation request refund failed:', refundError)
+      return NextResponse.json(
+        { error: refundError instanceof Error ? refundError.message : 'Nie udało się zlecić zwrotu' },
+        { status: 409 },
+      )
+    }
+  }
+  if (activePayment?.status === 'pending') {
+    if (cancelledDates !== null) {
+      return NextResponse.json(
+        { error: 'Nie można częściowo zmienić zapisu z oczekującą płatnością. Anuluj cały zapis i utwórz nowy.' },
+        { status: 409 },
+      )
+    }
+    try {
+      await cancelPendingEventCheckouts([reg.id as string])
+    } catch (paymentError) {
+      console.error('[event-payment] Failed to cancel pending Checkout:', paymentError)
+      return NextResponse.json(
+        { error: 'Nie udało się bezpiecznie anulować oczekującej płatności' },
+        { status: 409 },
+      )
+    }
+  }
 
   let newRegistrationStatus: string | null = null
   let newFormData: Record<string, unknown> | null = null

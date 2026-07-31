@@ -38,6 +38,7 @@ import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
+import EventPricingEditor from '@/components/EventPricingEditor'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
@@ -57,6 +58,7 @@ import {
   type PreselectedFormatStatus,
 } from '@/lib/eventCreatorFormatSelection'
 import type { FormField } from '@/types'
+import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -206,6 +208,8 @@ export default function NewEventPage() {
   const [maxParticipants, setMaxParticipants] = useState<string>('')
   const [entryFeeEnabled, setEntryFeeEnabled] = useState(false)
   const [entryFee, setEntryFee] = useState<string>('')
+  const [pricingMode, setPricingMode] = useState<EventPricingMode>('free')
+  const [datePrices, setDatePrices] = useState<EventDatePrices>({})
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [galleryImages, setGalleryImages] = useState<string[]>([])
   const [startAt, setStartAt] = useState<string | null>(null)
@@ -270,7 +274,11 @@ export default function NewEventPage() {
   const locationSummary = [venueName.trim(), location.trim()].filter(Boolean).join(', ')
   const visibleLocation = locationSummary || 'Lokalizacja do uzupełnienia'
   const seatsLabel = maxParticipants ? `${maxParticipants} miejsc` : 'Bez limitu miejsc'
-  const feeLabel = entryFeeEnabled ? formatMoney(entryFee) : 'Bezpłatne'
+  const feeLabel = pricingMode === 'flat'
+    ? formatMoney(entryFee)
+    : pricingMode === 'per_date'
+      ? 'Cena za wybrane terminy'
+      : 'Bezpłatne'
   const preselectedFormatBlocking =
     isPreselectedFormatBlocking(preselectedFormatStatus)
 
@@ -357,16 +365,21 @@ export default function NewEventPage() {
     }
 
     if (step === 2) {
-      if (entryFeeEnabled && !entryFee.trim()) {
-        showCreatorError(
-          'Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.',
-          'event-entry-fee',
-        )
-        return false
-      }
       const formIssues = validateFormFieldDefinitions(formFields)
       if (formIssues.length > 0) {
         showCreatorError(formIssues[0].message, 'registration-form')
+        return false
+      }
+      const pricingError = validateEventPricing({
+        title: title || 'Wydarzenie',
+        pricing_mode: pricingMode,
+        entry_fee: entryFee ? Number(entryFee) : null,
+        date_prices: datePrices,
+        currency: 'PLN',
+        form_fields: formFields,
+      })
+      if (pricingError) {
+        showCreatorError(pricingError, 'event-entry-fee')
         return false
       }
     }
@@ -467,6 +480,9 @@ export default function NewEventPage() {
       auto_confirm: autoConfirm,
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       entry_fee: entryFeeEnabled && entryFee ? parseFloat(entryFee) : null,
+      pricing_mode: pricingMode,
+      date_prices: datePrices,
+      currency: 'PLN',
       image_url: imageUrl,
       organizer_name: organizerName.trim() || null,
       lat,
@@ -659,8 +675,9 @@ export default function NewEventPage() {
             <StepRegistration
               maxParticipants={maxParticipants}
               registrationDeadline={registrationDeadline}
-              entryFeeEnabled={entryFeeEnabled}
               entryFee={entryFee}
+              pricingMode={pricingMode}
+              datePrices={datePrices}
               autoConfirm={autoConfirm}
               hasSchedule={hasSchedule}
               eventTypeId={eventTypeId || null}
@@ -673,17 +690,16 @@ export default function NewEventPage() {
               errorMessageId={CREATOR_ERROR_ID}
               onMaxParticipantsChange={setMaxParticipants}
               onRegistrationDeadlineChange={setRegistrationDeadline}
-              onEntryFeeEnabledChange={checked => {
-                setEntryFeeEnabled(checked)
-                if (!checked) {
-                  setEntryFee('')
-                  clearCreatorError('event-entry-fee')
-                }
-              }}
               onEntryFeeChange={value => {
                 setEntryFee(value)
                 if (value.trim()) clearCreatorError('event-entry-fee')
               }}
+              onPricingModeChange={mode => {
+                setPricingMode(mode)
+                setEntryFeeEnabled(mode !== 'free')
+                if (mode === 'free') setEntryFee('')
+              }}
+              onDatePricesChange={setDatePrices}
               onAutoConfirmChange={setAutoConfirm}
               onHasScheduleChange={setHasSchedule}
               onTemplateSelect={handleTemplateSelect}
@@ -1197,8 +1213,9 @@ function StepLocationTime({
 function StepRegistration({
   maxParticipants,
   registrationDeadline,
-  entryFeeEnabled,
   entryFee,
+  pricingMode,
+  datePrices,
   autoConfirm,
   hasSchedule,
   eventTypeId,
@@ -1211,8 +1228,9 @@ function StepRegistration({
   errorMessageId,
   onMaxParticipantsChange,
   onRegistrationDeadlineChange,
-  onEntryFeeEnabledChange,
   onEntryFeeChange,
+  onPricingModeChange,
+  onDatePricesChange,
   onAutoConfirmChange,
   onHasScheduleChange,
   onTemplateSelect,
@@ -1221,8 +1239,9 @@ function StepRegistration({
 }: {
   maxParticipants: string
   registrationDeadline: string | null
-  entryFeeEnabled: boolean
   entryFee: string
+  pricingMode: EventPricingMode
+  datePrices: EventDatePrices
   autoConfirm: boolean
   hasSchedule: boolean
   eventTypeId: string | null
@@ -1235,8 +1254,9 @@ function StepRegistration({
   errorMessageId: string
   onMaxParticipantsChange: (value: string) => void
   onRegistrationDeadlineChange: (value: string | null) => void
-  onEntryFeeEnabledChange: (checked: boolean) => void
   onEntryFeeChange: (value: string) => void
+  onPricingModeChange: (mode: EventPricingMode) => void
+  onDatePricesChange: (value: EventDatePrices) => void
   onAutoConfirmChange: (checked: boolean) => void
   onHasScheduleChange: (checked: boolean) => void
   onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
@@ -1408,34 +1428,15 @@ function StepRegistration({
         </Panel>
 
         <Panel Icon={Wallet} title="Opłaty" tutorialId="registration-fees">
-          <ToggleRow
-            checked={entryFeeEnabled}
-            onChange={onEntryFeeEnabledChange}
-            title="Pobieraj wpisowe"
-            description="Zachowuje istniejącą logikę wpisowego w PLN."
+          <EventPricingEditor
+            pricingMode={pricingMode}
+            entryFee={entryFee}
+            datePrices={datePrices}
+            formFields={formFields}
+            onPricingModeChange={onPricingModeChange}
+            onEntryFeeChange={onEntryFeeChange}
+            onDatePricesChange={onDatePricesChange}
           />
-          {entryFeeEnabled && (
-            <div className="mt-5">
-              <label htmlFor="event-entry-fee" className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
-              <div className="relative">
-                <input
-                  id="event-entry-fee"
-                  className="form-input min-h-14 pr-16 text-lg"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={entryFee}
-                  onChange={e => onEntryFeeChange(e.target.value)}
-                  aria-invalid={errorFieldId === 'event-entry-fee' ? true : undefined}
-                  aria-describedby={errorFieldId === 'event-entry-fee' ? errorMessageId : undefined}
-                />
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-accent">
-                  PLN
-                </span>
-              </div>
-            </div>
-          )}
         </Panel>
 
         <Panel Icon={ShieldCheck} title="Automatyzacja" tutorialId="registration-automation">

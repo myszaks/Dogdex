@@ -945,6 +945,107 @@ export async function sendTrainingReminder(
   }
 }
 
+interface EventPaymentRequestEmailPayload {
+  to: string
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  amount: number
+  currency: string
+  checkoutUrl: string
+  expiresAt: string
+}
+
+export async function sendEventPaymentRequestEmail(payload: EventPaymentRequestEmailPayload): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass) return
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+  const amount = payload.amount.toLocaleString('pl-PL', {
+    style: 'currency',
+    currency: payload.currency,
+  })
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+      <h2 style="color:#0369a1">🐾 Dogdex — zapis zaakceptowany</h2>
+      <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+      <p>Organizator zaakceptował zapis psa <strong>${escHtml(payload.dogName)}</strong> na wydarzenie <strong>${escHtml(payload.eventTitle)}</strong>.</p>
+      <p>Do zapłaty: <strong>${escHtml(amount)}</strong></p>
+      <p style="margin:24px 0"><a href="${escHtml(payload.checkoutUrl)}" style="background:#f26a2e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700">Przejdź do płatności</a></p>
+      <p style="color:#64748b;font-size:13px">Link jest ważny do ${escHtml(formatEmailDateTime(payload.expiresAt))}. Zapis zostanie potwierdzony po otrzymaniu płatności.</p>
+    </div>`
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      subject: `Płatność za zaakceptowany zapis — ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') console.error('[Email] Event payment request failed:', err)
+  }
+}
+
+interface EventRefundResultEmailPayload {
+  to: string
+  organizerEmail?: string | null
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  amount: number
+  currency: string
+  refundedDates: string[] | null
+  succeeded: boolean
+  errorMessage?: string | null
+}
+
+export async function sendEventRefundResultEmail(payload: EventRefundResultEmailPayload): Promise<void> {
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (!user || !pass || !payload.to) return
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: { user, pass },
+  })
+  const amount = payload.amount.toLocaleString('pl-PL', { style: 'currency', currency: payload.currency })
+  const dates = payload.refundedDates?.length
+    ? `<p>Zwrócone terminy: <strong>${payload.refundedDates.map(date => escHtml(formatSlotDate(date))).join(', ')}</strong></p>`
+    : '<p>Zwrot dotyczy całego zapisu.</p>'
+  const html = payload.succeeded
+    ? `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <h2 style="color:#0369a1">🐾 Dogdex — zwrot płatności</h2>
+        <p>Cześć, <strong>${escHtml(payload.ownerName)}</strong>!</p>
+        <p>Zwrot <strong>${escHtml(amount)}</strong> za zapis psa <strong>${escHtml(payload.dogName)}</strong> na wydarzenie <strong>${escHtml(payload.eventTitle)}</strong> został zlecony na pierwotną metodę płatności.</p>
+        ${dates}<p style="color:#64748b;font-size:13px">Termin zaksięgowania zależy od banku i operatora karty.</p>
+      </div>`
+    : `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+        <h2 style="color:#b91c1c">Dogdex — zwrot wymaga uwagi</h2>
+        <p>Nie udało się zakończyć zwrotu <strong>${escHtml(amount)}</strong> za wydarzenie <strong>${escHtml(payload.eventTitle)}</strong>.</p>
+        ${dates}<p>Powód: ${escHtml(payload.errorMessage ?? 'Stripe nie podał szczegółów błędu')}.</p>
+        <p>Zapis nie został zmieniony. Organizator powinien sprawdzić płatność w panelu.</p>
+      </div>`
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Dogdex <${user}>`,
+      to: payload.to,
+      cc: !payload.succeeded && payload.organizerEmail ? payload.organizerEmail : undefined,
+      subject: payload.succeeded
+        ? `Zwrot płatności — ${payload.eventTitle}`
+        : `Zwrot wymaga uwagi — ${payload.eventTitle}`,
+      html,
+    })
+  } catch (err) {
+    if (process.env.NODE_ENV === 'development') console.error('[Email] Event refund result failed:', err)
+  }
+}
+
 interface TrainingCancellationPayload {
   to: string
   recipientName: string

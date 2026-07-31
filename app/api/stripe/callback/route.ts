@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
-import { isTrainerRole } from '@/lib/roles'
+import { isPayoutRole } from '@/lib/roles'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -19,7 +19,7 @@ function redirectToProfile(request: NextRequest, query: string) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
     ?? process.env.NEXT_PUBLIC_SITE_URL
     ?? request.nextUrl.origin
-  const response = NextResponse.redirect(new URL(`/trainer/profile?${query}`, appUrl))
+  const response = NextResponse.redirect(new URL(`/payments?${query}`, appUrl))
   response.cookies.set(STATE_COOKIE, '', {
     httpOnly: true,
     secure: new URL(appUrl).protocol === 'https:',
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { user, role } = await getServerUser()
-    if (!user || !isTrainerRole(role)) {
+    if (!user || !isPayoutRole(role)) {
       return redirectToProfile(req, 'error=Brak_autoryzacji')
     }
     if (!hasServiceRoleKey()) {

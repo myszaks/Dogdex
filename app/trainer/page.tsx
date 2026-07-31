@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
-import { BarChart3, BookOpen, Calendar, Plus, Settings2 } from 'lucide-react'
+import { BarChart3, BookOpen, Calendar, CreditCard, Plus, Settings2 } from 'lucide-react'
 import { requireRole } from '@/lib/getServerUser'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { hydrateTrainingBookings, type TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
@@ -132,7 +132,7 @@ export default async function TrainerPage() {
       </div>
 
       {isActive && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <Link href="/trainer/types" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
@@ -165,6 +165,18 @@ export default async function TrainerPage() {
               <div>
                 <h3 className="font-heading font-semibold text-lg mb-1">Analityka</h3>
                 <p className="text-sm text-muted-foreground">Sprawdź rezerwacje, przychód i oceny</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/payments" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
+                <CreditCard className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h3 className="font-heading font-semibold text-lg mb-1">Płatności</h3>
+                <p className="text-sm text-muted-foreground">Wspólne rozliczenia treningów i wydarzeń</p>
               </div>
             </div>
           </Link>

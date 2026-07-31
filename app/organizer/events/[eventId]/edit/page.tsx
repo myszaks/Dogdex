@@ -43,6 +43,11 @@ export default async function EditEventPage({ params }: Props) {
           auto_confirm: event.auto_confirm ?? false,
           max_participants: event.max_participants ?? null,
           entry_fee: event.entry_fee ?? null,
+          pricing_mode: event.pricing_mode ?? 'free',
+          date_prices: event.date_prices && typeof event.date_prices === 'object' && !Array.isArray(event.date_prices)
+            ? event.date_prices
+            : {},
+          currency: event.currency ?? 'PLN',
           image_url: event.image_url ?? null,
           organizer_name: event.organizer_name ?? null,
           lat: event.lat ?? null,

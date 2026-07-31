@@ -63,7 +63,7 @@ describe('GET /api/stripe/callback', () => {
     const response = await GET(request)
 
     expect(response.headers.get('location')).toBe(
-      'https://dogdex.example/trainer/profile?stripe_connected=true',
+      'https://dogdex.example/payments?stripe_connected=true',
     )
     expect(mocks.oauthToken).toHaveBeenCalledWith({
       grant_type: 'authorization_code',

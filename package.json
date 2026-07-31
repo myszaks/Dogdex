@@ -15,9 +15,14 @@
     "db:dev:check": "node scripts/build-dev-database-sql.mjs --check",
     "db:dev:migrate:trainings": "node scripts/apply-training-p0-dev.mjs --confirm-dev",
     "db:dev:migrate:training-p1": "node scripts/apply-training-p1-dev.mjs --confirm-dev",
+    "db:dev:migrate:event-payments-p0": "node scripts/apply-event-payments-p0-dev.mjs --confirm-dev",
+    "db:dev:migrate:event-payments": "node scripts/apply-event-payments-p0-dev.mjs --confirm-dev",
     "db:dev:create:training-qa": "node scripts/create-training-qa-account.mjs",
     "db:dev:seed:trainings": "node scripts/seed-training-dev.mjs",
     "db:dev:verify:training-p1": "node scripts/verify-training-p1-dev.mjs",
+    "db:dev:verify:event-payments-p0": "node scripts/verify-event-payments-p0-dev.mjs",
+    "db:dev:verify:event-payments": "node scripts/verify-event-payments-p0-dev.mjs",
+    "e2e:event-payments": "node scripts/e2e-event-payments.mjs --confirm-dev",
     "ci": "npm run schema:check && npm run db:dev:check && npm run lint && npm run test && npm run typecheck && npm run build"
   },
   "dependencies": {

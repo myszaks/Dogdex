@@ -48,6 +48,10 @@ export function isTrainerRole(role: string | null | undefined): boolean {
   return role === 'trainer' || role === 'organizer_trainer' || role === 'admin'
 }
 
+export function isPayoutRole(role: string | null | undefined): boolean {
+  return isOrganizerRole(role) || isTrainerRole(role)
+}
+
 export function hasRequiredRole(
   role: string | null | undefined,
   requiredRoles: readonly string[],

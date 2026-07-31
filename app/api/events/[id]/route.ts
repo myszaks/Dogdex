@@ -20,6 +20,9 @@ import {
 } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
+import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
+import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
+import { createEventRefund } from '@/lib/eventRefund'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -50,7 +53,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
+    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, entry_fee, pricing_mode, date_prices, currency, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
     .eq('id', id)
     .single()
 
@@ -72,13 +75,20 @@ export async function PATCH(req: Request, { params }: Params) {
   const allowedFields = [
     'title', 'description', 'location', 'start_at', 'end_at', 'status',
     'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
-    'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'organizer_name', 'slug',
+    'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'pricing_mode', 'date_prices', 'currency', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
     'live_phase', 'form_template_id', 'competition_values',
   ]
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+
+  if ('pricing_mode' in update && !['free', 'flat', 'per_date'].includes(String(update.pricing_mode))) {
+    return NextResponse.json({ error: 'Nieprawidłowy sposób naliczania opłat' }, { status: 400 })
+  }
+  if ('currency' in update && String(update.currency).toUpperCase() !== 'PLN') {
+    return NextResponse.json({ error: 'Obecnie płatności za wydarzenia obsługują wyłącznie PLN' }, { status: 400 })
   }
 
   let nextCompetitionConfig = existingEvent.competition_config
@@ -229,6 +239,76 @@ export async function PATCH(req: Request, { params }: Params) {
         { error: dependencyIssues[0].message, issues: dependencyIssues },
         { status: 400 },
       )
+    }
+    const nextPricingMode = ('pricing_mode' in update ? update.pricing_mode : existingEvent.pricing_mode) as 'free' | 'flat' | 'per_date'
+    const pricingError = validateEventPricing({
+      title: ('title' in update ? update.title : existingEvent.title) as string,
+      pricing_mode: nextPricingMode,
+      entry_fee: ('entry_fee' in update ? update.entry_fee : existingEvent.entry_fee) as number | null,
+      date_prices: 'date_prices' in update ? update.date_prices : existingEvent.date_prices,
+      currency: ('currency' in update ? update.currency : existingEvent.currency) as string,
+      form_fields: nextFormFields,
+    })
+    if (pricingError) return NextResponse.json({ error: pricingError }, { status: 400 })
+    if (nextPricingMode === 'flat' || nextPricingMode === 'per_date') {
+      const { data: payoutProfile } = await supabase
+        .from('profiles')
+        .select('stripe_account_id, stripe_onboarded')
+        .eq('id', existingEvent.created_by)
+        .maybeSingle()
+      if (!payoutProfile?.stripe_onboarded || !payoutProfile.stripe_account_id) {
+        return NextResponse.json(
+          { error: 'Połącz konto Stripe przed zapisaniem płatnego wydarzenia' },
+          { status: 409 },
+        )
+      }
+    }
+  }
+
+  if ('date_prices' in update) update.date_prices = normalizeEventDatePrices(update.date_prices)
+  if ('currency' in update && typeof update.currency === 'string') {
+    update.currency = update.currency.toUpperCase()
+  }
+
+  if (update.status === 'cancelled') {
+    const { data: eventRegistrations } = await supabase
+      .from('registrations')
+      .select('id')
+      .eq('event_id', id)
+    const registrationIds = (eventRegistrations ?? []).map(registration => registration.id)
+    if (registrationIds.length > 0) {
+      const { data: activePayments } = await supabase
+        .from('event_payments')
+        .select('id, status, registration_id')
+        .in('registration_id', registrationIds)
+        .in('status', ['pending', 'completed', 'partially_refunded'])
+      if ((activePayments ?? []).some(payment => payment.status === 'pending')) {
+        try {
+          await cancelPendingEventCheckouts(registrationIds)
+        } catch (paymentError) {
+          console.error('[event-payment] Failed to cancel event Checkouts:', paymentError)
+          return NextResponse.json(
+            { error: 'Nie udało się bezpiecznie anulować oczekujących płatności wydarzenia' },
+            { status: 409 },
+          )
+        }
+      }
+      const paidPayments = (activePayments ?? []).filter(payment => payment.status !== 'pending')
+      for (const payment of paidPayments) {
+        try {
+          await createEventRefund({
+            registrationId: payment.registration_id,
+            cancelledDates: null,
+            requestedBy: authResult.user.id,
+          })
+        } catch (refundError) {
+          console.error('[event-refund] Event cancellation refund failed:', refundError)
+          return NextResponse.json(
+            { error: refundError instanceof Error ? refundError.message : 'Nie udało się zwrócić wszystkich płatności wydarzenia' },
+            { status: 409 },
+          )
+        }
+      }
     }
   }
 

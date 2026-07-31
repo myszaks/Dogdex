@@ -5,6 +5,8 @@ import { sendRegistrationEmail } from '@/lib/email'
 import { isEventRegistrationOpen } from '@/lib/eventStatus'
 import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
 import { validateRegistrationFormData } from '@/lib/registrationFormValidation'
+import { buildEventPriceItems } from '@/lib/eventPricing'
+import { createEventCheckout, prepareEventRegistrationItems } from '@/lib/eventCheckout'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_FORM_DATA_BYTES = 50_000
@@ -122,7 +124,7 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline')
+    .select('id, slug, created_by, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline, pricing_mode, entry_fee, date_prices, currency')
     .eq('id', eventId)
     .single()
 
@@ -136,6 +138,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: formValidation.error }, { status: 400 })
   }
   const normalizedExtraFields = formValidation.data
+  let priceItems
+  try {
+    priceItems = buildEventPriceItems(event, normalizedExtraFields)
+  } catch (pricingError) {
+    return NextResponse.json({ error: (pricingError as Error).message }, { status: 400 })
+  }
+  const isPaidRegistration = priceItems.length > 0
+  if (isPaidRegistration) {
+    const { data: payoutProfile } = await supabase
+      .from('profiles')
+      .select('stripe_account_id, stripe_onboarded')
+      .eq('id', event.created_by)
+      .maybeSingle()
+    if (!payoutProfile?.stripe_onboarded || !payoutProfile.stripe_account_id) {
+      return NextResponse.json(
+        { error: 'Organizator nie skonfigurował jeszcze płatności dla tego wydarzenia' },
+        { status: 409 },
+      )
+    }
+  }
 
   // Check max_participants limit
   if (event.max_participants) {
@@ -232,7 +254,7 @@ export async function POST(req: Request) {
     .insert([{
       event_id: eventId,
       participant_id: participant.id,
-      status: event.auto_confirm ? 'confirmed' : 'pending',
+      status: event.auto_confirm && !isPaidRegistration ? 'confirmed' : 'pending',
       form_data: normalizedExtraFields,
     }])
     .select()
@@ -258,18 +280,58 @@ export async function POST(req: Request) {
     )
   }
 
-  // Send email notification before returning so serverless runtimes do not stop it mid-flight.
-  await sendRegistrationEmail({
-    to: ownerEmailNorm,
-    ownerName: ownerName.trim(),
-    dogName: dogName.trim(),
-    eventTitle: event.title,
-    eventDate: event.start_at ?? null,
-    eventLocation: event.location ?? null,
-    status: event.auto_confirm ? 'confirmed' : 'pending',
-    formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
-    formData: registration.form_data ?? {},
-  })
+  let checkoutUrl: string | null = null
+  if (isPaidRegistration) {
+    const checkoutInput = {
+      registration: {
+        id: registration.id,
+        participant_id: participant.id,
+        form_data: registration.form_data ?? {},
+      },
+      event: {
+        ...event,
+        created_by: event.created_by as string,
+        slug: event.slug as string,
+      },
+      participant: {
+        owner_email: ownerEmailNorm,
+        owner_name: ownerName.trim(),
+        dog_name: dogName.trim(),
+        user_id: participantUserId,
+      },
+      pendingApproval: !event.auto_confirm,
+    }
+    try {
+      if (event.auto_confirm) {
+        const checkout = await createEventCheckout(checkoutInput, req.url)
+        checkoutUrl = checkout.checkoutUrl
+      } else {
+        await prepareEventRegistrationItems(checkoutInput)
+      }
+    } catch (paymentError) {
+      console.error('[event-registration] Failed to prepare payment:', paymentError)
+      await Promise.all([
+        supabase.from('registrations').delete().eq('id', registration.id),
+        supabase.from('participants').delete().eq('id', participant.id),
+      ])
+      return NextResponse.json({ error: 'Nie udało się przygotować płatności' }, { status: 502 })
+    }
+  }
 
-  return NextResponse.json(registration, { status: 201 })
+  // Send email notification before returning so serverless runtimes do not stop it mid-flight.
+  if (!isPaidRegistration || !event.auto_confirm) {
+    await sendRegistrationEmail({
+      to: ownerEmailNorm,
+      ownerName: ownerName.trim(),
+      dogName: dogName.trim(),
+      eventTitle: event.title,
+      eventDate: event.start_at ?? null,
+      eventLocation: event.location ?? null,
+      status: event.auto_confirm && !isPaidRegistration ? 'confirmed' : 'pending',
+      formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
+      formData: registration.form_data ?? {},
+    })
+  }
+
+  return NextResponse.json({ ...registration, checkoutUrl }, { status: 201 })
 }

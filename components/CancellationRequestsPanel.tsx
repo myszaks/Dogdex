@@ -28,6 +28,7 @@ interface Props {
 export default function CancellationRequestsPanel({ requests, onResolved }: Props) {
   const [processing, setProcessing] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [messages, setMessages] = useState<Record<string, string>>({})
 
   const pending = requests.filter(r => r.status === 'pending')
   if (pending.length === 0) return null
@@ -44,6 +45,10 @@ export default function CancellationRequestsPanel({ requests, onResolved }: Prop
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         setErrors(prev => ({ ...prev, [id]: json.error ?? 'Błąd' }))
+        return
+      }
+      if (json.action === 'refund_pending') {
+        setMessages(prev => ({ ...prev, [id]: 'Zwrot został zlecony. Wniosek zostanie zaakceptowany automatycznie po potwierdzeniu Stripe.' }))
         return
       }
       onResolved({
@@ -108,6 +113,7 @@ export default function CancellationRequestsPanel({ requests, onResolved }: Prop
               {errors[req.id] && (
                 <p className="text-xs text-red-600">{errors[req.id]}</p>
               )}
+              {messages[req.id] && <p className="text-xs text-sky-700">{messages[req.id]}</p>}
 
               <div className="flex gap-2">
                 <button

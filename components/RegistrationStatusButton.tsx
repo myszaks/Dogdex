@@ -55,6 +55,7 @@ export default function RegistrationStatusButton({
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false)
   const [showMultidateCancel, setShowMultidateCancel] = useState(false)
@@ -66,6 +67,7 @@ export default function RegistrationStatusButton({
   async function updateStatus(nextStatus: string, cancelledDates?: string[] | null) {
     setLoading(true)
     setError(null)
+    setNotice(null)
     try {
       const body: Record<string, unknown> = { status: nextStatus }
       if (cancelledDates !== undefined) body.cancelledDates = cancelledDates
@@ -80,6 +82,11 @@ export default function RegistrationStatusButton({
         throw new Error(updated.error ?? 'Nie udało się zmienić statusu')
       }
       onUpdated(updated)
+      if (updated.refund_status && updated.refund_status !== 'succeeded') {
+        setNotice('Zwrot został zlecony. Zapis zmieni się po potwierdzeniu Stripe.')
+      } else if (updated.refunded_amount) {
+        setNotice(`Zwrot ${Number(updated.refunded_amount).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })} został zrealizowany.`)
+      }
       setMenuOpen(false)
       setConfirmCancelOpen(false)
       setShowMultidateCancel(false)
@@ -169,6 +176,7 @@ export default function RegistrationStatusButton({
         )}
 
         {error && <p className="max-w-56 text-right text-xs text-red-600">{error}</p>}
+        {notice && <p className="max-w-64 text-right text-xs text-emerald-700">{notice}</p>}
       </div>
 
       <ConfirmModal

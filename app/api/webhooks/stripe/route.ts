@@ -4,8 +4,10 @@ import { createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import {
   sendTrainingBookingConfirmation,
   sendTrainingBookingToTrainer,
+  sendRegistrationEmail,
 } from '@/lib/email'
 import { formatEmailDateTime } from '@/lib/emailDate'
+import { applyStripeRefundStatus } from '@/lib/eventRefund'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -60,9 +62,106 @@ export async function POST(req: Request) {
   const supabase = createServerClient()
 
   try {
+    const stripeEventType = event.type as string
+    if (stripeEventType === 'refund.created' || stripeEventType === 'refund.updated' || stripeEventType === 'refund.failed') {
+      const refund = event.data.object as Stripe.Refund
+      const metadataRefundId = refund.metadata?.event_refund_id
+      const { data: refundRow } = metadataRefundId
+        ? await supabase.from('event_refunds')
+            .select('id, event_payments(stripe_account_id)').eq('id', metadataRefundId).maybeSingle()
+        : await supabase.from('event_refunds')
+            .select('id, event_payments(stripe_account_id)').eq('stripe_refund_id', refund.id).maybeSingle()
+      if (!refundRow) return NextResponse.json({ received: true })
+      const relatedPayment = Array.isArray(refundRow.event_payments)
+        ? refundRow.event_payments[0]
+        : refundRow.event_payments
+      if (event.account && relatedPayment?.stripe_account_id !== event.account) {
+        return NextResponse.json({ error: 'Refund account mismatch' }, { status: 400 })
+      }
+      await applyStripeRefundStatus(refundRow.id, refund)
+      return NextResponse.json({ received: true }, { status: 200 })
+    }
+
     // Handle successful payment
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
+
+      if (session.metadata?.payment_kind === 'event_registration') {
+        const paymentId = session.metadata.event_payment_id
+        if (!paymentId) return NextResponse.json({ received: true })
+        const { data: payment, error: paymentLookupError } = await supabase
+          .from('event_payments')
+          .select('id, registration_id, amount, currency, stripe_session_id, stripe_account_id, status')
+          .eq('id', paymentId)
+          .maybeSingle()
+        if (paymentLookupError || !payment) {
+          return NextResponse.json({ error: 'Event payment not found' }, { status: 500 })
+        }
+        const paymentIntentId = typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id
+        const valid = session.payment_status === 'paid'
+          && Boolean(paymentIntentId)
+          && session.amount_total === Math.round(Number(payment.amount) * 100)
+          && session.currency?.toUpperCase() === payment.currency.toUpperCase()
+          && (!payment.stripe_session_id || payment.stripe_session_id === session.id)
+          && (!event.account || event.account === payment.stripe_account_id)
+        if (!valid || !paymentIntentId) {
+          return NextResponse.json({ error: 'Event payment verification failed' }, { status: 400 })
+        }
+        const { data: transitionRows, error: transitionError } = await supabase
+          .rpc('complete_event_checkout', {
+            target_payment_id: payment.id,
+            target_session_id: session.id,
+            target_payment_intent_id: paymentIntentId,
+          })
+        if (transitionError) {
+          console.error('[Webhook] Event checkout transition failed:', transitionError)
+          return NextResponse.json({ error: 'Event registration update failed' }, { status: 500 })
+        }
+        await supabase.from('event_payments').update({
+          reconciliation_status: 'ok',
+          reconciliation_error: null,
+          last_reconciled_at: new Date().toISOString(),
+        }).eq('id', payment.id)
+        const transition = Array.isArray(transitionRows) ? transitionRows[0] : transitionRows
+        if (transition?.notification_required) {
+          const { data: claimed } = await supabase
+            .from('event_payments')
+            .update({ confirmation_sent_at: new Date().toISOString() })
+            .eq('id', payment.id)
+            .is('confirmation_sent_at', null)
+            .select('id')
+            .maybeSingle()
+          if (claimed) {
+            const { data: registration } = await supabase
+              .from('registrations')
+              .select('form_data, participants(owner_email, owner_name, dog_name), events(title, start_at, location, form_fields)')
+              .eq('id', payment.registration_id)
+              .maybeSingle()
+            const participant = Array.isArray(registration?.participants)
+              ? registration?.participants[0]
+              : registration?.participants
+            const eventData = Array.isArray(registration?.events)
+              ? registration?.events[0]
+              : registration?.events
+            if (participant?.owner_email && eventData) {
+              await sendRegistrationEmail({
+                to: participant.owner_email,
+                ownerName: participant.owner_name ?? '',
+                dogName: participant.dog_name ?? '',
+                eventTitle: eventData.title,
+                eventDate: eventData.start_at,
+                eventLocation: eventData.location,
+                status: 'confirmed',
+                formFields: Array.isArray(eventData.form_fields) ? eventData.form_fields : [],
+                formData: registration?.form_data ?? {},
+              })
+            }
+          }
+        }
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
 
       if (!session.metadata?.booking_id) {
         console.warn('[Webhook] No booking_id in metadata')
@@ -202,6 +301,20 @@ export async function POST(req: Request) {
     ) {
       const session = event.data.object as Stripe.Checkout.Session
 
+      if (session.metadata?.payment_kind === 'event_registration') {
+        const paymentId = session.metadata.event_payment_id
+        if (paymentId) {
+          const { error: eventFailureError } = await supabase.rpc('fail_event_checkout', {
+            target_payment_id: paymentId,
+            target_session_id: session.id,
+          })
+          if (eventFailureError) {
+            return NextResponse.json({ error: 'Event registration update failed' }, { status: 500 })
+          }
+        }
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
       if (!session.metadata?.booking_id) {
         return NextResponse.json({ received: true })
       }
@@ -233,14 +346,40 @@ export async function POST(req: Request) {
         : charge.payment_intent?.id
 
       if (paymentIntentId) {
-        const { error: paymentError } = await supabase
+        const [{ error: paymentError }, { data: eventPayment, error: eventPaymentError }] = await Promise.all([
+          supabase
           .from('training_payments')
           .update({ status: 'refunded' })
-          .eq('stripe_payment_intent_id', paymentIntentId)
+          .eq('stripe_payment_intent_id', paymentIntentId),
+          supabase
+            .from('event_payments')
+            .update({
+              status: charge.amount_refunded < charge.amount ? 'partially_refunded' : 'refunded',
+              refunded_amount: charge.amount_refunded / 100,
+              stripe_charge_id: charge.id,
+              receipt_url: charge.receipt_url,
+              last_reconciled_at: new Date().toISOString(),
+            })
+            .eq('stripe_payment_intent_id', paymentIntentId)
+            .select('id, refunded_amount')
+            .maybeSingle(),
+        ])
 
-        if (paymentError) {
+        if (paymentError || eventPaymentError) {
           console.error('[Webhook] Error marking payment as refunded:', paymentError)
           return NextResponse.json({ error: 'Payment update failed' }, { status: 500 })
+        }
+
+        if (eventPayment) {
+          const { data: refunds } = await supabase.from('event_refunds')
+            .select('amount').eq('payment_id', eventPayment.id).eq('status', 'succeeded')
+          const allocated = (refunds ?? []).reduce((sum, refund) => sum + Number(refund.amount), 0)
+          await supabase.from('event_payments').update({
+            reconciliation_status: Math.round(allocated * 100) === charge.amount_refunded ? 'ok' : 'attention',
+            reconciliation_error: Math.round(allocated * 100) === charge.amount_refunded
+              ? null
+              : 'Stripe zawiera zwrot wykonany poza Dogdex; przypisz go ręcznie do zapisu.',
+          }).eq('id', eventPayment.id)
         }
 
         console.log(`[Webhook] Payment intent ${paymentIntentId} marked as refunded`)

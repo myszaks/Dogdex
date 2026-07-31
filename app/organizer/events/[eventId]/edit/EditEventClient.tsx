@@ -32,6 +32,7 @@ import EventResultsSetup from '@/components/EventResultsSetup'
 import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
+import EventPricingEditor from '@/components/EventPricingEditor'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
@@ -46,6 +47,7 @@ import { SPEEDWAY_CLASS_GROUPING_FIELD } from '@/lib/speedway'
 import { cn } from '@/lib/utils'
 import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import type { FormField } from '@/types'
+import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -81,6 +83,9 @@ interface Props {
     auto_confirm: boolean
     max_participants: number | null
     entry_fee: number | null
+    pricing_mode: EventPricingMode
+    date_prices: EventDatePrices
+    currency: string
     image_url: string | null
     organizer_name: string | null
     lat: number | null
@@ -162,7 +167,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [maxParticipants, setMaxParticipants] = useState<string>(
     initialData.max_participants != null ? String(initialData.max_participants) : '',
   )
-  const [entryFeeEnabled, setEntryFeeEnabled] = useState(initialData.entry_fee != null)
+  const [pricingMode, setPricingMode] = useState<EventPricingMode>(initialData.pricing_mode ?? 'free')
+  const [datePrices, setDatePrices] = useState<EventDatePrices>(initialData.date_prices ?? {})
+  const [entryFeeEnabled, setEntryFeeEnabled] = useState((initialData.pricing_mode ?? 'free') !== 'free')
   const [entryFee, setEntryFee] = useState<string>(
     initialData.entry_fee != null ? String(initialData.entry_fee) : '',
   )
@@ -186,7 +193,11 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     [formFields],
   )
   const seatsLabel = maxParticipants ? `${maxParticipants} miejsc` : 'Bez limitu miejsc'
-  const feeLabel = entryFeeEnabled ? formatMoney(entryFee) : 'Bezpłatne'
+  const feeLabel = pricingMode === 'flat'
+    ? formatMoney(entryFee)
+    : pricingMode === 'per_date'
+      ? 'Cena za wybrane terminy'
+      : 'Bezpłatne'
 
   function handleEventTypeChange(id: string) {
     setEventTypeId(id)
@@ -256,14 +267,22 @@ export default function EditEventClient({ eventId, initialData }: Props) {
     }
 
     if (step === 2) {
-      if (entryFeeEnabled && !entryFee.trim()) {
-        setError('Podaj kwotę wpisowego lub odznacz pobieranie wpisowego.')
-        return false
-      }
       if (publishing) {
         const formIssues = validateFormFieldDefinitions(formFields)
         if (formIssues.length > 0) {
           setError(formIssues[0].message)
+          return false
+        }
+        const pricingError = validateEventPricing({
+          title: title || 'Wydarzenie',
+          pricing_mode: pricingMode,
+          entry_fee: entryFee ? Number(entryFee) : null,
+          date_prices: datePrices,
+          currency: 'PLN',
+          form_fields: formFields,
+        })
+        if (pricingError) {
+          setError(pricingError)
           return false
         }
       }
@@ -351,6 +370,9 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       auto_confirm: autoConfirm,
       max_participants: maxParticipants ? parseInt(maxParticipants, 10) : null,
       entry_fee: entryFeeEnabled && entryFee ? parseFloat(entryFee) : null,
+      pricing_mode: pricingMode,
+      date_prices: datePrices,
+      currency: 'PLN',
       image_url: imageUrl,
       organizer_name: organizerName.trim() || null,
       lat,
@@ -620,13 +642,19 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 </Panel>
 
                 <Panel Icon={Wallet} title="Opłaty">
-                  <ToggleRow checked={entryFeeEnabled} onChange={checked => { setEntryFeeEnabled(checked); if (!checked) setEntryFee('') }} title="Pobieraj wpisowe" description="Zachowuje istniejącą logikę wpisowego w PLN." />
-                  {entryFeeEnabled && (
-                    <div className="mt-5">
-                      <label htmlFor="edit-event-entry-fee" className="form-label uppercase tracking-[0.16em] text-sage-500">Wpisowe (PLN) *</label>
-                      <input id="edit-event-entry-fee" className="form-input min-h-14 text-lg" type="number" min="0" step="0.01" value={entryFee} onChange={e => setEntryFee(e.target.value)} />
-                    </div>
-                  )}
+                  <EventPricingEditor
+                    pricingMode={pricingMode}
+                    entryFee={entryFee}
+                    datePrices={datePrices}
+                    formFields={formFields}
+                    onPricingModeChange={mode => {
+                      setPricingMode(mode)
+                      setEntryFeeEnabled(mode !== 'free')
+                      if (mode === 'free') setEntryFee('')
+                    }}
+                    onEntryFeeChange={setEntryFee}
+                    onDatePricesChange={setDatePrices}
+                  />
                 </Panel>
 
                 <Panel Icon={ShieldCheck} title="Automatyzacja">

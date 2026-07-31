@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
-import { sendRegistrationEmail, sendCancellationEmailToOrganizer } from '@/lib/email'
+import { sendRegistrationEmail, sendCancellationEmailToOrganizer, sendEventPaymentRequestEmail } from '@/lib/email'
 import { isOrganizerRole } from '@/lib/roles'
+import { buildEventPriceItems } from '@/lib/eventPricing'
+import { cancelPendingEventCheckouts, createEventCheckout } from '@/lib/eventCheckout'
+import { createEventRefund } from '@/lib/eventRefund'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -154,6 +157,116 @@ export async function PATCH(req: Request, { params }: Params) {
         return NextResponse.json(
           { error: 'Brak wolnych miejsc na to wydarzenie' },
           { status: 409 }
+        )
+      }
+    }
+  }
+
+  if (isOrganizerOrAdmin && targetStatus === 'confirmed') {
+    let priceItems
+    try {
+      priceItems = buildEventPriceItems(
+        event as unknown as Parameters<typeof buildEventPriceItems>[0],
+        (reg.form_data ?? {}) as Record<string, unknown>,
+      )
+    } catch (pricingError) {
+      return NextResponse.json({ error: (pricingError as Error).message }, { status: 400 })
+    }
+
+    if (priceItems.length > 0) {
+      const serviceClient = createServerClient()
+      const { data: existingPayment } = await serviceClient
+        .from('event_payments')
+        .select('id, status')
+        .eq('registration_id', id)
+        .in('status', ['pending', 'completed'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (existingPayment?.status === 'pending') {
+        return NextResponse.json({ error: 'Link do płatności został już wysłany' }, { status: 409 })
+      }
+      if (existingPayment?.status !== 'completed') {
+        const checkout = await createEventCheckout({
+          registration: {
+            id: reg.id,
+            participant_id: reg.participant_id,
+            form_data: (reg.form_data ?? {}) as Record<string, unknown>,
+          },
+          event: event as unknown as Parameters<typeof createEventCheckout>[0]['event'],
+          participant: {
+            owner_email: participant?.owner_email ?? '',
+            owner_name: participant?.owner_name,
+            dog_name: participant?.dog_name,
+            user_id: participant?.user_id,
+          },
+          pendingApproval: true,
+        }, req.url)
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL
+          ?? process.env.NEXT_PUBLIC_SITE_URL
+          ?? new URL(req.url).origin
+        await sendEventPaymentRequestEmail({
+          to: participant?.owner_email ?? '',
+          ownerName: participant?.owner_name ?? '',
+          dogName: participant?.dog_name ?? '',
+          eventTitle: String(event?.title ?? ''),
+          amount: priceItems.reduce((sum, item) => sum + item.amount, 0),
+          currency: priceItems[0].currency,
+          checkoutUrl: new URL(`/pay/event/${checkout.checkoutToken}`, appUrl).toString(),
+          expiresAt: new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString(),
+        })
+        return NextResponse.json({ ...reg, payment_status: 'pending', payment_link_sent: true })
+      }
+    }
+  }
+
+  if (isOrganizerOrAdmin && targetStatus === 'cancelled') {
+    const serviceClient = createServerClient()
+    const { data: activePayment } = await serviceClient
+      .from('event_payments')
+      .select('id, status')
+      .eq('registration_id', id)
+      .in('status', ['pending', 'completed', 'partially_refunded'])
+      .limit(1)
+      .maybeSingle()
+    if (activePayment?.status === 'completed' || activePayment?.status === 'partially_refunded') {
+      const cancelledDates = Array.isArray(body.cancelledDates)
+        ? body.cancelledDates.filter((date): date is string => typeof date === 'string')
+        : null
+      try {
+        const refund = await createEventRefund({
+          registrationId: id,
+          cancelledDates,
+          requestedBy: user.id,
+        })
+        const { data: refreshed } = await serviceClient.from('registrations')
+          .select('*, participants(*), events(*)').eq('id', id).single()
+        return NextResponse.json({
+          ...(refreshed ?? reg),
+          refund_id: refund.refundId,
+          refund_status: refund.status,
+          refunded_amount: refund.amount,
+        }, { status: refund.status === 'succeeded' ? 200 : 202 })
+      } catch (refundError) {
+        console.error('[event-refund] Failed to create refund:', refundError)
+        return NextResponse.json(
+          { error: refundError instanceof Error ? refundError.message : 'Nie udało się zlecić zwrotu' },
+          { status: 409 },
+        )
+      }
+    }
+    if (activePayment?.status === 'pending') {
+      if (Array.isArray(body.cancelledDates)) return NextResponse.json(
+        { error: 'Nie można częściowo zmienić zapisu z oczekującą płatnością. Anuluj cały zapis i utwórz nowy.' },
+        { status: 409 },
+      )
+      try {
+        await cancelPendingEventCheckouts([id])
+      } catch (paymentError) {
+        console.error('[event-payment] Failed to cancel pending Checkout:', paymentError)
+        return NextResponse.json(
+          { error: 'Nie udało się bezpiecznie anulować oczekującej płatności' },
+          { status: 409 },
         )
       }
     }

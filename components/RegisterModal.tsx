@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import RegisterForm from './RegisterForm'
 import type { FormField } from '@/types'
+import type { EventDatePrices, EventPricingMode } from '@/lib/eventPricing'
 import { X } from 'lucide-react'
 
 import type { ReactNode } from 'react'
@@ -11,11 +12,16 @@ interface Props {
   eventId: string
   eventTitle: string
   formFields: FormField[]
+  pricingMode?: EventPricingMode
+  entryFee?: number | null
+  datePrices?: EventDatePrices
+  currency?: string
+  autoConfirm?: boolean
   triggerClassName?: string
   triggerLabel?: ReactNode
 }
 
-export default function RegisterModal({ eventId, eventTitle, formFields, triggerClassName, triggerLabel }: Props) {
+export default function RegisterModal({ eventId, eventTitle, formFields, pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, triggerClassName, triggerLabel }: Props) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
 
@@ -49,6 +55,11 @@ export default function RegisterModal({ eventId, eventTitle, formFields, trigger
               <RegisterForm
                 eventId={eventId}
                 formFields={formFields}
+                pricingMode={pricingMode}
+                entryFee={entryFee}
+                datePrices={datePrices}
+                currency={currency}
+                autoConfirm={autoConfirm}
                 onSuccess={() => {
                   router.refresh()
                   setTimeout(() => setOpen(false), 2500)

@@ -316,7 +316,6 @@ export async function POST(req: Request) {
           success_url: `${baseMyTrainingsUrl}&payment=success&booking_id=${booking.id}`,
           cancel_url: `${baseMyTrainingsUrl}&payment=cancelled&booking_id=${booking.id}`,
           payment_intent_data: {
-            on_behalf_of: stripeAccountId,
             metadata: {
               booking_id: booking.id,
               trainer_id: trainingType.trainer_id,

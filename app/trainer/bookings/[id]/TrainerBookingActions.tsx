@@ -2,19 +2,24 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, X } from 'lucide-react'
+import { CheckCircle2, X } from 'lucide-react'
 
 interface TrainerBookingActionsProps {
   bookingId: string
   status: string
+  canComplete: boolean
 }
 
-export default function TrainerBookingActions({ bookingId, status }: TrainerBookingActionsProps) {
+export default function TrainerBookingActions({
+  bookingId,
+  status,
+  canComplete,
+}: TrainerBookingActionsProps) {
   const router = useRouter()
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleUpdate = async (nextStatus: 'confirmed' | 'cancelled') => {
+  const handleUpdate = async (nextStatus: 'cancelled' | 'completed') => {
     setUpdating(true)
     setError(null)
 
@@ -67,15 +72,15 @@ export default function TrainerBookingActions({ bookingId, status }: TrainerBook
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        {status === 'pending' && (
+        {canComplete && (
           <button
             type="button"
-            onClick={() => handleUpdate('confirmed')}
+            onClick={() => handleUpdate('completed')}
             disabled={updating}
             className="btn btn-primary flex items-center justify-center gap-2"
           >
-            <Check className="w-4 h-4" />
-            {updating ? 'Zapisywanie...' : 'Potwierdź rezerwację'}
+            <CheckCircle2 className="w-4 h-4" />
+            {updating ? 'Zapisywanie...' : 'Oznacz jako zakończony'}
           </button>
         )}
         <button

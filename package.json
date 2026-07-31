@@ -13,6 +13,11 @@
     "schema:check": "node scripts/build-full-schema.mjs --check",
     "db:dev:build": "node scripts/build-dev-database-sql.mjs",
     "db:dev:check": "node scripts/build-dev-database-sql.mjs --check",
+    "db:dev:migrate:trainings": "node scripts/apply-training-p0-dev.mjs --confirm-dev",
+    "db:dev:migrate:training-p1": "node scripts/apply-training-p1-dev.mjs --confirm-dev",
+    "db:dev:create:training-qa": "node scripts/create-training-qa-account.mjs",
+    "db:dev:seed:trainings": "node scripts/seed-training-dev.mjs",
+    "db:dev:verify:training-p1": "node scripts/verify-training-p1-dev.mjs",
     "ci": "npm run schema:check && npm run db:dev:check && npm run lint && npm run test && npm run typecheck && npm run build"
   },
   "dependencies": {
@@ -51,6 +56,7 @@
     "autoprefixer": "^10.4.19",
     "eslint": "^9",
     "eslint-config-next": "^16.2.11",
+    "pg": "^8.22.0",
     "postcss": "^8.5.22",
     "supabase": "^2.105.0",
     "tailwindcss": "^3.4.3",

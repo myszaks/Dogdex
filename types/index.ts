@@ -225,6 +225,7 @@ export interface TrainerProfile {
   location_city: string | null
   location_details: string | null
   price_per_hour: number | null
+  cancellation_buffer_hours: number
   created_at: string
   updated_at: string
 }
@@ -264,13 +265,21 @@ export interface TrainingBooking {
   cancellation_reason: string | null
   cancellation_requested_by: 'user' | 'trainer' | null
   cancellation_approved_at: string | null
+  expires_at: string | null
+  confirmed_at: string | null
+  completed_at: string | null
+  reminder_sent_at: string | null
   notes_user: string | null
   notes_trainer: string | null
   created_at: string
   updated_at: string
   training_types?: TrainingType
   training_payments?: TrainingPayment[]
+  training_reviews?: TrainingReview[]
   dogs?: { id: string; name: string }
+  cancellation_allowed?: boolean
+  cancellation_deadline?: string | null
+  cancellation_buffer_hours?: number
 }
 
 export interface TrainingPayment {
@@ -287,8 +296,22 @@ export interface TrainingPayment {
   updated_at: string
 }
 
+export interface TrainingReview {
+  id: string
+  booking_id: string
+  trainer_id: string
+  user_id: string
+  author_name: string
+  rating: number
+  comment: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface TrainerProfileWithStats extends TrainerProfile {
   training_types?: TrainingType[]
-  rating?: number
+  rating?: number | null
+  review_count?: number
+  min_price?: number | null
   total_bookings?: number
 }

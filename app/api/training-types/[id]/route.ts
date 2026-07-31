@@ -14,7 +14,7 @@ export async function GET(req: Request, { params }: Params) {
 
   let query = supabase
     .from('training_types')
-    .select('*, training_availability(*)')
+    .select('*')
 
   if (trainerSlug) {
     const { data: trainer } = await supabase

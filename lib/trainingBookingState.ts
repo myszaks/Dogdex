@@ -1,3 +1,5 @@
+import { getTrainingCancellationPolicy } from '@/lib/trainingCancellation'
+
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 
@@ -8,6 +10,7 @@ interface TransitionInput {
   paymentStatus: PaymentStatus | null
   scheduledAt: string
   durationMin: number
+  cancellationBufferHours?: number | null
   nowMs?: number
 }
 
@@ -22,6 +25,7 @@ export function validateBookingTransition({
   paymentStatus,
   scheduledAt,
   durationMin,
+  cancellationBufferHours,
   nowMs = Date.now(),
 }: TransitionInput): BookingTransitionResult {
   if (currentStatus === nextStatus) return { allowed: true, noop: true }
@@ -35,10 +39,16 @@ export function validateBookingTransition({
   }
 
   if (nextStatus === 'cancelled') {
-    if (actor === 'owner' && paymentStatus === 'completed') {
+    const policy = getTrainingCancellationPolicy({
+      status: currentStatus,
+      scheduledAt,
+      bufferHours: cancellationBufferHours,
+      nowMs,
+    })
+    if (actor === 'owner' && !policy.canCancel) {
       return {
         allowed: false,
-        message: 'Opłacona rezerwacja wymaga anulowania i zwrotu przez trenera',
+        message: `Rezerwację można anulować najpóźniej ${policy.bufferHours} godz. przed treningiem`,
       }
     }
     return { allowed: true, noop: false }

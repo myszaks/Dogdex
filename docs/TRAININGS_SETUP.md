@@ -1,5 +1,56 @@
 # Treningi Indywidualne – Instrukcja Wdrażania
 
+## Stan P0 (2026-07-31)
+
+- Kanoniczną dostępnością są przedziały z `trainer_date_availability`.
+  Jednego dnia trener może dodać kilka nienachodzących przedziałów.
+- Darmowa rezerwacja jest automatycznie potwierdzana.
+- Płatna rezerwacja blokuje termin na 30 minut i jest potwierdzana atomowo
+  razem z płatnością przez webhook Stripe.
+- Cron `/api/training-bookings/reconcile` zwalnia wygasłe płatności i oznacza
+  zakończone treningi jako `completed`.
+- Status i kwota płatności są dostępne w panelu użytkownika i trenera.
+- Endpointy starej, tygodniowej tabeli `training_availability` zostały usunięte.
+  Tabela pozostaje tymczasowo w bazie wyłącznie dla kompatybilności migracji.
+
+### Przygotowanie danych QA w dev DB
+
+```bash
+npm run db:dev:migrate:trainings
+npm run db:dev:seed:trainings
+```
+
+Seed jest idempotentny. Tworzy profil trenera QA, darmową ofertę, dwa
+przedziały godzin przez siedem kolejnych dni oraz psa użytkownika QA. Płatna
+oferta jest dodawana, jeśli ustawiono `DOGDEX_QA_STRIPE_ACCOUNT_ID`.
+
+## Stan P1 (2026-07-31)
+
+- Publiczna lista trenerów obsługuje wyszukiwanie oraz filtry miasta,
+  specjalizacji, ceny i minimalnej oceny.
+- Klient może dodać, edytować i usunąć opinię po zakończonym treningu.
+  Średnia ocen jest widoczna na liście i profilu trenera.
+- Panel `/trainer/analytics` pokazuje rezerwacje, realizację, anulowania,
+  przychód, zwroty i oceny w wybranym zakresie.
+- Trener konfiguruje bufor anulowania od 0 do 168 godzin. Anulowanie opłaconej
+  rezerwacji przez klienta przed terminem bufora wykonuje automatyczny zwrot.
+- Cron `/api/training-bookings/reminders` co godzinę wysyła przypomnienia
+  około 24 godziny przed treningiem. Claim w bazie zapobiega duplikatom,
+  a nieudana wysyłka zwalnia claim do ponowienia.
+
+### Migracja P1 na dev DB
+
+```bash
+npm run db:dev:migrate:training-p1
+npm run db:dev:create:training-qa
+npm run db:dev:seed:trainings
+npm run db:dev:verify:training-p1
+```
+
+Seed P1 dodaje także zakończony trening i opinię QA, aby od razu zasilić widok
+opinii oraz analitykę. Wysyłka przypomnień wymaga `SMTP_*`, `CRON_SECRET`
+i `SUPABASE_SERVICE_ROLE_KEY`.
+
 ## ✅ Co zostało zrobione
 
 Pełna implementacja systemu rezerwacji treningów indywidualnych z następującymi elementami:
@@ -124,26 +175,26 @@ npm run dev
 ## ❌ Co jeszcze trzeba zrobić (Phase 2+)
 
 ### Płatności (Stripe Checkout)
-- [ ] Payment creation w `/api/training-bookings` POST
-- [ ] Redirect do Stripe Checkout
-- [ ] Webhook `/api/webhooks/stripe` do confirmation po `checkout.session.completed`
-- [ ] Payment display w UI
-- [ ] Refund endpoint
+- [x] Payment creation w `/api/training-bookings` POST
+- [x] Redirect do Stripe Checkout
+- [x] Webhook `/api/webhooks/stripe` do confirmation po `checkout.session.completed`
+- [x] Payment display w UI
+- [x] Zwrot płatności przy anulowaniu przez trenera
 
 ### Emaile
-- [ ] Potwierdzenie rezerwacji (user + trainer)
-- [ ] Przypomnienie dzień przed (user)
-- [ ] Anulacja (user + trainer)
-- [ ] Wiadomość o potwierdzeniu (trainer → user)
+- [x] Potwierdzenie rezerwacji (user + trainer)
+- [x] Przypomnienie dzień przed (user)
+- [x] Anulacja (user + trainer)
+- [x] Wiadomość o potwierdzeniu (trainer → user)
 
 ### Rozszerzenia
-- [ ] Rating/Reviews trenerów
-- [ ] Analytics dla trenerów
-- [ ] Cancellation buffer (np. 24h before)
+- [x] Rating/Reviews trenerów
+- [x] Analytics dla trenerów
+- [x] Cancellation buffer (konfigurowalny 0–168h)
 - [ ] SMS notifications
 - [ ] Integration z Google Calendar
-- [ ] Multi-dog families (pokazać psy użytkownika w rezerwacji)
-- [ ] Trainer search/filter (miasto, specjalizacja, cena)
+- [x] Multi-dog families (wybór psa użytkownika w rezerwacji)
+- [x] Trainer search/filter (miasto, specjalizacja, cena, ocena)
 
 ---
 

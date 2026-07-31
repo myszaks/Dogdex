@@ -2,15 +2,43 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Calendar, Check, Clock, XCircle } from 'lucide-react'
+import { AlertCircle, Calendar, Check, Clock, CreditCard, XCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import type { TrainingBooking } from '@/types'
+import type { TrainingReview } from '@/types'
+import TrainingReviewForm from '@/components/TrainingReviewForm'
 
 interface MyTrainingsContentProps {
   embedded?: boolean
   paymentStatus?: string | null
   paymentBookingId?: string | null
+}
+
+function PaymentSummary({ booking }: { booking: TrainingBooking }) {
+  const payment = booking.training_payments?.[0]
+  if (!payment) return null
+
+  const statusLabel = {
+    pending: 'Oczekuje na płatność',
+    completed: 'Opłacono',
+    failed: 'Płatność nieudana',
+    refunded: 'Zwrócono płatność',
+  }[payment.status]
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <CreditCard className="w-4 h-4" />
+      <span>
+        {Number(payment.amount).toLocaleString('pl-PL', {
+          style: 'currency',
+          currency: payment.currency,
+        })}
+        {' · '}
+        {statusLabel}
+      </span>
+    </div>
+  )
 }
 
 export default function MyTrainingsContent({
@@ -105,6 +133,35 @@ export default function MyTrainingsContent({
     }
   }, [])
 
+  useEffect(() => {
+    if (paymentStatus !== 'success' || !paymentBookingId) return
+
+    let disposed = false
+    let attempts = 0
+    const interval = setInterval(() => {
+      attempts += 1
+      void fetch('/api/training-bookings')
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+          if (disposed || !Array.isArray(data)) return
+          setBookings(data)
+          const paidBooking = data.find(booking => booking.id === paymentBookingId)
+          if (
+            paidBooking?.status === 'confirmed'
+            || paidBooking?.training_payments?.[0]?.status === 'completed'
+            || attempts >= 6
+          ) {
+            clearInterval(interval)
+          }
+        })
+    }, 1500)
+
+    return () => {
+      disposed = true
+      clearInterval(interval)
+    }
+  }, [paymentBookingId, paymentStatus])
+
   const handleCancel = async (bookingId: string) => {
     if (!confirm('Czy na pewno chcesz anulować tę rezerwację?')) {
       return
@@ -136,6 +193,14 @@ export default function MyTrainingsContent({
     } finally {
       setCancelling(null)
     }
+  }
+
+  const handleReviewChange = (bookingId: string, review: TrainingReview | null) => {
+    setBookings(current => current.map(booking =>
+      booking.id === bookingId
+        ? { ...booking, training_reviews: review ? [review] : [] }
+        : booking
+    ))
   }
 
   const getStatusColor = (status: string) => {
@@ -270,6 +335,7 @@ export default function MyTrainingsContent({
                         <Clock className="w-4 h-4" />
                         {format(parseISO(booking.scheduled_at), 'HH:mm')} - {booking.duration_min} minut
                       </div>
+                      <PaymentSummary booking={booking} />
                     </div>
 
                     {booking.notes_user && (
@@ -279,7 +345,7 @@ export default function MyTrainingsContent({
                       </div>
                     )}
 
-                    {booking.status === 'pending' && (
+                    {['pending', 'confirmed'].includes(booking.status) && booking.cancellation_allowed && (
                       <button
                         onClick={() => handleCancel(booking.id)}
                         disabled={cancelling === booking.id}
@@ -287,6 +353,11 @@ export default function MyTrainingsContent({
                       >
                         {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwację'}
                       </button>
+                    )}
+                    {booking.status === 'confirmed' && !booking.cancellation_allowed && (
+                      <p className="text-xs text-muted-foreground">
+                        Minął termin bezpłatnego anulowania ({booking.cancellation_buffer_hours ?? 24} godz. przed treningiem).
+                      </p>
                     )}
                   </div>
                 ))}
@@ -299,7 +370,7 @@ export default function MyTrainingsContent({
               <h2 className="font-heading font-semibold text-xl mb-6">Historia</h2>
               <div className="space-y-4">
                 {pastBookings.map(booking => (
-                  <div key={booking.id} className="card opacity-60 p-6">
+                  <div key={booking.id} className="card p-6">
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="font-heading font-semibold text-lg mb-1">
@@ -316,6 +387,16 @@ export default function MyTrainingsContent({
                       <Calendar className="w-4 h-4" />
                       {format(parseISO(booking.scheduled_at), 'd MMMM yyyy', { locale: pl })}
                     </div>
+                    <div className="mt-2">
+                      <PaymentSummary booking={booking} />
+                    </div>
+                    {booking.status === 'completed' && (
+                      <TrainingReviewForm
+                        bookingId={booking.id}
+                        existing={booking.training_reviews?.[0]}
+                        onChange={review => handleReviewChange(booking.id, review)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

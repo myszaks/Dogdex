@@ -70,39 +70,66 @@ export async function POST(req: Request) {
       }
 
       const bookingId = session.metadata.booking_id
+      const { data: payment, error: paymentLookupError } = await supabase
+        .from('training_payments')
+        .select('id, booking_id, amount, currency, stripe_session_id, stripe_account_id, status')
+        .eq('booking_id', bookingId)
+        .maybeSingle()
 
-      // Update booking status to confirmed
-      const { error: bookingError } = await supabase
-        .from('training_bookings')
-        .update({ status: 'confirmed' })
-        .eq('id', bookingId)
+      if (paymentLookupError || !payment) {
+        console.error('[Webhook] Payment record not found:', paymentLookupError)
+        return NextResponse.json({ error: 'Payment not found' }, { status: 500 })
+      }
 
-      if (bookingError) {
-        console.error('[Webhook] Error updating booking:', bookingError)
+      const amountMatches = session.amount_total === Math.round(Number(payment.amount) * 100)
+      const currencyMatches = session.currency?.toUpperCase() === payment.currency.toUpperCase()
+      const sessionMatches = !payment.stripe_session_id || payment.stripe_session_id === session.id
+      const accountMatches = !event.account || event.account === payment.stripe_account_id
+      const paymentIntentId = typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id
+
+      if (
+        session.payment_status !== 'paid'
+        || !paymentIntentId
+        || !amountMatches
+        || !currencyMatches
+        || !sessionMatches
+        || !accountMatches
+      ) {
+        console.error('[Webhook] Checkout session does not match the stored payment', {
+          bookingId,
+          sessionId: session.id,
+        })
+        return NextResponse.json({ error: 'Payment verification failed' }, { status: 400 })
+      }
+
+      const { data: transitionRows, error: transitionError } = await supabase
+        .rpc('complete_training_checkout', {
+          target_booking_id: bookingId,
+          target_session_id: session.id,
+          target_payment_intent_id: paymentIntentId,
+        })
+
+      if (transitionError) {
+        console.error('[Webhook] Atomic checkout transition failed:', transitionError)
         return NextResponse.json({ error: 'Booking update failed' }, { status: 500 })
       }
 
-      // Update payment status
-      const { error: paymentError } = await supabase
-        .from('training_payments')
-        .update({
-          status: 'completed',
-          stripe_payment_intent_id: session.payment_intent as string,
-        })
-        .eq('stripe_session_id', session.id)
-
-      if (paymentError) {
-        console.error('[Webhook] Error updating payment:', paymentError)
-        return NextResponse.json({ error: 'Payment update failed' }, { status: 500 })
+      const transition = Array.isArray(transitionRows) ? transitionRows[0] : transitionRows
+      let notificationClaim: { booking_id: string; amount: number } | null = null
+      let claimError = null
+      if (transition?.notification_required) {
+        const claimResult = await supabase
+          .from('training_payments')
+          .update({ confirmation_sent_at: new Date().toISOString() })
+          .eq('id', payment.id)
+          .is('confirmation_sent_at', null)
+          .select('booking_id, amount')
+          .maybeSingle()
+        notificationClaim = claimResult.data
+        claimError = claimResult.error
       }
-
-      const { data: notificationClaim, error: claimError } = await supabase
-        .from('training_payments')
-        .update({ confirmation_sent_at: new Date().toISOString() })
-        .eq('stripe_session_id', session.id)
-        .is('confirmation_sent_at', null)
-        .select('booking_id, amount')
-        .maybeSingle()
 
       if (claimError) {
         console.error('[Webhook] Error claiming payment notification:', claimError)
@@ -180,37 +207,21 @@ export async function POST(req: Request) {
       }
 
       const bookingId = session.metadata.booking_id
-
-      // Update payment status to failed
-      const { error: paymentError } = await supabase
-        .from('training_payments')
-        .update({ status: 'failed' })
-        .eq('stripe_session_id', session.id)
-
-      if (paymentError) {
-        console.error('[Webhook] Error updating payment to failed:', paymentError)
-        return NextResponse.json({ error: 'Payment update failed' }, { status: 500 })
-      }
-
-      const { error: bookingError } = await supabase
-        .from('training_bookings')
-        .update({
-          status: 'cancelled',
-          cancellation_reason: event.type === 'checkout.session.expired'
+      const { data: failed, error: transitionError } = await supabase
+        .rpc('fail_training_checkout', {
+          target_booking_id: bookingId,
+          target_session_id: session.id,
+          failure_reason: event.type === 'checkout.session.expired'
             ? 'Sesja płatności wygasła'
             : 'Płatność nie powiodła się',
-          cancellation_requested_by: 'user',
-          cancellation_approved_at: new Date().toISOString(),
         })
-        .eq('id', bookingId)
-        .eq('status', 'pending')
 
-      if (bookingError) {
-        console.error('[Webhook] Error releasing failed booking:', bookingError)
+      if (transitionError) {
+        console.error('[Webhook] Error releasing failed booking:', transitionError)
         return NextResponse.json({ error: 'Booking update failed' }, { status: 500 })
       }
 
-      console.log(`[Webhook] Payment failed or expired for booking ${bookingId}`)
+      console.log(`[Webhook] Payment failed or expired for booking ${bookingId}; changed=${Boolean(failed)}`)
     }
 
     // Handle charge refunded

@@ -28,6 +28,7 @@ export default function TrainerProfilePage() {
     location_details: '',
     profile_image_url: '',
     is_active: false,
+    cancellation_buffer_hours: 24,
   })
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function TrainerProfilePage() {
             location_details: data.location_details || '',
             profile_image_url: data.profile_image_url || '',
             is_active: data.is_active || false,
+            cancellation_buffer_hours: data.cancellation_buffer_hours ?? 24,
           })
         }
         setLoading(false)
@@ -74,6 +76,11 @@ export default function TrainerProfilePage() {
       setFormData(prev => ({
         ...prev,
         [name]: (e.target as HTMLInputElement).checked,
+      }))
+    } else if (type === 'number') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: Number(value),
       }))
     } else {
       setFormData(prev => ({
@@ -206,6 +213,30 @@ export default function TrainerProfilePage() {
                 placeholder="np. Park Lazienki, Dąb Park"
               />
             </div>            
+
+            {/* Profile Image Upload */}
+            <div>
+              <label htmlFor="cancellation-buffer" className="block text-sm font-semibold mb-2">
+                Wyprzedzenie wymagane do anulowania
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="cancellation-buffer"
+                  type="number"
+                  name="cancellation_buffer_hours"
+                  value={formData.cancellation_buffer_hours}
+                  onChange={handleChange}
+                  min={0}
+                  max={168}
+                  step={1}
+                  className="form-input max-w-32"
+                />
+                <span className="text-sm text-muted-foreground">godzin przed treningiem</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Przed tym terminem klient może anulować również opłaconą rezerwację i otrzymać automatyczny zwrot.
+              </p>
+            </div>
 
             {/* Profile Image Upload */}
             <div>

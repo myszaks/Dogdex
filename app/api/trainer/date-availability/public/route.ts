@@ -16,7 +16,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Brakuje identyfikatora trenera' }, { status: 400 })
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getBookingDateTimeParts(new Date()).date
+
+    const { data: activeTrainer, error: trainerError } = await supabase
+      .from('trainer_profiles')
+      .select('trainer_id')
+      .eq('trainer_id', trainerId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (trainerError) {
+      return NextResponse.json({ error: 'Nie udało się sprawdzić profilu trenera' }, { status: 500 })
+    }
+    if (!activeTrainer) {
+      return NextResponse.json({ error: 'Trener nie przyjmuje obecnie rezerwacji' }, { status: 404 })
+    }
 
     // Fetch trainer's date availability slots (public)
     const { data, error } = await supabase
@@ -31,19 +45,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Nie udało się pobrać dostępnych terminów' }, { status: 500 })
     }
 
-    const { data: trainerTypes } = await supabase
+    const { data: trainerTypes, error: typesError } = await supabase
       .from('training_types')
       .select('id')
       .eq('trainer_id', trainerId)
+      .eq('is_active', true)
+
+    if (typesError) {
+      return NextResponse.json({ error: 'Nie udało się pobrać ofert trenera' }, { status: 500 })
+    }
 
     const typeIds = (trainerTypes ?? []).map(type => type.id)
-    const { data: bookings } = typeIds.length > 0
+    const { data: bookings, error: bookingsError } = typeIds.length > 0
       ? await supabase
           .from('training_bookings')
           .select('scheduled_at, duration_min')
           .in('training_type_id', typeIds)
           .in('status', ['pending', 'confirmed'])
-      : { data: [] }
+      : { data: [], error: null }
+
+    if (bookingsError) {
+      return NextResponse.json({ error: 'Nie udało się pobrać zajętych terminów' }, { status: 500 })
+    }
 
     const bookedByDate = new Map<string, Array<{ time: string; duration_min: number }>>()
     for (const booking of bookings ?? []) {
@@ -60,7 +83,7 @@ export async function GET(request: NextRequest) {
       ...slot,
       booked_slots: bookedByDate.get(slot.available_date) ?? [],
     })))
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Wewnętrzny błąd serwera' },
       { status: 500 }

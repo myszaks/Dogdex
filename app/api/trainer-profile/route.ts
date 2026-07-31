@@ -77,7 +77,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { full_name, bio, location_city, location_details, price_per_hour, profile_image_url, is_active } = body
+  const {
+    full_name,
+    bio,
+    location_city,
+    location_details,
+    price_per_hour,
+    profile_image_url,
+    is_active,
+    cancellation_buffer_hours,
+  } = body
 
   if (
     !full_name
@@ -123,13 +132,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nieprawidłowy adres zdjęcia' }, { status: 400 })
     }
   }
+  if (
+    cancellation_buffer_hours != null
+    && (
+      typeof cancellation_buffer_hours !== 'number'
+      || !Number.isInteger(cancellation_buffer_hours)
+      || cancellation_buffer_hours < 0
+      || cancellation_buffer_hours > 168
+    )
+  ) {
+    return NextResponse.json(
+      { error: 'Bufor anulowania musi wynosić od 0 do 168 godzin' },
+      { status: 400 },
+    )
+  }
 
   const supabase = await createAuthClient()
 
   // Check if profile exists
   const { data: existing } = await supabase
     .from('trainer_profiles')
-    .select('id')
+    .select('id, cancellation_buffer_hours')
     .eq('trainer_id', user.id)
     .single()
 
@@ -144,6 +167,9 @@ export async function POST(req: Request) {
     price_per_hour: typeof price_per_hour === 'number' ? price_per_hour : null,
     profile_image_url: typeof profile_image_url === 'string' ? profile_image_url || null : null,
     is_active: typeof is_active === 'boolean' ? is_active : false,
+    cancellation_buffer_hours: typeof cancellation_buffer_hours === 'number'
+      ? cancellation_buffer_hours
+      : existing?.cancellation_buffer_hours ?? 24,
     updated_at: new Date().toISOString(),
   }
 

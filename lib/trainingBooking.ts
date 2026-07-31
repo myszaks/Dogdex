@@ -29,6 +29,19 @@ export function resolveBookingDuration(requestedDuration: unknown, defaultDurati
   return defaultDuration
 }
 
+export function getInitialTrainingBookingState(priceAmount: number, nowMs = Date.now()) {
+  const isPaid = priceAmount > 0
+  const now = new Date(nowMs).toISOString()
+
+  return {
+    status: isPaid ? 'pending' as const : 'confirmed' as const,
+    // Stripe expires Checkout after 30 minutes. Keep a five-minute reconciliation
+    // grace period so a payment completed at the boundary cannot be cancelled first.
+    expires_at: isPaid ? new Date(nowMs + 35 * 60 * 1000).toISOString() : null,
+    confirmed_at: isPaid ? null : now,
+  }
+}
+
 export function bookingsOverlap(
   startA: Date,
   durationMinutesA: number,

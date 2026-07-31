@@ -885,10 +885,10 @@ interface TrainingReminderPayload {
 
 export async function sendTrainingReminder(
   payload: TrainingReminderPayload
-): Promise<void> {
+): Promise<boolean> {
   const user = process.env.SMTP_USER
   const pass = process.env.SMTP_PASS
-  if (!user || !pass) return
+  if (!user || !pass) return false
 
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
@@ -936,10 +936,12 @@ export async function sendTrainingReminder(
       subject: `⏰ Jutro: ${payload.trainingType} o ${payload.trainingDate}`,
       html,
     })
+    return true
   } catch (err) {
     if (process.env.NODE_ENV === 'development') {
       console.error('[Email] Błąd wysyłki przypomnienia treningu:', err)
     }
+    return false
   }
 }
 

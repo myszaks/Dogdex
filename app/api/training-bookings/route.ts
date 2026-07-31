@@ -8,6 +8,7 @@ import {
   bookingFitsAvailability,
   bookingsOverlap,
   getBookingDateTimeParts,
+  getInitialTrainingBookingState,
   resolveBookingDuration,
 } from '@/lib/trainingBooking'
 import { hydrateTrainingBookings } from '@/lib/trainingBookingRelations'
@@ -38,6 +39,7 @@ export async function GET() {
   try {
     const bookings = await hydrateTrainingBookings(relationClient, data ?? [], {
       dogsClient: supabase,
+      paymentsClient: supabase,
     })
     return NextResponse.json(bookings)
   } catch (relationsError) {
@@ -166,6 +168,7 @@ export async function POST(req: Request) {
     .select('id, scheduled_at, duration_min')
     .in('training_type_id', trainerTrainingTypeIds)
     .in('status', ['pending', 'confirmed'])
+    .gt('scheduled_at', new Date(scheduledDate.getTime() - 8 * 60 * 60 * 1000).toISOString())
     .lt('scheduled_at', endTime.toISOString())
 
   if (conflictsError) {
@@ -189,28 +192,39 @@ export async function POST(req: Request) {
   }
 
   const { date: bookingDate } = getBookingDateTimeParts(scheduledDate)
-  const { data: availabilitySlot } = await serviceClient
+  const { data: availabilitySlots, error: availabilityError } = await serviceClient
     .from('trainer_date_availability')
     .select('*')
     .eq('trainer_id', trainingType.trainer_id)
     .eq('available_date', bookingDate)
     .eq('is_active', true)
-    .single()
 
-  if (!availabilitySlot) {
+  if (availabilityError) {
+    return NextResponse.json(
+      { error: 'Nie udało się sprawdzić dostępności trenera' },
+      { status: 500 }
+    )
+  }
+
+  if (!availabilitySlots || availabilitySlots.length === 0) {
     return NextResponse.json(
       { error: 'Trener nie ma dostępności na wybrany dzień' },
       { status: 409 }
     )
   }
 
-  if (!bookingFitsAvailability(scheduledDate, actualDuration, availabilitySlot.start_time, availabilitySlot.end_time)) {
+  const matchingAvailability = availabilitySlots.find(slot =>
+    bookingFitsAvailability(scheduledDate, actualDuration, slot.start_time, slot.end_time)
+  )
+  if (!matchingAvailability) {
     return NextResponse.json(
-      { error: `Trener dostępny jest od ${availabilitySlot.start_time} do ${availabilitySlot.end_time}` },
+      { error: 'Wybrany trening nie mieści się w żadnym przedziale dostępności trenera' },
       { status: 409 }
     )
   }
 
+  const isPaidBooking = priceAmount > 0
+  const initialBookingState = getInitialTrainingBookingState(priceAmount)
   const { data: booking, error } = await serviceClient
     .from('training_bookings')
     .insert([{
@@ -219,7 +233,7 @@ export async function POST(req: Request) {
       dog_id: (dog_id as string | null) || null,
       scheduled_at: scheduledDate.toISOString(),
       duration_min: actualDuration,
-      status: 'pending',
+      ...initialBookingState,
       notes_user: (notes_user as string | null) || null,
     }])
     .select()
@@ -241,6 +255,32 @@ export async function POST(req: Request) {
 
   let checkoutUrl: string | null = null
   if (stripe && stripeAccountId && Number.isFinite(priceAmount) && priceAmount > 0) {
+    const { data: payment, error: paymentInsertError } = await serviceClient
+      .from('training_payments')
+      .insert([{
+        booking_id: booking.id,
+        amount: priceAmount,
+        currency: 'PLN',
+        stripe_account_id: stripeAccountId,
+        status: 'pending',
+      }])
+      .select('id')
+      .single()
+
+    if (paymentInsertError || !payment) {
+      await serviceClient
+        .from('training_bookings')
+        .update({
+          status: 'cancelled',
+          expires_at: null,
+          cancellation_reason: 'Nie udało się rozpocząć płatności',
+          cancellation_requested_by: 'user',
+          cancellation_approved_at: new Date().toISOString(),
+        })
+        .eq('id', booking.id)
+      return NextResponse.json({ error: 'Nie udało się rozpocząć płatności' }, { status: 502 })
+    }
+
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL
         ?? process.env.NEXT_PUBLIC_SITE_URL
@@ -267,7 +307,6 @@ export async function POST(req: Request) {
           success_url: `${baseMyTrainingsUrl}&payment=success&booking_id=${booking.id}`,
           cancel_url: `${baseMyTrainingsUrl}&payment=cancelled&booking_id=${booking.id}`,
           payment_intent_data: {
-            application_fee_amount: 0,
             on_behalf_of: stripeAccountId,
             metadata: {
               booking_id: booking.id,
@@ -283,26 +322,42 @@ export async function POST(req: Request) {
         },
         {
           stripeAccount: stripeAccountId,
+          idempotencyKey: `training-checkout-${booking.id}`,
         }
       )
       if (!session.url) throw new Error('Stripe nie zwrócił adresu płatności')
       checkoutUrl = session.url
 
-      const { error: paymentError } = await serviceClient.from('training_payments').insert([{
-        booking_id: booking.id,
-        amount: priceAmount,
-        currency: 'PLN',
-        stripe_session_id: session.id,
-        stripe_account_id: stripeAccountId,
-        status: 'pending',
-      }])
+      const { error: paymentError } = await serviceClient
+        .from('training_payments')
+        .update({ stripe_session_id: session.id })
+        .eq('id', payment.id)
       if (paymentError) {
-        await stripe.checkout.sessions.expire(session.id, { stripeAccount: stripeAccountId })
-        throw new Error('Nie udało się zapisać płatności')
+        // The payment row already exists and the webhook can recover it through
+        // booking_id metadata even if persisting the session id failed.
+        console.error('[Stripe] Failed to persist checkout session id:', {
+          bookingId: booking.id,
+          sessionId: session.id,
+        })
       }
     } catch (err) {
       console.error('[Stripe] Error creating checkout session:', err)
-      await serviceClient.from('training_bookings').delete().eq('id', booking.id)
+      await Promise.all([
+        serviceClient
+          .from('training_payments')
+          .update({ status: 'failed' })
+          .eq('id', payment.id),
+        serviceClient
+          .from('training_bookings')
+          .update({
+            status: 'cancelled',
+            expires_at: null,
+            cancellation_reason: 'Nie udało się rozpocząć płatności',
+            cancellation_requested_by: 'user',
+            cancellation_approved_at: new Date().toISOString(),
+          })
+          .eq('id', booking.id),
+      ])
       return NextResponse.json({ error: 'Nie udało się rozpocząć płatności' }, { status: 502 })
     }
   }
@@ -335,5 +390,11 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ ...booking, checkoutUrl }, { status: 201 })
+  return NextResponse.json({
+    ...booking,
+    checkoutUrl,
+    payment: isPaidBooking
+      ? { amount: priceAmount, currency: 'PLN', status: 'pending' }
+      : null,
+  }, { status: 201 })
 }

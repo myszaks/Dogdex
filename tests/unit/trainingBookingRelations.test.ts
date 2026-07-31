@@ -16,6 +16,10 @@ describe('trainingBookingRelations helpers', () => {
         cancellation_reason: null,
         cancellation_requested_by: null,
         cancellation_approved_at: null,
+        expires_at: null,
+        confirmed_at: null,
+      completed_at: null,
+      reminder_sent_at: null,
         notes_user: null,
         notes_trainer: null,
         created_at: '2026-07-01T10:00:00.000Z',
@@ -32,6 +36,10 @@ describe('trainingBookingRelations helpers', () => {
         cancellation_reason: null,
         cancellation_requested_by: null,
         cancellation_approved_at: null,
+        expires_at: null,
+        confirmed_at: null,
+      completed_at: null,
+      reminder_sent_at: null,
         notes_user: 'Bring treats',
         notes_trainer: null,
         created_at: '2026-07-01T11:00:00.000Z',
@@ -73,11 +81,30 @@ describe('trainingBookingRelations helpers', () => {
       },
     ]
 
-    const result = mergeTrainingBookingRelations(bookings, trainingTypes, dogs)
+    const payments = [{
+      id: 'payment-1',
+      booking_id: 'booking-1',
+      amount: 120,
+      currency: 'PLN',
+      stripe_session_id: 'cs_test',
+      stripe_payment_intent_id: null,
+      stripe_account_id: 'acct_test',
+      status: 'pending' as const,
+      payment_method_id: null,
+      created_at: '2026-07-01T10:00:00.000Z',
+      updated_at: '2026-07-01T10:00:00.000Z',
+    }]
+
+    const result = mergeTrainingBookingRelations(bookings, trainingTypes, dogs, payments)
 
     expect(result[0].training_types?.name).toBe('Agility')
     expect(result[0].dogs?.name).toBe('Luna')
+    expect(result[0].training_payments?.[0]).toMatchObject({
+      amount: 120,
+      status: 'pending',
+    })
     expect(result[1].training_types?.name).toBe('Nosework')
+    expect(result[1].training_payments).toEqual([])
     expect(result[1].dogs).toBeUndefined()
   })
 
@@ -94,6 +121,10 @@ describe('trainingBookingRelations helpers', () => {
         cancellation_reason: null,
         cancellation_requested_by: null,
         cancellation_approved_at: null,
+        expires_at: null,
+        confirmed_at: null,
+      completed_at: null,
+      reminder_sent_at: null,
         notes_user: null,
         notes_trainer: null,
         created_at: '2026-07-01T10:00:00.000Z',

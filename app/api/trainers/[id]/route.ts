@@ -31,15 +31,33 @@ export async function GET(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nie znaleziono trenera' }, { status: 404 })
   }
 
-  // Get their training types with availability
-  const { data: trainingTypes } = await supabase
-    .from('training_types')
-    .select('*, training_availability(*)')
-    .eq('trainer_id', trainer.trainer_id)
-    .eq('is_active', true)
+  const [{ data: trainingTypes, error: typesError }, { data: reviews, error: reviewsError }] =
+    await Promise.all([
+      supabase
+        .from('training_types')
+        .select('*')
+        .eq('trainer_id', trainer.trainer_id)
+        .eq('is_active', true),
+      supabase
+        .from('training_reviews')
+        .select('id, booking_id, trainer_id, author_name, rating, comment, created_at, updated_at')
+        .eq('trainer_id', trainer.trainer_id)
+        .order('created_at', { ascending: false })
+        .limit(100),
+    ])
+
+  if (typesError || reviewsError) {
+    return NextResponse.json({ error: 'Nie udało się pobrać profilu trenera' }, { status: 500 })
+  }
+  const ratings = (reviews ?? []).map(review => Number(review.rating))
 
   return NextResponse.json({
     ...trainer,
     training_types: trainingTypes,
+    reviews: reviews ?? [],
+    rating: ratings.length > 0
+      ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10
+      : null,
+    review_count: ratings.length,
   })
 }

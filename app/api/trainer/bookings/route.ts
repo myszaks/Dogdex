@@ -47,6 +47,7 @@ export async function GET() {
   try {
     bookings = await hydrateTrainingBookings(supabase, data ?? [], {
       dogsClient: supabase,
+      paymentsClient: supabase,
     })
   } catch (relationsError) {
     console.error('[trainer-bookings][GET] Failed to hydrate relations:', relationsError)

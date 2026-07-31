@@ -6,8 +6,9 @@ import {
   isValidTrainingDate,
   isValidTrainingTimeRange,
 } from '@/lib/trainingAvailability'
+import { getBookingDateTimeParts } from '@/lib/trainingBooking'
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
     const { user, role } = await getServerUser()
     if (!user) {
@@ -61,6 +62,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    if (available_date < getBookingDateTimeParts(new Date()).date) {
+      return NextResponse.json(
+        { error: 'Nie można dodawać dostępności w przeszłości' },
+        { status: 400 }
+      )
+    }
 
     if (!isValidTrainingTimeRange(start_time, end_time)) {
       return NextResponse.json(
@@ -85,11 +92,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      if (error.code === '23505') {
+      if (error.message?.includes('trainer_date_availability_conflict')) {
         return NextResponse.json(
-          { error: 'Ta data jest już zajęta' },
+          { error: 'Ten przedział nachodzi na istniejącą dostępność' },
           { status: 409 }
         )
+      }
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Taki przedział już istnieje' }, { status: 409 })
       }
       return NextResponse.json({ error: 'Nie udało się zapisać dostępności' }, { status: 500 })
     }
@@ -158,6 +168,12 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
+      if (error.message?.includes('trainer_date_availability_conflict')) {
+        return NextResponse.json(
+          { error: 'Ten przedział nachodzi na istniejącą dostępność' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: 'Nie udało się zaktualizować dostępności' }, { status: 500 })
     }
 

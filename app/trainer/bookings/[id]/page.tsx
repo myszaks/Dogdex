@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
-import { ArrowLeft, Calendar, Clock, Dog, FileText, Mail, User } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, CreditCard, Dog, FileText, Mail, User } from 'lucide-react'
 import { requireRole } from '@/lib/getServerUser'
 import { createAuthClient, createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import type { TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
@@ -78,6 +78,10 @@ async function getTrainerBookingDetails(
   let userName = 'Użytkownik'
   let userEmail = 'Kontakt niedostępny'
   let dog = null as { id: string; name: string } | null
+  const { data: payments } = await bookingClient
+    .from('training_payments')
+    .select('id, booking_id, amount, currency, stripe_session_id, stripe_payment_intent_id, stripe_account_id, status, payment_method_id, created_at, updated_at')
+    .eq('booking_id', bookingId)
 
   if (privilegedClient) {
     const [{ data: profile }, authUserResult, dogResult] = await Promise.all([
@@ -106,6 +110,7 @@ async function getTrainerBookingDetails(
   return {
     ...booking,
     dogs: dog ?? undefined,
+    training_payments: payments ?? [],
     user_name: userName,
     user_email: userEmail,
   }
@@ -238,7 +243,37 @@ export default async function TrainerBookingDetailPage({ params }: TrainerBookin
         </div>
 
         <div className="space-y-6">
-          <TrainerBookingActions bookingId={booking.id} status={booking.status} />
+          <TrainerBookingActions
+            bookingId={booking.id}
+            status={booking.status}
+            canComplete={
+              booking.status === 'confirmed'
+              && new Date(booking.scheduled_at).getTime() + booking.duration_min * 60_000 <= new Date().getTime()
+            }
+          />
+
+          {booking.training_payments?.[0] && (
+            <div className="card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-5 h-5 text-accent" />
+                <h2 className="font-heading font-semibold text-lg">Płatność</h2>
+              </div>
+              <p className="text-2xl font-bold">
+                {Number(booking.training_payments[0].amount).toLocaleString('pl-PL', {
+                  style: 'currency',
+                  currency: booking.training_payments[0].currency,
+                })}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {{
+                  pending: 'Oczekuje na płatność',
+                  completed: 'Opłacona',
+                  failed: 'Nieudana',
+                  refunded: 'Zwrócona',
+                }[booking.training_payments[0].status]}
+              </p>
+            </div>
+          )}
 
           <div className="card p-6">
             <h2 className="font-heading font-semibold text-lg mb-4">Nawigacja</h2>

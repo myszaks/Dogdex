@@ -36,7 +36,19 @@ describe('training booking state transitions', () => {
     })).toEqual({ allowed: true, noop: false })
   })
 
-  it('prevents an owner from cancelling a completed payment', () => {
+  it('allows an owner to cancel and refund a paid booking before the buffer', () => {
+    expect(validateBookingTransition({
+      ...base,
+      currentStatus: 'confirmed',
+      nextStatus: 'cancelled',
+      actor: 'owner',
+      paymentStatus: 'completed',
+      cancellationBufferHours: 24,
+      nowMs: new Date('2026-07-22T09:00:00.000Z').getTime(),
+    })).toEqual({ allowed: true, noop: false })
+  })
+
+  it('prevents owner cancellation after the configured buffer', () => {
     expect(validateBookingTransition({
       ...base,
       currentStatus: 'confirmed',

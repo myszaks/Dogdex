@@ -56,6 +56,7 @@ export default function BookTrainingPage({ params }: Props) {
   const [dogModalOpen, setDogModalOpen] = useState(false)
   const [notes, setNotes] = useState<string>('')
   const [authOpen, setAuthOpen] = useState(false)
+  const [nowMs] = useState(() => Date.now())
 
   useEffect(() => {
     params.then(p => {
@@ -78,7 +79,7 @@ export default function BookTrainingPage({ params }: Props) {
         setTrainerAvailability(Array.isArray(data) ? data : [])
         setLoading(false)
       })
-      .catch(err => {
+      .catch(() => {
         setError('Błąd przy ładowaniu')
         setLoading(false)
       })
@@ -118,29 +119,30 @@ export default function BookTrainingPage({ params }: Props) {
   // Generate full-hour slots based on date availability.
   const getAvailableSlotsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd')
-    const dateSlot = trainerAvailability.find(a => a.available_date === dateStr && a.is_active)
+    const dateSlots = trainerAvailability.filter(a => a.available_date === dateStr && a.is_active)
 
-    if (!dateSlot) return []
+    if (dateSlots.length === 0) return []
 
     const slots: string[] = []
-    const [startHour, startMin] = dateSlot.start_time.split(':').map(Number)
-    const [endHour, endMin] = dateSlot.end_time.split(':').map(Number)
-
-    const currentTime = new Date(date)
-    currentTime.setHours(startHour, startMin, 0, 0)
-
-    const endTime = new Date(date)
-    endTime.setHours(endHour, endMin, 0, 0)
-
     const duration = trainingType?.duration_min || 60
+    for (const dateSlot of dateSlots) {
+      const [startHour, startMin] = dateSlot.start_time.split(':').map(Number)
+      const [endHour, endMin] = dateSlot.end_time.split(':').map(Number)
+      const currentTime = new Date(date)
+      currentTime.setHours(startHour, startMin, 0, 0)
+      const endTime = new Date(date)
+      endTime.setHours(endHour, endMin, 0, 0)
 
-    while (currentTime.getTime() + duration * 60000 <= endTime.getTime()) {
-      slots.push(format(currentTime, 'HH:mm'))
-      currentTime.setMinutes(currentTime.getMinutes() + 30)
+      while (currentTime.getTime() + duration * 60000 <= endTime.getTime()) {
+        if (currentTime.getTime() > nowMs) {
+          slots.push(format(currentTime, 'HH:mm'))
+        }
+        currentTime.setMinutes(currentTime.getMinutes() + 30)
+      }
     }
 
-    const bookedSlots = dateSlot.booked_slots ?? []
-    return slots.filter(slot => {
+    const bookedSlots = dateSlots.flatMap(slot => slot.booked_slots ?? [])
+    return [...new Set(slots)].sort().filter(slot => {
       const slotStart = timeToMinutes(slot)
       const slotEnd = slotStart + duration
 

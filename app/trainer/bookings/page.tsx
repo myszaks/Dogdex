@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ArrowLeft, Check, ExternalLink, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Check, CreditCard, ExternalLink, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import type { TrainingBooking } from '@/types'
@@ -35,32 +35,6 @@ export default function TrainerBookingsPage() {
         setLoading(false)
       })
   }, [])
-
-  const handleConfirm = async (bookingId: string) => {
-    setUpdating(bookingId)
-    try {
-      const response = await fetch(`/api/training-bookings/${bookingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'confirmed' }),
-      })
-
-      const data = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Nie udało się potwierdzić rezerwacji')
-      }
-
-      setBookings(currentBookings =>
-        currentBookings.map(booking =>
-          booking.id === bookingId ? { ...booking, status: 'confirmed' } : booking
-        )
-      )
-    } catch (updateError) {
-      alert((updateError as Error).message)
-    } finally {
-      setUpdating(null)
-    }
-  }
 
   const handleReject = async (bookingId: string) => {
     const reason = prompt('Przyczyna odrzucenia (opcjonalnie):')
@@ -129,6 +103,22 @@ export default function TrainerBookingsPage() {
           </>
         )}
       </p>
+      {booking.training_payments?.[0] && (
+        <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+          <CreditCard className="w-4 h-4" />
+          {Number(booking.training_payments[0].amount).toLocaleString('pl-PL', {
+            style: 'currency',
+            currency: booking.training_payments[0].currency,
+          })}
+          {' · '}
+          {{
+            pending: 'oczekuje na płatność',
+            completed: 'opłacono',
+            failed: 'płatność nieudana',
+            refunded: 'zwrócono',
+          }[booking.training_payments[0].status]}
+        </p>
+      )}
     </>
   )
 
@@ -183,14 +173,6 @@ export default function TrainerBookingsPage() {
                     )}
 
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <button
-                        onClick={() => handleConfirm(booking.id)}
-                        disabled={updating === booking.id}
-                        className="flex-1 btn btn-primary flex items-center justify-center gap-2"
-                      >
-                        <Check className="w-4 h-4" />
-                        Potwierdz
-                      </button>
                       <button
                         onClick={() => handleReject(booking.id)}
                         disabled={updating === booking.id}

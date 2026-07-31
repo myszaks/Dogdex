@@ -91,6 +91,12 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
+  const { data: cancellationProfile } = await supabase
+    .from('trainer_profiles')
+    .select('cancellation_buffer_hours')
+    .eq('trainer_id', booking.training_types?.trainer_id)
+    .maybeSingle()
+
   const { data: payment, error: paymentError } = await supabase
     .from('training_payments')
     .select('id, status, stripe_session_id, stripe_payment_intent_id, stripe_account_id')
@@ -108,6 +114,7 @@ export async function PATCH(req: Request, { params }: Params) {
     paymentStatus: (payment?.status as PaymentStatus | undefined) ?? null,
     scheduledAt: booking.scheduled_at,
     durationMin: booking.duration_min,
+    cancellationBufferHours: cancellationProfile?.cancellation_buffer_hours,
   })
 
   if (!transition.allowed) {
@@ -151,12 +158,14 @@ export async function PATCH(req: Request, { params }: Params) {
       )
     }
 
-    const { error: failedPaymentError } = await supabase
-      .from('training_payments')
-      .update({ status: 'failed' })
-      .eq('id', payment.id)
+    const { data: checkoutFailed, error: failedPaymentError } = await supabase
+      .rpc('fail_training_checkout', {
+        target_booking_id: id,
+        target_session_id: payment.stripe_session_id,
+        failure_reason: (cancellation_reason as string | null) || 'Anulowano płatność w Stripe',
+      })
 
-    if (failedPaymentError) {
+    if (failedPaymentError || !checkoutFailed) {
       return NextResponse.json(
         { error: 'Płatność anulowano, ale zapis statusu nie powiódł się' },
         { status: 500 },
@@ -164,7 +173,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
   }
 
-  if (status === 'cancelled' && isTrainer) {
+  if (status === 'cancelled') {
     if (payment?.status === 'completed') {
       if (
         !stripe
@@ -208,9 +217,19 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   if (status === 'cancelled') {
+    update.expires_at = null
     update.cancellation_reason = (cancellation_reason as string | null) || null
     update.cancellation_requested_by = isTrainer ? 'trainer' : 'user'
     update.cancellation_approved_at = new Date().toISOString()
+  }
+
+  if (status === 'confirmed') {
+    update.expires_at = null
+    update.confirmed_at = booking.confirmed_at || new Date().toISOString()
+  }
+
+  if (status === 'completed') {
+    update.completed_at = booking.completed_at || new Date().toISOString()
   }
 
   if (notes_trainer && isTrainer) {

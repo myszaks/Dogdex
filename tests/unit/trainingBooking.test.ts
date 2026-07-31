@@ -3,6 +3,7 @@ import {
   bookingFitsAvailability,
   bookingsOverlap,
   getBookingDateTimeParts,
+  getInitialTrainingBookingState,
   resolveBookingDuration,
 } from '@/lib/trainingBooking'
 
@@ -10,6 +11,21 @@ describe('trainingBooking helpers', () => {
   it('always resolves booking duration from the training type', () => {
     expect(resolveBookingDuration(15, 60)).toBe(60)
     expect(resolveBookingDuration(undefined, 45)).toBe(45)
+  })
+
+  it('auto-confirms free bookings and gives paid checkout a reconciliation grace period', () => {
+    const now = new Date('2026-07-31T09:00:00.000Z').getTime()
+
+    expect(getInitialTrainingBookingState(0, now)).toEqual({
+      status: 'confirmed',
+      expires_at: null,
+      confirmed_at: '2026-07-31T09:00:00.000Z',
+    })
+    expect(getInitialTrainingBookingState(120, now)).toEqual({
+      status: 'pending',
+      expires_at: '2026-07-31T09:35:00.000Z',
+      confirmed_at: null,
+    })
   })
 
   it('detects overlapping bookings but allows touching edges', () => {

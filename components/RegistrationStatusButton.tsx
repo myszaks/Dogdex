@@ -151,7 +151,7 @@ export default function RegistrationStatusButton({
             />
             <div
               role="menu"
-              className="absolute right-0 top-full z-30 mt-1 w-56 rounded-xl border border-border bg-white p-1.5 shadow-lg"
+              className="absolute right-0 top-full z-30 mt-1 w-56 rounded-xl bg-white p-1.5 shadow-lg"
             >
               <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Zmień status

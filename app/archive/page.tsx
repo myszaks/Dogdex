@@ -49,7 +49,7 @@ export default async function ArchivePage({ searchParams }: Props) {
       )}
 
       {!events || events.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm mt-6">
+        <div className="bg-card rounded-3xl p-16 text-center shadow-sm mt-6">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
             <span className="text-3xl">📂</span>
           </div>

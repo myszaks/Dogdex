@@ -999,14 +999,14 @@ export default function SpeedwayLiveEntry({
 
           {/* Upcoming dogs */}
           {(nextDogs.length > 0 || nextRound2Dogs.length > 0) && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+            <div className="rounded-2xl bg-white px-3 py-3 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
                 Przygotuj kolejne psy
               </p>
               <div className="space-y-2">
                 {nextDogs.map((p, idx) => (
                   <div key={`${p.participantId}-${currentRun}-${idx}`} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
                       {dogIdx + idx + 2}
                     </span>
                     <div className="min-w-0 flex-1">

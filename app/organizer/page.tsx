@@ -68,7 +68,7 @@ export default async function OrganizerPage() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_288px] gap-6 items-start">
         <div>
           {eventList.length === 0 ? (
-            <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm">
+            <div className="bg-card rounded-3xl p-16 text-center shadow-sm">
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
                 <Calendar className="w-8 h-8 text-muted-foreground" />
               </div>

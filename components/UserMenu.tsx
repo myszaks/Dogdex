@@ -62,7 +62,7 @@ export default function UserMenu({ sidebar = false }: Props) {
         </button>
 
         {open && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-2xl shadow-xl border border-border p-1.5 z-[200]">
+          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
             <p className="text-xs text-muted-foreground px-3 py-1.5 border-b border-border mb-1 truncate">
               {user.email}
             </p>
@@ -99,7 +99,7 @@ export default function UserMenu({ sidebar = false }: Props) {
         {initials.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-border p-1.5 z-[200]">
+        <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
           <p className="text-xs text-muted-foreground px-3 py-1.5 border-b border-border mb-1 truncate">
             {user.email}
           </p>

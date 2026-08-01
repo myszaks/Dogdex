@@ -88,7 +88,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
       <h1 className="page-title">Profil</h1>
 
       {/* Avatar + meta */}
-      <div className="bg-card rounded-3xl border border-border p-6 shadow-sm flex items-center gap-5">
+      <div className="bg-card rounded-3xl p-6 shadow-sm flex items-center gap-5">
         <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-xl font-heading font-bold shrink-0">
           {initials}
         </div>
@@ -104,7 +104,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-card rounded-3xl border border-border p-5 text-center shadow-sm">
+        <div className="bg-card rounded-3xl p-5 text-center shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-2">
             <ClipboardList className="w-5 h-5 text-orange-600" />
           </div>
@@ -114,7 +114,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
             Zobacz wszystkie →
           </Link>
         </div>
-        <div className="bg-card rounded-3xl border border-border p-5 text-center shadow-sm">
+        <div className="bg-card rounded-3xl p-5 text-center shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center mx-auto mb-2">
             <CalendarDays className="w-5 h-5 text-muted-foreground" />
           </div>
@@ -126,7 +126,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
       {canRequestMoreAccess && (
         <Link
           href="/profile/role-request"
-          className="bg-card rounded-3xl border border-border p-5 shadow-sm flex items-center justify-between gap-4 hover:border-accent/50 hover:shadow-md transition-all"
+          className="bg-card rounded-3xl p-5 shadow-sm flex items-center justify-between gap-4 hover:shadow-md transition-all"
         >
           <div className="min-w-0">
             <p className="font-heading font-semibold text-foreground">{roleRequestTitle}</p>
@@ -139,7 +139,7 @@ export default function ProfileClient({ email, fullName, company, role, createdA
       )}
 
       {/* Edit form */}
-      <form onSubmit={handleSave} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+      <form onSubmit={handleSave} className="bg-card rounded-3xl p-6 shadow-sm space-y-4">
         <h2 className="font-heading font-semibold text-foreground">Dane osobowe</h2>
 
         <div>

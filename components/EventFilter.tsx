@@ -57,7 +57,7 @@ export default function EventFilter({ location }: { location?: string }) {
   const hasFilters = currentType || currentLocation || currentSearch || currentOrganizer
 
   return (
-    <div className="bg-card rounded-3xl border border-border p-5 mb-6 shadow-sm">
+    <div className="bg-card rounded-3xl p-5 mb-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-semibold text-foreground">Filtruj wydarzenia</p>
         {hasFilters && (

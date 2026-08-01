@@ -36,7 +36,7 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
   const DOW = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd']
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-8">
+    <div className="bg-card rounded-2xl shadow-sm p-5 mb-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
@@ -95,7 +95,7 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
                     <Link
                       key={`${ev.id}-${ev.date}`}
                       href={`/events/${ev.slug}`}
-                      className="block bg-popover border border-border rounded-lg shadow-lg px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
+                      className="block bg-popover rounded-lg shadow-lg px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
                     >
                       <span className="font-medium">{ev.title}</span>
                       <span className="text-muted-foreground ml-1.5">

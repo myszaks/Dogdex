@@ -209,7 +209,7 @@ export default function RoleRequestClient({
         <form
           onSubmit={handleSubmit}
           aria-describedby={error ? 'role-request-error' : undefined}
-          className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-6"
+          className="bg-card rounded-3xl p-6 shadow-sm space-y-6"
         >
           <div>
             <h2 className="font-heading font-semibold text-foreground mb-3">Zakres dostępu</h2>
@@ -372,7 +372,7 @@ export default function RoleRequestClient({
         </form>
       )}
 
-      <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+      <div className="bg-card rounded-3xl p-6 shadow-sm">
         <h2 className="font-heading font-semibold text-foreground mb-4">Historia wniosków</h2>
         {loading ? (
           <p className="text-sm text-muted-foreground">Ładowanie…</p>

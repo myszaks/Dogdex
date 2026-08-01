@@ -620,7 +620,7 @@ export default function CompetitionFormatStudio({
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           {!formatId && !initialDefinition && (
-            <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-3xl bg-card p-4 shadow-sm">
               <p className="form-label">Od czego chcesz zacząć?</p>
               <p className="mb-3 text-xs text-muted-foreground">
                 Wybierz najbliższy przykład. Wszystkie nazwy i zasady możesz później zmienić.
@@ -668,7 +668,7 @@ export default function CompetitionFormatStudio({
               </div>
             </div>
           )}
-          <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-3xl bg-card p-4 shadow-sm">
             <label htmlFor="competition-format-name" className="form-label">Nazwa formatu</label>
             <input
               id="competition-format-name"
@@ -686,7 +686,7 @@ export default function CompetitionFormatStudio({
               placeholder="Dla jakich zawodów jest ten format?"
             />
           </div>
-          <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-3xl bg-card p-4 shadow-sm">
             <p className="form-label">Szybkie podsumowanie</p>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-3">
@@ -711,7 +711,7 @@ export default function CompetitionFormatStudio({
               </div>
             </dl>
           </div>
-          <nav className="rounded-3xl border border-border bg-card p-2 shadow-sm">
+          <nav className="rounded-3xl bg-card p-2 shadow-sm">
             {STEPS.map(item => (
               <button
                 key={item.id}
@@ -728,7 +728,7 @@ export default function CompetitionFormatStudio({
           </nav>
         </aside>
 
-        <main className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-8">
+        <main className="rounded-3xl bg-card p-5 shadow-sm sm:p-8">
           {step === 'data' && (
             <div className="space-y-8">
               <StudioHeading

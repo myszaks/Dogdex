@@ -133,7 +133,7 @@ export default function OrganizerCalendar({ events }: Props) {
   const uniqueEvents = [...new Map(events.map(e => [e.id, e])).values()]
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 select-none">
+    <div className="bg-card rounded-2xl shadow-sm p-4 select-none">
       {/* Month navigation */}
       <div className="flex items-center justify-between mb-3">
         <button

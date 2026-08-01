@@ -189,7 +189,7 @@ export default function DateAvailabilityManager() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-      <section className="bg-card border border-border rounded-2xl shadow-sm p-5">
+      <section className="bg-card rounded-2xl shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 mb-5">
           <button
             type="button"
@@ -271,7 +271,7 @@ export default function DateAvailabilityManager() {
 
       <aside className="space-y-5">
         {selectedSlots.length > 0 && (
-          <section className="bg-card border border-border rounded-2xl shadow-sm p-5">
+          <section className="bg-card rounded-2xl shadow-sm p-5">
             <h2 className="font-heading font-bold text-lg mb-3">Przedziały tego dnia</h2>
             <div className="space-y-2">
               {selectedSlots.map(slot => (
@@ -304,7 +304,7 @@ export default function DateAvailabilityManager() {
           </section>
         )}
 
-        <form onSubmit={handleSave} className="bg-card border border-border rounded-2xl shadow-sm p-5 space-y-5">
+        <form onSubmit={handleSave} className="bg-card rounded-2xl shadow-sm p-5 space-y-5">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-2xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
               <CalendarDays className="w-5 h-5" />
@@ -374,7 +374,7 @@ export default function DateAvailabilityManager() {
           </div>
         </form>
 
-        <section className="bg-card border border-border rounded-2xl shadow-sm p-5">
+        <section className="bg-card rounded-2xl shadow-sm p-5">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-accent" />
             <h2 className="font-heading font-bold text-xl">Najbliższe terminy</h2>

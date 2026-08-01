@@ -237,7 +237,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
 
           {/* About */}
           {event.description && (
-            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+            <div className="bg-card rounded-3xl p-6 shadow-sm">
               <h2 className="font-heading font-semibold text-lg text-foreground mb-4">O wydarzeniu</h2>
               <p className="text-foreground/80 leading-relaxed whitespace-pre-line wrap-anywhere">{event.description}</p>
             </div>
@@ -245,7 +245,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
 
           {/* Schedule link */}
           {hasSchedule && (
-            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+            <div className="bg-card rounded-3xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-heading font-semibold text-lg text-foreground">Harmonogram</h2>
                 <Link
@@ -264,7 +264,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
 
           {/* Gallery */}
           {Array.isArray(event.gallery_images) && event.gallery_images.length > 0 && (
-            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+            <div className="bg-card rounded-3xl p-6 shadow-sm space-y-4">
               <h2 className="font-heading font-semibold text-lg text-foreground">Galeria</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {event.gallery_images.map((url: string, i: number) => (
@@ -283,7 +283,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
         <div className="space-y-4 lg:sticky lg:top-24">
 
           {/* Status + Registration card */}
-          <div className="bg-card rounded-3xl border border-border p-5 shadow-sm space-y-4">
+          <div className="bg-card rounded-3xl p-5 shadow-sm space-y-4">
 
             {/* Status header */}
             <div className="flex items-center justify-between">
@@ -407,7 +407,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
 
           {/* Location card */}
           {(event.location || event.lat || mapsQuery) && (
-            <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
+            <div className="bg-card rounded-3xl overflow-hidden shadow-sm">
               {/* Map thumbnail */}
               {event.lat && event.lng ? (
                 <div className="h-36 overflow-hidden">

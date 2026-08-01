@@ -534,7 +534,7 @@ export default function NewEventPage() {
             <HelpCircle className="h-4 w-4" />
             Jak działa kreator?
           </button>
-          <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
+          <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
             <Check className="h-4 w-4 text-accent" />
             Stan formularza jest zachowywany między krokami
           </div>
@@ -605,7 +605,7 @@ export default function NewEventPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <WizardStepper
           currentStep={currentStep}
           onStepChange={goToStep}
@@ -1017,7 +1017,7 @@ function StepBasicInfo({
                   }}
                   className={cn(
                     'group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md',
-                    selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200',
+                    selected ? 'border-accent ring-2 ring-orange-100' : 'border-transparent',
                   )}
                 >
                   <span
@@ -1120,7 +1120,7 @@ function StepLocationTime({
 }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-      <div data-tutorial-id="event-location" className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+      <div data-tutorial-id="event-location" className="rounded-3xl bg-white p-5 shadow-sm sm:p-7">
         <SectionHeader
           Icon={MapPin}
           eyebrow="Lokalizacja"
@@ -1149,7 +1149,7 @@ function StepLocationTime({
         </div>
       </div>
 
-      <div data-tutorial-id="event-dates" className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+      <div data-tutorial-id="event-dates" className="rounded-3xl bg-white p-5 shadow-sm sm:p-7">
         <SectionHeader
           Icon={CalendarDays}
           eyebrow="Harmonogram"
@@ -1540,7 +1540,7 @@ function StepPreview({
           <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
         </div>
 
-        <div className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl bg-white p-6 shadow-sm">
           <h2 className="section-title">Wymagania i ustawienia</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricTile label="Formularz" value={formatPolishCount(formFieldsCount, POLISH_FORMS.field)} />
@@ -1559,7 +1559,7 @@ function StepPreview({
         </div>
       </div>
 
-      <aside data-tutorial-id="event-publish" className="h-fit rounded-3xl border border-sage-200 bg-white p-6 shadow-sm xl:sticky xl:top-8">
+      <aside data-tutorial-id="event-publish" className="h-fit rounded-3xl bg-white p-6 shadow-sm xl:sticky xl:top-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white">
             <Rocket className="h-5 w-5" />
@@ -1632,7 +1632,7 @@ function Panel({
       data-tutorial-id={tutorialId}
       tabIndex={invalid ? -1 : undefined}
       aria-describedby={invalid ? errorMessageId : undefined}
-      className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm outline-none focus:ring-2 focus:ring-red-400 sm:p-7"
+      className="rounded-3xl bg-white p-5 shadow-sm outline-none focus:ring-2 focus:ring-red-400 sm:p-7"
     >
       <div className="mb-6 flex items-center gap-4">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
@@ -1711,7 +1711,7 @@ function SummaryTile({
   accent?: boolean
 }) {
   return (
-    <div className={cn('rounded-3xl border bg-white p-5 shadow-sm', accent ? 'border-accent' : 'border-sage-200')}>
+    <div className={cn('rounded-3xl border bg-white p-5 shadow-sm', accent ? 'border-accent' : 'border-transparent')}>
       <div className="flex gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-accent">
           <Icon className="h-5 w-5" />

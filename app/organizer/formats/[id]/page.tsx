@@ -71,7 +71,7 @@ export default async function CompetitionFormatPreviewPage({ params }: Props) {
         Biblioteka formatów
       </Link>
 
-      <header className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
+      <header className="rounded-3xl bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">

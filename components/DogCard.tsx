@@ -20,7 +20,7 @@ export default function DogCard({ dog, onDelete }: Props) {
   const vaccineExpired = vaccineExpiry && vaccineExpiry < new Date()
 
   return (
-    <div className="bg-card rounded-3xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
+    <div className="bg-card rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
       {/* Photo */}
       <div className="relative w-full aspect-square bg-secondary overflow-hidden shrink-0">
         {dog.photo_url ? (

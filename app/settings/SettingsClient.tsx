@@ -83,7 +83,7 @@ export default function SettingsClient({ email, provider }: Props) {
 
       {/* Change password */}
       {isEmailProvider ? (
-        <form onSubmit={handleChangePassword} className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4">
+        <form onSubmit={handleChangePassword} className="bg-card rounded-3xl p-6 shadow-sm space-y-4">
           <h2 className="font-heading font-semibold text-foreground">Zmiana hasła</h2>
 
           <div>
@@ -132,7 +132,7 @@ export default function SettingsClient({ email, provider }: Props) {
           </button>
         </form>
       ) : (
-        <div className="bg-card rounded-3xl border border-border p-8 shadow-sm text-center space-y-2">
+        <div className="bg-card rounded-3xl p-8 shadow-sm text-center space-y-2">
           <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
             <span className="text-xl">🔑</span>
           </div>
@@ -144,7 +144,7 @@ export default function SettingsClient({ email, provider }: Props) {
       )}
 
       {/* Sign out all devices */}
-      <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-3">
+      <div className="bg-card rounded-3xl p-6 shadow-sm space-y-3">
         <h2 className="font-heading font-semibold text-foreground">Bezpieczeństwo</h2>
         <p className="text-sm text-muted-foreground">
           Wyloguj się ze wszystkich urządzeń i sesji jednocześnie.

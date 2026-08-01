@@ -46,7 +46,7 @@ export default function MojePsyClient({ initialDogs }: Props) {
       )}
 
       {dogs.length === 0 && (
-        <div className="bg-card rounded-3xl border border-border p-16 text-center shadow-sm">
+        <div className="bg-card rounded-3xl p-16 text-center shadow-sm">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
             <DogIcon className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -81,7 +81,7 @@ export default function MojePsyClient({ initialDogs }: Props) {
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setAdding(false) }}
         >
-          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl border border-border max-h-[90dvh] flex flex-col">
+          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl max-h-[90dvh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-0.5">Moje psy</p>

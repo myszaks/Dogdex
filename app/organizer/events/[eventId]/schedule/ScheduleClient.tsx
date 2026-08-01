@@ -286,7 +286,7 @@ export default function ScheduleClient({
     <DragDropContext onDragEnd={onDragEnd}>
 
       {/* ── Stats bar ── */}
-      <div className="grid grid-cols-3 bg-white rounded-3xl border border-[#E2E8F0] shadow-sm mb-5 overflow-hidden">
+      <div className="grid grid-cols-3 bg-white rounded-3xl shadow-sm mb-5 overflow-hidden">
         <div className="text-center px-4 py-4">
           <p className="text-2xl font-bold text-slate-800">
             {new Set(items.map(i => i.registrationId)).size}
@@ -311,7 +311,7 @@ export default function ScheduleClient({
         const noWrongDates = wrongDateItems.length === 0
         const canSend = allAssigned && noWrongDates && !sending
         return (
-          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm p-4 mb-4 space-y-2">
+          <div className="bg-white rounded-3xl shadow-sm p-4 mb-4 space-y-2">
             <p className="text-sm text-slate-600">
               Przypisano <span className="font-bold">{assignedCount}</span> / <span className="font-bold">{items.length}</span> pozycji
             </p>
@@ -379,7 +379,7 @@ export default function ScheduleClient({
 
       {/* ── Vertical Timeline ── */}
       {slots.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm text-center py-16 text-slate-400">
+        <div className="bg-white rounded-3xl shadow-sm text-center py-16 text-slate-400">
           <p className="text-4xl mb-3">🕐</p>
           <p>Wybierz „Dodaj termin”, aby utworzyć pierwszą godzinę startu.</p>
         </div>
@@ -392,7 +392,7 @@ export default function ScheduleClient({
             <div key={date} className="mb-8">
               {/* Date header node */}
               <div className="flex items-center gap-4 mb-4 relative">
-                <div className="w-10 h-10 rounded-full bg-[#F8FAFC] border-2 border-[#E2E8F0] flex flex-col items-center justify-center z-10 shrink-0 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-[#F8FAFC] flex flex-col items-center justify-center z-10 shrink-0 shadow-sm">
                   <span className="text-[9px] font-bold text-slate-700 leading-tight">
                     {new Intl.DateTimeFormat('pl-PL', { day: 'numeric' }).format(new Date(date))}
                   </span>
@@ -412,7 +412,7 @@ export default function ScheduleClient({
                     <div key={slot.id} className="flex items-start gap-4">
                       {/* Time badge */}
                       <div className="w-10 shrink-0 flex flex-col items-center pt-3">
-                        <div className="w-10 h-10 rounded-full bg-white border border-[#E2E8F0] flex items-center justify-center z-10 shadow-sm">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center z-10 shadow-sm">
                           <span className="text-[10px] font-bold text-slate-700 leading-tight">
                             {slot.slot_time.slice(0, 5)}
                           </span>
@@ -430,7 +430,7 @@ export default function ScheduleClient({
                                 ? 'border-[#10B981] bg-[#10B981]/5'
                                 : snapshot.isDraggingOver && isFull
                                 ? 'border-red-400 bg-red-50'
-                                : 'border-[#E2E8F0]'
+                                : 'border-transparent'
                             }`}
                           >
                             {/* Slot header */}
@@ -502,7 +502,7 @@ export default function ScheduleClient({
         <button
           type="button"
           onClick={() => setUnassignedOpen(prev => !prev)}
-          className="w-full flex items-center justify-between bg-white border border-[#E2E8F0] rounded-3xl px-5 py-4 shadow-sm hover:border-amber-300 transition-colors"
+          className="w-full flex items-center justify-between bg-white border border-transparent rounded-3xl px-5 py-4 shadow-sm hover:border-amber-300 transition-colors"
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
@@ -522,7 +522,7 @@ export default function ScheduleClient({
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={`bg-white rounded-3xl border p-4 min-h-[60px] transition-colors shadow-sm ${
-                    snapshot.isDraggingOver ? 'border-amber-300 bg-amber-50' : 'border-[#E2E8F0]'
+                    snapshot.isDraggingOver ? 'border-amber-300 bg-amber-50' : 'border-transparent'
                   }`}
                 >
                   {unassigned.length === 0 ? (
@@ -667,7 +667,7 @@ function TimelineItemCard({
               ? 'shadow-lg border-sky-300'
               : wrongDate
               ? 'border-amber-300 bg-amber-50'
-              : 'border-[#E2E8F0]'
+              : 'border-transparent'
           }`}
         >
           <button
@@ -756,7 +756,7 @@ function UnassignedItemCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={`flex items-center gap-3 p-3 rounded-2xl border bg-white select-none transition-shadow ${
-            snapshot.isDragging ? 'shadow-lg border-sky-300' : 'border-[#E2E8F0]'
+            snapshot.isDragging ? 'shadow-lg border-sky-300' : 'border-transparent'
           }`}
         >
           <button

@@ -28,7 +28,7 @@ export default function Modal({ open, onClose, children, title }: Props) {
         onClick={onClose}
       />
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-md bg-card rounded-3xl shadow-2xl border border-border max-h-[90dvh] overflow-y-auto">
+      <div className="relative z-10 w-full max-w-md bg-card rounded-3xl shadow-2xl max-h-[90dvh] overflow-y-auto">
         {title && (
           <div className="flex items-center justify-between px-6 py-5 border-b border-border">
             <h2 className="font-heading font-bold text-foreground text-lg">{title}</h2>

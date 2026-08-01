@@ -414,13 +414,13 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator wydarzenia</h1>
           <p className="mt-2 text-muted-foreground">Krok {currentStep + 1}: {STEPS[currentStep].label}</p>
         </div>
-        <div className="flex items-center gap-3 rounded-full border border-sage-200 bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
+        <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">
           <Check className="h-4 w-4 text-accent" />
           Edytujesz istniejące wydarzenie
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <WizardStepper currentStep={currentStep} onStepChange={goToStep} />
 
         <div className="p-5 sm:p-8 lg:p-10">
@@ -460,7 +460,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                     <textarea id="edit-event-description" className="form-input min-h-44 bg-sage-50 text-base leading-7" value={description} onChange={e => setDescription(e.target.value)} />
                   </div>
 
-                  <details className="group rounded-3xl border border-sage-200 bg-white shadow-sm">
+                  <details className="group rounded-3xl bg-white shadow-sm">
                     <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between p-5 marker:hidden">
                     <div className="flex items-center gap-3">
                       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-accent">
@@ -740,7 +740,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                   <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
                 </div>
 
-                <div className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm">
+                <div className="rounded-3xl bg-white p-6 shadow-sm">
                   <h2 className="section-title">Sprawdzenie konfiguracji</h2>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <MetricTile label="Pytania dodatkowe" value={String(formFields.length)} />
@@ -754,7 +754,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 </div>
               </div>
 
-              <aside className="h-fit rounded-3xl border border-sage-200 bg-white p-6 shadow-sm xl:sticky xl:top-8">
+              <aside className="h-fit rounded-3xl bg-white p-6 shadow-sm xl:sticky xl:top-8">
                 <div className="mb-6 flex items-center gap-3">
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white">
                     <Save className="h-5 w-5" />
@@ -861,7 +861,7 @@ function EventTypePicker({ eventTypeId, onEventTypeChange, selectedTypeName }: {
           const visual = eventTypeVisual(type.id)
           const selected = eventTypeId === type.id
           return (
-            <button key={type.id} type="button" onClick={() => onEventTypeChange(type.id)} className={cn('group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md', selected ? 'border-accent ring-2 ring-orange-100' : 'border-sage-200')}>
+            <button key={type.id} type="button" onClick={() => onEventTypeChange(type.id)} className={cn('group flex min-h-14 items-center gap-2.5 rounded-xl border bg-white p-2.5 text-left shadow-sm transition-all hover:border-accent hover:shadow-md', selected ? 'border-accent ring-2 ring-orange-100' : 'border-transparent')}>
               <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors', selected ? 'bg-accent text-white' : 'bg-sage-100 text-sage-500 group-hover:bg-orange-50 group-hover:text-accent')}>
                 <visual.Icon className="h-4 w-4" />
               </span>
@@ -896,7 +896,7 @@ function SectionHeader({ Icon, eyebrow, title, description }: { Icon: LucideIcon
 
 function Panel({ Icon, title, children }: { Icon: LucideIcon; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-3xl border border-sage-200 bg-white p-5 shadow-sm sm:p-7">
+    <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-7">
       <div className="mb-6 flex items-center gap-4">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-accent">
           <Icon className="h-5 w-5" />
@@ -924,7 +924,7 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
 
 function SummaryTile({ Icon, label, value, detail, accent }: { Icon: LucideIcon; label: string; value: string; detail: string; accent?: boolean }) {
   return (
-    <div className={cn('rounded-3xl border bg-white p-5 shadow-sm', accent ? 'border-accent' : 'border-sage-200')}>
+    <div className={cn('rounded-3xl border bg-white p-5 shadow-sm', accent ? 'border-accent' : 'border-transparent')}>
       <div className="flex gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-accent">
           <Icon className="h-5 w-5" />

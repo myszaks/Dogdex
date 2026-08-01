@@ -60,7 +60,7 @@ function FieldCard({
   const requiredId = `form-field-${fieldIdPart}-required`
 
   return (
-    <div className="rounded-2xl border border-[#dfe8d8] bg-white p-4 shadow-sm">
+    <div className="rounded-2xl bg-white p-4 shadow-sm">
       <div className="flex gap-3 items-start">
         {/* Move buttons */}
         <div className="flex flex-col gap-1 shrink-0">

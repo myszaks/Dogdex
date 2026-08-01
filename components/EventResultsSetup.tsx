@@ -137,7 +137,7 @@ export default function EventResultsSetup({
 
   return (
     <div className="space-y-6">
-      <section data-tutorial-id="results-toggle" className="overflow-hidden rounded-3xl border border-sage-200 bg-white shadow-sm">
+      <section data-tutorial-id="results-toggle" className="overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="flex gap-4">
             <span className={cn(
@@ -200,7 +200,7 @@ export default function EventResultsSetup({
             </div>
           )}
 
-          <section data-tutorial-id="results-method" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
+          <section data-tutorial-id="results-method" className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Sposób liczenia</p>
               <h2 className="mt-1 text-xl font-heading font-bold text-primary">Jak liczymy wyniki?</h2>
@@ -263,7 +263,7 @@ export default function EventResultsSetup({
           </section>
 
           {definition && (
-            <section className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
+            <section className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Ustawienia wybranego schematu</p>
@@ -335,7 +335,7 @@ export default function EventResultsSetup({
             </section>
           )}
 
-          <section data-tutorial-id="results-visibility" className="rounded-3xl border border-sage-200 bg-white p-6 shadow-sm sm:p-8">
+          <section data-tutorial-id="results-visibility" className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Widoczność</p>
             <h2 className="mt-1 text-xl font-heading font-bold text-primary">Co widzą uczestnicy?</h2>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -365,7 +365,7 @@ export default function EventResultsSetup({
           aria-modal="true"
           aria-label="Edytor zasad i widoków wyników"
         >
-          <div className="flex h-full w-full max-w-7xl flex-col overflow-hidden bg-background shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-3xl sm:border sm:border-sage-200">
+          <div className="flex h-full w-full max-w-7xl flex-col overflow-hidden bg-background shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-3xl">
             <div className="flex shrink-0 items-center justify-between border-b border-sage-200 px-5 py-3">
               <p className="font-semibold text-primary">Zasady i widoki wyników</p>
               <button

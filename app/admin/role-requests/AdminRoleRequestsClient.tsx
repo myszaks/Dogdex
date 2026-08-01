@@ -156,7 +156,7 @@ export default function AdminRoleRequestsClient() {
             const certificationUrls = asLinks(request.certification_urls)
 
             return (
-              <section key={request.id} className="bg-card rounded-3xl border border-border p-5 shadow-sm space-y-5">
+              <section key={request.id} className="bg-card rounded-3xl p-5 shadow-sm space-y-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Wniosek</p>

@@ -99,7 +99,7 @@ export default async function PaymentsPage() {
         )}</div>
       </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="card p-5"><p className="text-sm text-muted-foreground">Sprzedaż brutto</p><p className="mt-1 text-2xl font-bold">{money(gross, 'PLN')}</p></div><div className="card p-5"><p className="text-sm text-muted-foreground">Zwroty</p><p className="mt-1 text-2xl font-bold text-red-600">{money(refunded, 'PLN')}</p></div><div className="card p-5"><p className="text-sm text-muted-foreground">Przychód netto</p><p className="mt-1 text-2xl font-bold text-emerald-700">{money(gross - refunded, 'PLN')}</p></div><div className="card p-5"><p className="text-sm text-muted-foreground">Wymagają uwagi</p><p className="mt-1 text-2xl font-bold text-amber-700">{attention}</p></div></div>
-      <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-sm"><div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm"><div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-secondary text-left text-muted-foreground"><tr><th className="p-4">Data</th><th className="p-4">Za co</th><th className="p-4">Opis</th><th className="p-4">Kwota</th><th className="p-4">Status</th><th className="p-4">Stripe</th></tr></thead>
           <tbody>

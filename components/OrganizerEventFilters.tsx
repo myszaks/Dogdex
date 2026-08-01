@@ -113,7 +113,7 @@ export default function OrganizerEventFilters({ events, registrationCountMap = {
       </div>
 
       {filteredEvents.length === 0 ? (
-        <div className="bg-card rounded-3xl border border-border p-10 text-center shadow-sm">
+        <div className="bg-card rounded-3xl p-10 text-center shadow-sm">
           <p className="font-heading font-semibold text-foreground text-lg">Brak wydarzeń w filtrze</p>
           <p className="text-muted-foreground text-sm mt-1">
             Nie ma jeszcze wydarzeń w kategorii: {activeLabel}.

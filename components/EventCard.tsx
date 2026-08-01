@@ -39,7 +39,7 @@ export default function EventCard({ event, registeredCount, extraActions, hidePu
     : `/events/${event.slug}`
 
   return (
-    <div className="bg-card rounded-3xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
+    <div className="bg-card rounded-3xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
       {/* Image / Placeholder */}
       <div className="relative w-full aspect-video shrink-0 overflow-hidden">
         {event.image_url ? (

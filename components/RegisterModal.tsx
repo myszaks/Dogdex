@@ -48,7 +48,7 @@ export default function RegisterModal({ eventId, eventTitle, formFields, pricing
           className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}
         >
-          <div className="bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl border border-border w-full sm:max-w-lg max-h-[92dvh] flex flex-col">
+          <div className="bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[92dvh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-0.5">Zapis na wydarzenie</p>

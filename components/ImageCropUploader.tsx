@@ -148,7 +148,7 @@ export default function ImageCropUploader({ currentUrl, onUrlChange }: Props) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="btn btn-sm bg-white/90 text-slate-700 border border-slate-200 shadow-sm hover:bg-white"
+              className="btn btn-sm bg-white/90 text-slate-700 shadow-sm hover:bg-white"
             >
               🔄 Zmień
             </button>

@@ -210,7 +210,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
 
             {/* Vaccine countdown */}
             {vaccineExpiry && (
-              <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+              <div className="bg-card rounded-3xl p-6 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
@@ -246,7 +246,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
             )}
 
             {/* Career achievements */}
-            <div className="bg-card rounded-3xl border border-border p-6 shadow-sm">
+            <div className="bg-card rounded-3xl p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                 Osiągnięcia
               </p>
@@ -282,7 +282,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all',
                     tab === t.key
-                      ? 'bg-card text-foreground shadow-sm border border-border'
+                      ? 'bg-card text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
@@ -303,7 +303,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
           {/* Tab: Historia */}
           {tab === 'history' && (
             history.length === 0 ? (
-              <div className="bg-card rounded-3xl border border-border p-14 text-center shadow-sm">
+              <div className="bg-card rounded-3xl p-14 text-center shadow-sm">
                 <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
                   <CalendarDays className="w-7 h-7 text-muted-foreground" />
                 </div>
@@ -311,7 +311,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                 <p className="text-muted-foreground text-sm mt-1">Pojawi się tu po zapisie na pierwsze wydarzenie.</p>
               </div>
             ) : (
-              <div className="bg-card rounded-3xl border border-border shadow-sm overflow-y-auto max-h-[60vh]">
+              <div className="bg-card rounded-3xl shadow-sm overflow-y-auto max-h-[60vh]">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-secondary sticky top-0 z-10">
@@ -398,7 +398,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
           {/* Tab: Gablota */}
           {tab === 'trophy' && (
             podium.length === 0 ? (
-              <div className="bg-card rounded-3xl border border-border p-14 text-center shadow-sm">
+              <div className="bg-card rounded-3xl p-14 text-center shadow-sm">
                 <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-3">
                   <Trophy className="w-7 h-7 text-amber-400" />
                 </div>
@@ -412,7 +412,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
                   const mc = MEDAL_CONFIG[h.rank!]
                   const placeContext = placementContext(h)
                   return (
-                    <div key={h.regId} className="bg-card rounded-3xl border border-border p-6 text-center shadow-sm hover:shadow-md transition-shadow">
+                    <div key={h.regId} className="bg-card rounded-3xl p-6 text-center shadow-sm hover:shadow-md transition-shadow">
                       <div className="text-5xl mb-3">{mc.emoji}</div>
                       <p className="font-heading font-bold text-foreground text-sm line-clamp-2">{h.eventTitle}</p>
                       {h.eventDate && (
@@ -444,7 +444,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
       {/* Edit modal */}
       {editing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl border border-border max-h-[90dvh] flex flex-col">
+          <div className="relative w-full max-w-lg bg-card rounded-3xl shadow-2xl max-h-[90dvh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-border shrink-0">
               <h2 className="font-heading font-bold text-foreground text-lg">Edytuj: {dog.name}</h2>
               <button

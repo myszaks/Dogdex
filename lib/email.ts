@@ -358,7 +358,7 @@ export async function sendCancellationEmailToOrganizer(payload: CancellationEmai
       <p>Uczestnik zrezygnował z udziału w Twoim wydarzeniu.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Początek wydarzenia:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -422,7 +422,7 @@ export async function sendCancellationRequestEmailToOrganizer(
       <p>Uczestnik złożył wniosek o rezygnację z Twojego wydarzenia i oczekuje na Twoją akceptację.</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Początek wydarzenia:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         ${payload.eventLocation ? `<tr><td style="padding:8px;color:#64748b">Lokalizacja:</td><td style="padding:8px">${escHtml(payload.eventLocation)}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Właściciel:</td><td style="padding:8px">${escHtml(payload.ownerName)}</td></tr>
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
@@ -501,7 +501,7 @@ export async function sendCancellationResultEmail(
       <p>${escHtml(bodyText)}</p>
       <table style="border-collapse:collapse;width:100%;margin:16px 0">
         <tr><td style="padding:8px;color:#64748b">Wydarzenie:</td><td style="padding:8px;font-weight:600">${escHtml(payload.eventTitle)}</td></tr>
-        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Data:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
+        ${payload.eventDate ? `<tr><td style="padding:8px;color:#64748b">Początek wydarzenia:</td><td style="padding:8px">${escHtml(formatEmailDateTime(payload.eventDate))}</td></tr>` : ''}
         <tr><td style="padding:8px;color:#64748b">Pies:</td><td style="padding:8px">${escHtml(payload.dogName)}</td></tr>
       </table>
       ${datesHtml

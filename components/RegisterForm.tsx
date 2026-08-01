@@ -6,6 +6,7 @@ import type { EventDatePrices, EventPricingMode } from '@/lib/eventPricing'
 import useUser from '@/hooks/useUser'
 import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 import { getSizeClass, type SizeClass } from '@/lib/speedway'
+import EventRegistrationTerms from '@/components/EventRegistrationTerms'
 
 interface Props {
   eventId: string
@@ -133,7 +134,7 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
   const [dynamic, setDynamic] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const submittingRef = useRef(false)
-  const [success, setSuccess] = useState(false)
+  const [success, setSuccess] = useState<'confirmed' | 'pending' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -142,6 +143,7 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
   const [userDogs, setUserDogs] = useState<Dog[]>([])
   const [selectedDogId, setSelectedDogId] = useState<string>('')
   const [profileName, setProfileName] = useState<string>('')
+  const currentUserId = user?.id
   const paymentTotal = pricingMode === 'flat'
     ? Number(entryFee ?? 0)
     : pricingMode === 'per_date'
@@ -152,13 +154,13 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
       : 0
 
   useEffect(() => {
-    if (!isLoggedIn || !user || !supabase) return
+    if (!isLoggedIn || !currentUserId || !supabase) return
 
     // Fetch user's full name from profile
     supabase
       .from('profiles')
       .select('full_name')
-      .eq('id', user.id)
+      .eq('id', currentUserId)
       .single()
       .then(({ data }) => {
         if (data?.full_name) setProfileName(data.full_name)
@@ -168,10 +170,22 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
     fetch('/api/dogs')
       .then(r => r.json())
       .then((dogs: Dog[]) => {
-        if (Array.isArray(dogs)) setUserDogs(dogs)
+        if (!Array.isArray(dogs)) return
+        setUserDogs(dogs)
+        const firstDog = dogs[0]
+        if (firstDog) {
+          setSelectedDogId(current => current || firstDog.id)
+          setBase(previous => ({
+            ...previous,
+            dogName: previous.dogName || firstDog.name,
+            dogBreed: previous.dogBreed || firstDog.breed || '',
+          }))
+          const filled = autofillFromDog(firstDog, formFields)
+          setDynamic(previous => ({ ...filled, ...previous }))
+        }
       })
       .catch(() => {})
-  }, [isLoggedIn, user?.id, supabase])
+  }, [isLoggedIn, currentUserId, supabase, formFields])
 
   function handleDogSelect(dogId: string) {
     setSelectedDogId(dogId)
@@ -232,7 +246,7 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
 
     try {
       setFieldErrors({})
-      const processedExtra: Record<string, any> = {}
+      const processedExtra: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(dynamic)) {
         const f = formFields.find(ff => ff.id === k)
         if (f && (f.type === 'multiselect' || f.type === 'multidate')) {
@@ -273,7 +287,8 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
         return
       }
 
-      setSuccess(true)
+      const registrationStatus = json.status === 'confirmed' ? 'confirmed' : 'pending'
+      setSuccess(registrationStatus)
       onSuccess?.()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Nieznany błąd')
@@ -287,9 +302,17 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
     return (
       <div className="card text-center py-14">
         <p className="text-5xl mb-4">🎉</p>
-        <p className="text-xl font-semibold text-green-700">Zapis przesłany!</p>
+        <p className="text-xl font-semibold text-green-700">
+          {success === 'confirmed' ? 'Zapis potwierdzony!' : 'Zgłoszenie wysłane!'}
+        </p>
         <p className="text-slate-500 mt-2 text-sm max-w-xs mx-auto">
-          Organizator potwierdzi Twój zapis. Sprawdzaj e-mail po potwierdzenie.
+          {success === 'confirmed'
+            ? pricingMode === 'free'
+              ? 'Masz już potwierdzone miejsce na wydarzeniu.'
+              : 'Płatność nie jest wymagana lub została już obsłużona.'
+            : pricingMode === 'free'
+              ? 'Organizator sprawdzi zgłoszenie. O wyniku poinformujemy Cię e-mailem.'
+              : 'Organizator sprawdzi zgłoszenie. Po akceptacji otrzymasz e-mail z linkiem do płatności.'}
         </p>
       </div>
     )
@@ -301,6 +324,15 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
       aria-describedby={error ? 'registration-form-error' : undefined}
       className="card space-y-4"
     >
+
+      <EventRegistrationTerms
+        pricingMode={pricingMode}
+        entryFee={entryFee}
+        datePrices={datePrices}
+        currency={currency}
+        autoConfirm={autoConfirm}
+        formFields={formFields}
+      />
 
       {/* ── Zalogowany: info o użytkowniku + picker psa ── */}
       {isLoggedIn ? (

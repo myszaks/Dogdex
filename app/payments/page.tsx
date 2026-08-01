@@ -3,6 +3,7 @@ import { CreditCard, ExternalLink } from 'lucide-react'
 import { requireRole } from '@/lib/getServerUser'
 import { createAuthClient } from '@/lib/supabaseServer'
 import PaymentsActions from '@/components/PaymentsActions'
+import { formatPaymentDateTime } from '@/lib/paymentFormatting'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +75,7 @@ export default async function PaymentsPage() {
         rows.push({
           id: payment.id, source: 'Trening',
           description: typeNames.get(booking.training_type_id) ?? 'Trening indywidualny',
-          detail: new Intl.DateTimeFormat('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(booking.scheduled_at)),
+          detail: formatPaymentDateTime(booking.scheduled_at),
           amount: Number(payment.amount), currency: payment.currency, status: payment.status,
           createdAt: payment.created_at, hasPaymentIntent: Boolean(payment.stripe_payment_intent_id),
           refundedAmount: payment.status === 'refunded' ? Number(payment.amount) : 0,
@@ -103,7 +104,7 @@ export default async function PaymentsPage() {
           <thead className="bg-secondary text-left text-muted-foreground"><tr><th className="p-4">Data</th><th className="p-4">Za co</th><th className="p-4">Opis</th><th className="p-4">Kwota</th><th className="p-4">Status</th><th className="p-4">Stripe</th></tr></thead>
           <tbody>
             {rows.map(row => <tr key={`${row.source}-${row.id}`} className="border-t border-border">
-              <td className="p-4 whitespace-nowrap">{new Intl.DateTimeFormat('pl-PL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(row.createdAt))}</td>
+              <td className="p-4 whitespace-nowrap">{formatPaymentDateTime(row.createdAt)}</td>
               <td className="p-4"><span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">{row.source}</span></td>
               <td className="p-4"><p className="font-semibold">{row.source === 'Wydarzenie' ? <Link href={`/payments/events/${row.id}`} className="hover:text-accent hover:underline">{row.description}</Link> : row.description}</p><p className="text-xs text-muted-foreground">{row.detail}</p>{row.refundedAmount > 0 && <p className="text-xs text-red-600">Zwrócono: {money(row.refundedAmount, row.currency)}</p>}</td>
               <td className="p-4 font-semibold whitespace-nowrap">{money(row.amount, row.currency)}</td>

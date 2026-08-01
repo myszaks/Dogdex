@@ -219,6 +219,12 @@ export default function BookTrainingPage({ params }: Props) {
   }
 
   const availableSlots = selectedDate ? getAvailableSlotsForDate(selectedDate) : []
+  const trainingPrice = trainingType
+    ? Number(trainingType.price_per_hour ?? 0) * (trainingType.duration_min || 60) / 60
+    : 0
+  const formattedTrainingPrice = trainingPrice > 0
+    ? trainingPrice.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })
+    : 'Bezpłatnie'
 
   const handleAddDog = async (data: Partial<Dog>) => {
     const response = await fetch('/api/dogs', {
@@ -272,6 +278,11 @@ export default function BookTrainingPage({ params }: Props) {
         {trainingType?.description && (
           <p className="text-muted-foreground mb-6">{trainingType.description}</p>
         )}
+
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
+          <span className="text-orange-800">Cena za {trainingType?.duration_min || 60} minut</span>
+          <strong className="text-orange-950">{formattedTrainingPrice}</strong>
+        </div>
 
         {/* Date Selection */}
         <div className="mb-6">
@@ -455,6 +466,7 @@ export default function BookTrainingPage({ params }: Props) {
               <p><strong>Data:</strong> {format(selectedDate, 'd MMMM yyyy', { locale: pl })}</p>
               <p><strong>Godzina:</strong> {selectedTime}</p>
               <p><strong>Czas trwania:</strong> {trainingType?.duration_min || 60} minut</p>
+              <p><strong>Do zapłaty:</strong> {formattedTrainingPrice}</p>
             </div>
           </div>
         )}
@@ -468,7 +480,9 @@ export default function BookTrainingPage({ params }: Props) {
           {booking
             ? 'Rezerwowanie…'
             : user
-              ? 'Zarezerwuj trening'
+              ? trainingPrice > 0
+                ? `Przejdź do płatności — ${formattedTrainingPrice}`
+                : 'Zarezerwuj bezpłatny trening'
               : 'Zaloguj się, aby zarezerwować'}
         </button>
       </div>

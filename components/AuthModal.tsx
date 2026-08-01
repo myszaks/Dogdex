@@ -126,6 +126,12 @@ export default function AuthModal({ open, onClose }: Props) {
       return
     }
 
+    // Logowanie zakończyło się już powodzeniem. Zamknij modal od razu, a
+    // synchronizację sesji z endpointami serwerowymi dokończ w tle.
+    setLoading(false)
+    onClose()
+    router.refresh()
+
     let profileResponse = await fetchWithAuthRetry('/api/profile')
     if (profileResponse.status === 401) {
       const { error: refreshError } = await supabase.auth.refreshSession()
@@ -133,14 +139,8 @@ export default function AuthModal({ open, onClose }: Props) {
         profileResponse = await fetchWithAuthRetry('/api/profile')
       }
     }
-    setLoading(false)
-    if (profileResponse.status === 401) {
-      setError('Sesja nie została jeszcze zsynchronizowana. Spróbuj zalogować się ponownie.')
-      return
-    }
-
+    // Drugi refresh odświeża komponenty serwerowe już po zapisaniu ciasteczek.
     router.refresh()
-    onClose()
   }
 
   async function signUpWithEmail() {

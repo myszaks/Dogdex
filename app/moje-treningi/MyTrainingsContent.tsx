@@ -262,7 +262,7 @@ export default function MyTrainingsContent({
       case 'cancelled':
         return 'Anulowane'
       case 'completed':
-        return 'Ukonczone'
+        return 'Ukończone'
       default:
         return 'Nieznany status'
     }

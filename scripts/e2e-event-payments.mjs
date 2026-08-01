@@ -82,6 +82,17 @@ try {
   const payerEmail = process.env.DOGDEX_QA_USER_EMAIL ?? payee.email
   const { rows: [participant] } = await db.query(`insert into public.participants (dog_name, owner_name, owner_email, extra) values ('E2E Pies', 'E2E Klient', $1, '{}'::jsonb) returning id`, [payerEmail])
   const { rows: [registration] } = await db.query(`insert into public.registrations (event_id, participant_id, status, form_data) values ($1, $2, 'pending', $3::jsonb) returning id`, [event.id, participant.id, JSON.stringify({ dates: [dateOne, dateTwo] })])
+  const { rows: slots } = await db.query(`
+    insert into public.time_slots (event_id, slot_date, slot_time, label)
+    values ($1, $2, '09:00', 'E2E termin 1'), ($1, $3, '10:00', 'E2E termin 2')
+    returning id, slot_date
+  `, [event.id, dateOne, dateTwo])
+  for (const slot of slots) {
+    await db.query(`
+      insert into public.schedule_assignments (registration_id, time_slot_id, item_date)
+      values ($1, $2, $3)
+    `, [registration.id, slot.id, slot.slot_date])
+  }
   const { rows: items } = await db.query(`
     insert into public.event_registration_items (registration_id, item_key, kind, form_field_id, occurrence_date, label, amount, currency, status)
     values ($1, $2, 'date', 'dates', $3, $4, $5, 'PLN', 'pending_payment'), ($1, $6, 'date', 'dates', $7, $8, $9, 'PLN', 'pending_payment') returning id, item_key, amount, occurrence_date
@@ -104,6 +115,15 @@ try {
   const stripeRefundOne = await stripe.refunds.create({ payment_intent: paymentIntentId, amount: 100, metadata: { event_refund_id: refundOne.id } }, { stripeAccount: stripeAccountId, idempotencyKey: `dogdex-event-e2e-refund-1-${suffix}` })
   await waitForRefund(stripeRefundOne.id)
   await db.query(`select * from public.complete_event_refund($1, $2)`, [refundOne.id, stripeRefundOne.id])
+  const { rows: [partialSchedule] } = await db.query(`
+    select count(*)::integer assignment_count, min(slot.slot_date::text) remaining_date
+    from public.schedule_assignments assignment
+    join public.time_slots slot on slot.id = assignment.time_slot_id
+    where assignment.registration_id = $1
+  `, [registration.id])
+  if (partialSchedule.assignment_count !== 1 || partialSchedule.remaining_date !== dateTwo) {
+    throw new Error(`Częściowy zwrot pozostawił nieprawidłowy grafik: ${JSON.stringify(partialSchedule)}`)
+  }
 
   const secondItem = items.find(item => item.item_key === `dates:${dateTwo}`)
   if (!secondItem) throw new Error('Nie znaleziono drugiej pozycji płatności E2E.')
@@ -117,6 +137,14 @@ try {
   await db.query(`select * from public.complete_event_refund($1, $2)`, [refundTwo.id, stripeRefundTwo.id])
   fullyRefunded = true
 
+  const { rows: [finalSchedule] } = await db.query(`
+    select count(*)::integer assignment_count
+    from public.schedule_assignments where registration_id = $1
+  `, [registration.id])
+  if (finalSchedule.assignment_count !== 0) {
+    throw new Error(`Pełny zwrot pozostawił wpisy grafiku: ${JSON.stringify(finalSchedule)}`)
+  }
+
   const { rows: [state] } = await db.query(`select payment.status as payment_status, payment.refunded_amount, registration.status as registration_status, registration.form_data from public.event_payments payment join public.registrations registration on registration.id = payment.registration_id where payment.id = $1`, [payment.id])
   if (state.payment_status !== 'refunded' || Number(state.refunded_amount) !== 3 || state.registration_status !== 'cancelled') throw new Error(`Nieprawidłowy stan końcowy: ${JSON.stringify(state)}`)
 
@@ -124,7 +152,7 @@ try {
     const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST ?? 'smtp.gmail.com', port: Number(process.env.SMTP_PORT ?? 587), secure: Number(process.env.SMTP_PORT) === 465, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } })
     await transporter.sendMail({ from: process.env.SMTP_FROM ?? `Dogdex <${process.env.SMTP_USER}>`, to: payerEmail, subject: 'Dogdex E2E — płatność i częściowe zwroty wydarzenia', html: '<p>Test E2E płatności wydarzenia, dwóch częściowych zwrotów i zmian statusów zakończył się poprawnie.</p>' })
   }
-  process.stdout.write(`E2E OK: PaymentIntent ${paymentIntentId}, dwa zwroty, stan końcowy refunded/cancelled.\n`)
+  process.stdout.write(`E2E OK: PaymentIntent ${paymentIntentId}, dwa zwroty, grafik wyczyszczony, stan końcowy refunded/cancelled.\n`)
 } catch (error) {
   if (paymentIntentId && stripeAccountId && !fullyRefunded) {
     try {

@@ -35,7 +35,7 @@ function getStatusLabel(status: string) {
     return 'Anulowane'
   }
 
-  return 'Ukonczone'
+  return 'Ukończone'
 }
 
 export default async function TrainerPage() {
@@ -62,6 +62,7 @@ export default async function TrainerPage() {
       .from('training_bookings')
       .select('*')
       .in('training_type_id', typeIds)
+      .in('status', ['pending', 'confirmed'])
       .gte('scheduled_at', new Date().toISOString())
       .order('scheduled_at', { ascending: true })
       .limit(5)
@@ -151,7 +152,7 @@ export default async function TrainerPage() {
                 <Calendar className="w-6 h-6 text-accent" />
               </div>
               <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Dostepnosc</h3>
+                <h3 className="font-heading font-semibold text-lg mb-1">Dostępność</h3>
                 <p className="text-sm text-muted-foreground">Ustaw dni i godziny dostępności</p>
               </div>
             </div>

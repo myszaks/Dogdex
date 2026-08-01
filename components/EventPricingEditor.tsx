@@ -22,7 +22,9 @@ export default function EventPricingEditor({
   onEntryFeeChange,
   onDatePricesChange,
 }: Props) {
-  const multidateFields = formFields.filter(field => field.type === 'multidate' && (field.options?.length ?? 0) > 0)
+  const multidateFields = formFields.filter(field => field.type === 'multidate')
+  const dateOptionCount = multidateFields.reduce((count, field) => count + (field.options?.length ?? 0), 0)
+  const canSelectPerDate = multidateFields.length > 0
   const enabled = pricingMode !== 'free'
 
   function setDatePrice(fieldId: string, date: string, rawValue: string) {
@@ -52,19 +54,62 @@ export default function EventPricingEditor({
         />
       </div>
 
-      {enabled && multidateFields.length > 0 && (
-        <div>
-          <label htmlFor="event-pricing-mode" className="form-label">Sposób naliczania</label>
-          <select
-            id="event-pricing-mode"
-            value={pricingMode}
-            onChange={event => onPricingModeChange(event.target.value as EventPricingMode)}
-            className="form-input"
-          >
-            <option value="flat">Jedna opłata za cały zapis</option>
-            <option value="per_date">Osobna cena za każdy wybrany termin</option>
-          </select>
-        </div>
+      {enabled && (
+        <fieldset>
+          <legend className="form-label">Sposób naliczania</legend>
+          <div className="grid gap-3">
+            <label htmlFor="event-pricing-flat" className={`cursor-pointer rounded-2xl border p-4 transition-colors ${
+              pricingMode === 'flat'
+                ? 'border-orange-300 bg-orange-50'
+                : 'border-sage-200 bg-white hover:border-sage-300'
+            }`}>
+              <span className="flex items-start gap-3">
+                <input
+                  id="event-pricing-flat"
+                  type="radio"
+                  name="event-pricing-mode"
+                  value="flat"
+                  checked={pricingMode === 'flat'}
+                  onChange={() => onPricingModeChange('flat')}
+                  className="mt-1 h-4 w-4 accent-orange-500"
+                />
+                <span>
+                  <span className="block font-semibold text-primary">Jedna opłata za cały zapis</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">Uczestnik płaci tę samą kwotę niezależnie od wybranych terminów.</span>
+                </span>
+              </span>
+            </label>
+
+            <label htmlFor="event-pricing-per-date" className={`rounded-2xl border p-4 transition-colors ${
+              !canSelectPerDate
+                ? 'cursor-not-allowed border-sage-200 bg-sage-50 opacity-70'
+                : pricingMode === 'per_date'
+                  ? 'cursor-pointer border-orange-300 bg-orange-50'
+                  : 'cursor-pointer border-sage-200 bg-white hover:border-sage-300'
+            }`}>
+              <span className="flex items-start gap-3">
+                <input
+                  id="event-pricing-per-date"
+                  type="radio"
+                  name="event-pricing-mode"
+                  value="per_date"
+                  checked={pricingMode === 'per_date'}
+                  disabled={!canSelectPerDate}
+                  onChange={() => onPricingModeChange('per_date')}
+                  className="mt-1 h-4 w-4 accent-orange-500"
+                />
+                <span>
+                  <span className="block font-semibold text-primary">Osobna cena za każdy termin</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    {canSelectPerDate
+                      ? 'Każda wybrana data może mieć inną cenę, a Stripe zsumuje je w jednej płatności.'
+                      : 'Dodaj wyżej do formularza pytanie typu „Wybór dat (wielokrotny)”, aby włączyć tę opcję.'}
+                  </span>
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
       )}
 
       {pricingMode === 'flat' && (
@@ -86,6 +131,11 @@ export default function EventPricingEditor({
 
       {pricingMode === 'per_date' && (
         <div className="space-y-4">
+          {dateOptionCount === 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              Dodaj co najmniej jeden termin w polu „Wybór dat”, a pola cen pojawią się tutaj automatycznie.
+            </div>
+          )}
           {multidateFields.map(field => (
             <div key={field.id} className="rounded-2xl border border-sage-200 bg-sage-50 p-4">
               <p className="font-semibold text-primary">{field.label}</p>

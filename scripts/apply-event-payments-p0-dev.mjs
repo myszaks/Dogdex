@@ -21,11 +21,12 @@ if (!projectRef || !databaseUrl.includes(projectRef)) {
   throw new Error('Adres bazy nie odpowiada projektowi DOGDEX_DEV_SUPABASE_URL; przerwano.')
 }
 
-const [baseMigration, hardeningMigration, p1p2Migration, refundRpcFix] = await Promise.all([
+const [baseMigration, hardeningMigration, p1p2Migration, refundRpcFix, scheduleRefundHotfix] = await Promise.all([
   readFile(new URL('../supabase/migrations/20260731203000_add_event_payments_p0.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260731213000_harden_event_payments_p0.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260731220000_add_event_payment_p1_p2.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260731224000_fix_event_refund_rpc_ambiguity.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260801110000_fix_paid_event_refund_schedule.sql', import.meta.url), 'utf8'),
 ])
 const client = new Client({
   connectionString: databaseUrl,
@@ -45,6 +46,7 @@ try {
   `)
   if (!p1p2State.applied) await client.query(p1p2Migration)
   await client.query(refundRpcFix)
+  await client.query(scheduleRefundHotfix)
   await client.query('commit')
   process.stdout.write('Migracje P0-P2 płatności wydarzeń zostały zastosowane do dev DB.\n')
 } catch (error) {

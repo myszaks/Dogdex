@@ -7,15 +7,15 @@ import {
   isRegistrationOpen,
   effectiveStatus,
   statusLabel,
-  statusBadgeClasses,
 } from '@/lib/utils'
 import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
 import EventMapClient from '@/components/EventMapClient'
+import EventRegistrationTerms from '@/components/EventRegistrationTerms'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
-import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight, Banknote } from 'lucide-react'
+import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight } from 'lucide-react'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -331,21 +331,14 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
               </div>
             )}
 
-            {/* Entry fee */}
-            {event.pricing_mode === 'per_date' && (
-              <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
-                <Banknote className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Opłata</span>
-                <span className="font-semibold text-foreground ml-auto">za każdy wybrany termin</span>
-              </div>
-            )}
-            {event.pricing_mode === 'flat' && event.entry_fee != null && (
-              <div className="flex items-center gap-2 text-sm border-t border-border pt-3">
-                <Banknote className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Wpisowe</span>
-                <span className="font-semibold text-foreground ml-auto">{event.entry_fee} zł</span>
-              </div>
-            )}
+            <EventRegistrationTerms
+              pricingMode={event.pricing_mode ?? 'free'}
+              entryFee={event.entry_fee}
+              datePrices={event.date_prices ?? {}}
+              currency={event.currency ?? 'PLN'}
+              autoConfirm={event.auto_confirm}
+              formFields={formFields}
+            />
 
             {/* Registration deadline */}
             {event.registration_deadline && dispStatus === 'upcoming' && regOpen && (
@@ -372,6 +365,11 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
                 eventId={event.id}
                 eventTitle={event.title}
                 formFields={formFields}
+                pricingMode={event.pricing_mode ?? 'free'}
+                entryFee={event.entry_fee}
+                datePrices={event.date_prices ?? {}}
+                currency={event.currency ?? 'PLN'}
+                autoConfirm={event.auto_confirm}
                 triggerClassName="btn btn-primary w-full py-2.5"
                 triggerLabel="Zapisz się"
               />

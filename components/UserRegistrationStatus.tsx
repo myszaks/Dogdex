@@ -45,6 +45,9 @@ export default function UserRegistrationStatus({ eventId, eventStatus }: Props) 
           : []
 
         setRegistrations(nextRegistrations)
+        if (nextRegistrations.length > 0) {
+          window.dispatchEvent(new Event(`dogdex:registration-completed:${eventId}`))
+        }
         setRequestSentIds(new Set(
           nextRegistrations
             .filter(reg => Boolean(reg.pending_cancellation_request))

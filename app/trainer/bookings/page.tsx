@@ -147,7 +147,7 @@ export default function TrainerBookingsPage() {
             <div className="mb-12">
               <h2 className="font-heading font-semibold text-xl mb-6 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-amber-600" />
-                Oczekujace ({pendingBookings.length})
+                Oczekujące ({pendingBookings.length})
               </h2>
 
               <div className="space-y-4">
@@ -179,7 +179,7 @@ export default function TrainerBookingsPage() {
                         className="flex-1 btn btn-secondary flex items-center justify-center gap-2 text-red-600 hover:bg-red-50"
                       >
                         <X className="w-4 h-4" />
-                        Odrzuc
+                        Odrzuć
                       </button>
                       <Link
                         href={`/trainer/bookings/${booking.id}`}
@@ -252,7 +252,7 @@ export default function TrainerBookingsPage() {
                             ? 'bg-red-100 text-red-800'
                             : 'bg-slate-100 text-slate-800'
                         }`}>
-                          {booking.status === 'cancelled' ? 'Anulowane' : 'Ukonczone'}
+                          {booking.status === 'cancelled' ? 'Anulowane' : 'Ukończone'}
                         </span>
                         <Link
                           href={`/trainer/bookings/${booking.id}`}

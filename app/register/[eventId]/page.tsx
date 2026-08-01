@@ -91,7 +91,15 @@ export default async function RegisterPage({ params }: Props) {
         )}
       </div>
 
-      <RegisterForm eventId={event.id} formFields={formFields} />
+      <RegisterForm
+        eventId={event.id}
+        formFields={formFields}
+        pricingMode={event.pricing_mode ?? 'free'}
+        entryFee={event.entry_fee}
+        datePrices={event.date_prices ?? {}}
+        currency={event.currency ?? 'PLN'}
+        autoConfirm={event.auto_confirm}
+      />
     </div>
   )
 }

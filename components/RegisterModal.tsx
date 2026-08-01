@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import RegisterForm from './RegisterForm'
 import type { FormField } from '@/types'
@@ -23,12 +23,24 @@ interface Props {
 
 export default function RegisterModal({ eventId, eventTitle, formFields, pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, triggerClassName, triggerLabel }: Props) {
   const [open, setOpen] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const router = useRouter()
+  const completionEvent = `dogdex:registration-completed:${eventId}`
+
+  useEffect(() => {
+    const handleCompletion = () => setSubmitted(true)
+    window.addEventListener(completionEvent, handleCompletion)
+    return () => window.removeEventListener(completionEvent, handleCompletion)
+  }, [completionEvent])
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClassName ?? 'btn btn-primary btn-sm'}>
-        {triggerLabel ?? 'Zapisz się'}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={triggerClassName ?? 'btn btn-primary btn-sm'}
+      >
+        {submitted ? 'Zapisz kolejnego psa' : triggerLabel ?? 'Zapisz się'}
       </button>
 
       {open && (
@@ -61,8 +73,9 @@ export default function RegisterModal({ eventId, eventTitle, formFields, pricing
                 currency={currency}
                 autoConfirm={autoConfirm}
                 onSuccess={() => {
+                  setSubmitted(true)
+                  window.dispatchEvent(new Event(completionEvent))
                   router.refresh()
-                  setTimeout(() => setOpen(false), 2500)
                 }}
               />
             </div>

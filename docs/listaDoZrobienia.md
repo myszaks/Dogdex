@@ -4,19 +4,19 @@
 
 ## P1 — istotne problemy UX
 
-- Strona wydarzenia i formularz zapisu nie pokazują, czy wydarzenie jest bezpłatne, płatne ani czy wymaga akceptacji.
-- Po wysłaniu zapisu formularz po prostu znika. Brakuje jednoznacznego potwierdzenia, a przycisk nadal pokazuje „Zapisz się”.
-- Formularz wydarzenia każe ręcznie wpisać psa i rasę mimo zapisanych profili psów.
-- Podgląd płatnego wydarzenia pokazuje tylko „Cena za wybrane terminy”, bez cen poszczególnych dat i sumy.
-- Na formularzu rezerwacji treningu przed kliknięciem nie ma podsumowania ceny. Cena pojawia się dopiero w Stripe.
-- Dashboard płatności pokazuje godziny w UTC: trening zarezerwowany na 14:00 widniał jako 12:00.
-- Eksport CSV działa, ale dla treningów pola klient, pies i e-mail są puste.
-- Główny panel trenera w „Nadchodzących rezerwacjach” pokazuje stare anulowane terminy, przez co świeżo opłacona rezerwacja może być niewidoczna.
-- „Uzgodnij ze Stripe” nie daje wyraźnego potwierdzenia zakończenia operacji.
+- [x] Strona wydarzenia i formularz zapisu pokazują, czy wydarzenie jest bezpłatne, płatne i czy wymaga akceptacji.
+- [x] Po wysłaniu zapisu formularz pokazuje jednoznaczne potwierdzenie, a przycisk zmienia się na „Zapisz kolejnego psa”.
+- [x] Formularz wydarzenia automatycznie wybiera psa z zapisanego profilu i uzupełnia jego dane.
+- [x] Podgląd płatnego wydarzenia pokazuje ceny poszczególnych dat, a formularz aktualną sumę.
+- [x] Formularz rezerwacji treningu pokazuje cenę przed przejściem do Stripe.
+- [x] Dashboard płatności pokazuje godziny w strefie Europe/Warsaw.
+- [x] Eksport CSV dla treningów zawiera klienta, psa i e-mail.
+- [x] Główny panel trenera pokazuje w „Nadchodzących rezerwacjach” tylko aktywne terminy.
+- [x] „Uzgodnij ze Stripe” pokazuje trwałe potwierdzenie zakończenia operacji.
 
 ## P2 — kosmetyka
 
-- Po logowaniu okno przez chwilę pozostaje otwarte ze stanem „Logowanie…”.
-- Na stronach regularnie pojawia się pojedynczy błąd 404 zasobu w konsoli.
-- Są napisy bez polskich znaków: „Dostepnosc”, „Oczekujace”, „Odrzuc”, „Ukonczone”.
-- Konfiguracja osobnych cen za daty jest mało odkrywalna — opcja pojawia się dopiero po dodaniu pola wyboru dat i pierwszego terminu.
+- [x] Po udanym logowaniu okno zamyka się natychmiast, a synchronizacja sesji kończy się w tle.
+- [x] Metadane strony wskazują istniejące ikony aplikacji, eliminując powtarzający się błąd 404 ikony.
+- [x] Poprawiono napisy: „Dostępność”, „Oczekujące”, „Odrzuć”, „Ukończone”.
+- [x] Konfiguracja osobnych cen za daty jest stale widoczna i prowadzi organizatora przez dodanie pola oraz terminów.

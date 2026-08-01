@@ -44,7 +44,7 @@ function getStatusLabel(status: string) {
   if (status === 'cancelled') {
     return 'Anulowane'
   }
-  return 'Ukonczone'
+  return 'Ukończone'
 }
 
 async function getTrainerBookingDetails(

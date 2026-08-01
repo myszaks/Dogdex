@@ -6,6 +6,7 @@ import type { Metadata } from 'next'
 import type { FormField, Registration } from '@/types'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import OrganizerRegistrationsWorkspace from '@/components/OrganizerRegistrationsWorkspace'
+import { cancellationRequestParticipant } from '@/lib/cancellationRequestParticipant'
 import Link from 'next/link'
 
 interface Props {
@@ -49,6 +50,12 @@ export default async function RegistrationsPage({ params }: Props) {
 
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const hasSchedule = (slotCount ?? 0) > 0
+  const participantByRegistrationId = new Map(
+    (registrations ?? []).map(registration => [
+      registration.id,
+      cancellationRequestParticipant({ participants: registration.participants }),
+    ]),
+  )
 
   return (
     <div>
@@ -91,9 +98,9 @@ export default async function RegistrationsPage({ params }: Props) {
         initialRegistrations={(registrations ?? []) as unknown as Registration[]}
         initialCancellationRequests={(cancellationRequests ?? []).map(r => ({
           ...r,
-          participant: Array.isArray(r.registrations)
-            ? r.registrations[0]?.participants?.[0] ?? null
-            : null,
+          participant: cancellationRequestParticipant(r.registrations)
+            ?? participantByRegistrationId.get(r.registration_id)
+            ?? null,
         }))}
         eventFormFields={eventFormFields}
         groupingField={event.grouping_field ?? null}

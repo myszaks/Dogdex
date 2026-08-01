@@ -50,6 +50,7 @@ export default function MyTrainingsContent({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [resumingPayment, setResumingPayment] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -192,6 +193,40 @@ export default function MyTrainingsContent({
       alert((cancelError as Error).message)
     } finally {
       setCancelling(null)
+    }
+  }
+
+  const handleResumePayment = async (bookingId: string) => {
+    setResumingPayment(bookingId)
+    setError(null)
+    try {
+      const response = await fetch(`/api/training-bookings/${bookingId}/checkout`, {
+        method: 'POST',
+      })
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok || typeof data?.checkoutUrl !== 'string') {
+        if (response.status === 410) {
+          setBookings(current => current.map(booking =>
+            booking.id === bookingId
+              ? {
+                  ...booking,
+                  status: 'cancelled',
+                  training_payments: booking.training_payments?.map(payment => ({
+                    ...payment,
+                    status: payment.status === 'pending' ? 'failed' : payment.status,
+                  })),
+                }
+              : booking
+          ))
+        }
+        throw new Error(data?.error || 'Nie udało się wznowić płatności')
+      }
+
+      window.location.assign(data.checkoutUrl)
+    } catch (resumeError) {
+      setError((resumeError as Error).message)
+      setResumingPayment(null)
     }
   }
 
@@ -345,15 +380,29 @@ export default function MyTrainingsContent({
                       </div>
                     )}
 
-                    {['pending', 'confirmed'].includes(booking.status) && booking.cancellation_allowed && (
-                      <button
-                        onClick={() => handleCancel(booking.id)}
-                        disabled={cancelling === booking.id}
-                        className="text-sm text-red-600 hover:text-red-700 font-semibold"
-                      >
-                        {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwację'}
-                      </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {booking.status === 'pending'
+                        && booking.training_payments?.[0]?.status === 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => handleResumePayment(booking.id)}
+                          disabled={resumingPayment === booking.id || cancelling === booking.id}
+                          className="btn btn-primary btn-sm inline-flex items-center gap-2"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          {resumingPayment === booking.id ? 'Otwieranie Stripe…' : 'Wznów płatność'}
+                        </button>
+                      )}
+                      {['pending', 'confirmed'].includes(booking.status) && booking.cancellation_allowed && (
+                        <button
+                          onClick={() => handleCancel(booking.id)}
+                          disabled={cancelling === booking.id || resumingPayment === booking.id}
+                          className="text-sm text-red-600 hover:text-red-700 font-semibold"
+                        >
+                          {cancelling === booking.id ? 'Anulowanie...' : 'Anuluj rezerwację'}
+                        </button>
+                      )}
+                    </div>
                     {booking.status === 'confirmed' && !booking.cancellation_allowed && (
                       <p className="text-xs text-muted-foreground">
                         Minął termin bezpłatnego anulowania ({booking.cancellation_buffer_hours ?? 24} godz. przed treningiem).

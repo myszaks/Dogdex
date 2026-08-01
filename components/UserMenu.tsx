@@ -62,8 +62,8 @@ export default function UserMenu({ sidebar = false }: Props) {
         </button>
 
         {open && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
-            <p className="text-xs text-muted-foreground px-3 py-1.5 border-b border-border mb-1 truncate">
+          <div className="absolute bottom-full left-0 right-0 mb-1 border-0 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
+            <p className="border-0 text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
               {user.email}
             </p>
             <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
@@ -74,10 +74,9 @@ export default function UserMenu({ sidebar = false }: Props) {
                 <DropdownItem href="/admin/role-requests" icon={<ClipboardCheck className="w-4 h-4" />} label="Wnioski o role" onClose={() => setOpen(false)} accent />
               </>
             )}
-            <hr className="my-1 border-border" />
             <button
               onClick={() => { setOpen(false); logout() }}
-              className="w-full text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors"
+              className="mt-1 w-full border-0 text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors outline-none"
             >
               <LogOut className="w-4 h-4" />
               Wyloguj
@@ -99,8 +98,8 @@ export default function UserMenu({ sidebar = false }: Props) {
         {initials.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
-          <p className="text-xs text-muted-foreground px-3 py-1.5 border-b border-border mb-1 truncate">
+        <div className="absolute right-0 mt-2 w-52 border-0 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
+          <p className="border-0 text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
             {user.email}
           </p>
           <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
@@ -117,10 +116,9 @@ export default function UserMenu({ sidebar = false }: Props) {
               <DropdownItem href="/admin/role-requests" icon={<ClipboardCheck className="w-4 h-4" />} label="Wnioski o role" onClose={() => setOpen(false)} accent />
             </>
           )}
-          <hr className="my-1 border-border" />
           <button
             onClick={() => { setOpen(false); logout() }}
-            className="w-full text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors"
+            className="mt-1 w-full border-0 text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors outline-none"
           >
             <LogOut className="w-4 h-4" />
             Wyloguj
@@ -146,7 +144,7 @@ function DropdownItem({
       prefetch={false}
       onClick={onClose}
       className={cn(
-        'flex items-center gap-2.5 px-3 py-2 hover:bg-secondary rounded-xl text-sm font-medium transition-colors',
+        'flex items-center gap-2.5 border-0 px-3 py-2 hover:bg-secondary rounded-xl text-sm font-medium transition-colors outline-none',
         accent ? 'text-accent' : 'text-foreground'
       )}
     >

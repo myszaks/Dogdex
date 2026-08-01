@@ -39,4 +39,11 @@ describe('neutral UI surface outlines', () => {
 
     expect(violations).toEqual([])
   })
+
+  it('keeps the user menu free from internal separators', () => {
+    const source = readFileSync('components/UserMenu.tsx', 'utf8')
+
+    expect(source).not.toContain('<hr')
+    expect(source).not.toContain('border-b border-border')
+  })
 })

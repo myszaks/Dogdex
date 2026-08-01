@@ -127,7 +127,7 @@ export async function POST(req: Request, { params }: Params) {
         ownerName: participant?.owner_name ?? '',
         dogName: participant?.dog_name ?? '',
         eventTitle: String(event?.title ?? ''),
-        eventDate: event?.start_at ? String(event.start_at) : null,
+        eventDate: cancelledDates ? null : event?.start_at ? String(event.start_at) : null,
         eventLocation: event?.location ? String(event.location) : null,
         cancelledDates: cancelledDates,
       })

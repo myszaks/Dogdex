@@ -59,10 +59,33 @@ export default async function PublicSchedulePage({ params }: Props) {
   const userEmail = user?.email?.trim().toLowerCase() ?? null
   const userDogIds = new Set((userDogs ?? []).map(d => d.id as string))
 
+  const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown>).form_fields)
+    ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)
+        .filter(field => field.type === 'multidate')
+        .map(field => field.id)
+    : []
+
+  const regDatesById = new Map(
+    (registrations ?? []).map(registration => {
+      const formData = (registration as Record<string, unknown>).form_data as Record<string, unknown> | null
+      const selectedDates = multiDateFieldIds.flatMap(fieldId =>
+        Array.isArray(formData?.[fieldId]) ? (formData[fieldId] as string[]) : []
+      )
+      return [registration.id as string, new Set(selectedDates)]
+    })
+  )
+
+  // A confirmed multidate registration without any selected dates is invalid
+  // and must not grant access or create a legacy schedule item.
+  const validRegistrations = multiDateFieldIds.length > 0
+    ? (registrations ?? []).filter(registration => (regDatesById.get(registration.id)?.size ?? 0) > 0)
+    : (registrations ?? [])
+
   // A user can have multiple registrations for one event (for multiple dogs or dates).
   // Treat any matching confirmed registration as access to the detailed public schedule.
-  const isRegistered = Boolean(user) && (registrations ?? []).some(r => {
-    const p = (r as Record<string, unknown>).participants as Record<string, string | null> | null
+  const isRegistered = Boolean(user) && validRegistrations.some(r => {
+    const relation = (r as Record<string, unknown>).participants
+    const p = (Array.isArray(relation) ? relation[0] : relation) as Record<string, string | null> | null
     const participantEmail = typeof p?.owner_email === 'string'
       ? p.owner_email.trim().toLowerCase()
       : null
@@ -74,23 +97,7 @@ export default async function PublicSchedulePage({ params }: Props) {
     )
   })
 
-  const regIds = (registrations ?? []).map(r => r.id as string)
-
-  const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown>).form_fields)
-    ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)
-        .filter(field => field.type === 'multidate')
-        .map(field => field.id)
-    : []
-
-  const regDatesById = new Map(
-    (registrations ?? []).map(r => {
-      const formData = (r as Record<string, unknown>).form_data as Record<string, unknown> | null
-      const selectedDates = multiDateFieldIds.flatMap(fieldId =>
-        Array.isArray(formData?.[fieldId]) ? (formData?.[fieldId] as string[]) : []
-      )
-      return [r.id as string, new Set(selectedDates)]
-    })
-  )
+  const regIds = validRegistrations.map(r => r.id as string)
 
   // Fetch schedule_assignments to know which slot each registration is in
   const { data: assignments } = regIds.length
@@ -103,11 +110,13 @@ export default async function PublicSchedulePage({ params }: Props) {
   // Build a map: slot_id → list of participants
   type ParticipantEntry = { dog_name: string | null; owner_name: string | null }
   const regById = new Map(
-    (registrations ?? []).map(r => {
-      const p = (r as Record<string, unknown>).participants as Record<string, string> | null
+    validRegistrations.map(r => {
+      const relation = (r as Record<string, unknown>).participants
+      const p = (Array.isArray(relation) ? relation[0] : relation) as Record<string, string> | null
       return [r.id as string, { dog_name: p?.dog_name ?? null, owner_name: p?.owner_name ?? null }]
     })
   )
+  const slotDateById = new Map((slots ?? []).map(slot => [slot.id, slot.slot_date]))
   const participantsBySlot = new Map<string, ParticipantEntry[]>()
   for (const a of assignments ?? []) {
     if (!a.time_slot_id) continue
@@ -115,8 +124,12 @@ export default async function PublicSchedulePage({ params }: Props) {
     if (!entry) continue
 
     const selectedDates = regDatesById.get(a.registration_id)
-    if (selectedDates && selectedDates.size > 0) {
-      if (!a.item_date || !selectedDates.has(a.item_date)) continue
+    const slotDate = slotDateById.get(a.time_slot_id)
+    if (multiDateFieldIds.length > 0) {
+      if (!selectedDates?.size || !a.item_date || !selectedDates.has(a.item_date)) continue
+      if (!slotDate || slotDate !== a.item_date) continue
+    } else if (a.item_date && slotDate !== a.item_date) {
+      continue
     }
 
     if (!participantsBySlot.has(a.time_slot_id)) participantsBySlot.set(a.time_slot_id, [])

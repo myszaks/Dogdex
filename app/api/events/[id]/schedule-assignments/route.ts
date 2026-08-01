@@ -62,7 +62,8 @@ export async function GET(_req: Request, { params }: Params) {
 
   const filtered = (data ?? []).filter((assignment: { registration_id: string; item_date?: string | null }) => {
     const selectedDates = regDatesById.get(assignment.registration_id)
-    if (!selectedDates || selectedDates.size === 0) return true
+    if (multiDateFieldIds.length === 0) return true
+    if (!selectedDates || selectedDates.size === 0) return false
     if (!assignment.item_date) return false
     return selectedDates.has(assignment.item_date)
   })
@@ -82,7 +83,11 @@ export async function POST(req: Request, { params }: Params) {
 
   const supabase = createServerClient()
 
-  const { data: event } = await supabase.from('events').select('created_by').eq('id', id).single()
+  const { data: event } = await supabase
+    .from('events')
+    .select('created_by, form_fields')
+    .eq('id', id)
+    .single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
   if (authResult.role !== 'admin' && event.created_by !== authResult.user.id)
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
@@ -95,10 +100,69 @@ export async function POST(req: Request, { params }: Params) {
   if (!registration_id || !time_slot_id)
     return NextResponse.json({ error: 'Wymagane: registration_id, time_slot_id' }, { status: 400 })
 
+  const [{ data: registration }, { data: slot }] = await Promise.all([
+    supabase
+      .from('registrations')
+      .select('id, event_id, status, form_data')
+      .eq('id', registration_id)
+      .maybeSingle(),
+    supabase
+      .from('time_slots')
+      .select('id, event_id, slot_date, max_participants')
+      .eq('id', time_slot_id)
+      .maybeSingle(),
+  ])
+
+  if (!registration || !slot) {
+    return NextResponse.json({ error: 'Nie znaleziono zgłoszenia lub terminu' }, { status: 404 })
+  }
+  if (registration.event_id !== id || slot.event_id !== id || registration.status !== 'confirmed') {
+    return NextResponse.json({ error: 'Aktywne zgłoszenie i termin muszą należeć do tego wydarzenia' }, { status: 409 })
+  }
+
+  const multidateFieldIds = Array.isArray(event.form_fields)
+    ? (event.form_fields as Array<{ id?: unknown; type?: unknown }>)
+        .filter(field => field.type === 'multidate' && typeof field.id === 'string')
+        .map(field => field.id as string)
+    : []
+
+  if (multidateFieldIds.length > 0) {
+    const formData = (registration.form_data ?? {}) as Record<string, unknown>
+    const selectedDates = multidateFieldIds.flatMap(fieldId =>
+      Array.isArray(formData[fieldId]) ? formData[fieldId] as string[] : []
+    )
+    if (!item_date || item_date !== slot.slot_date) {
+      return NextResponse.json({ error: 'Data przypisania nie zgadza się z datą terminu' }, { status: 409 })
+    }
+    if (!selectedDates.includes(item_date)) {
+      return NextResponse.json({ error: 'Uczestnik nie jest zapisany na tę datę' }, { status: 409 })
+    }
+  } else if (item_date && item_date !== slot.slot_date) {
+    return NextResponse.json({ error: 'Data przypisania nie zgadza się z datą terminu' }, { status: 409 })
+  }
+
+  if (typeof slot.max_participants === 'number' && slot.max_participants > 0) {
+    const [{ count }, { data: existingAssignment }] = await Promise.all([
+      supabase
+        .from('schedule_assignments')
+        .select('id', { count: 'exact', head: true })
+        .eq('time_slot_id', time_slot_id),
+      supabase
+        .from('schedule_assignments')
+        .select('id, time_slot_id')
+        .eq('registration_id', registration_id)
+        .eq('item_date', item_date)
+        .maybeSingle(),
+    ])
+    if (existingAssignment?.time_slot_id !== time_slot_id && (count ?? 0) >= slot.max_participants) {
+      return NextResponse.json({ error: 'Brak wolnych miejsc w tym terminie' }, { status: 409 })
+    }
+  }
+
   const { data, error } = await supabase
     .from('schedule_assignments')
     .upsert(
-      { registration_id, time_slot_id, item_date },
+      { registration_id, time_slot_id, item_date, sent_at: null },
       { onConflict: 'registration_id,item_date' }
     )
     .select()

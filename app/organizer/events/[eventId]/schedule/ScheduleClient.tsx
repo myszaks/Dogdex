@@ -66,7 +66,12 @@ function buildItems(
       const val = p.form_data[fid]
       return Array.isArray(val) ? (val as string[]) : []
     })
-    const dates = selectedDates.length > 0 ? selectedDates : ['']
+    // A multidate registration without selected dates is invalid. Do not turn
+    // it into a legacy undated item, because that can resurrect a cancelled
+    // participant in an unrelated slot.
+    const dates = selectedDates.length > 0
+      ? selectedDates
+      : multiDateFieldIds.length > 0 ? [] : ['']
     for (const date of dates) {
       const virtualId = `${p.registrationId}::${date}`
       const assignment = assignments.find(

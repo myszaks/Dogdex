@@ -41,11 +41,14 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const supabase = await createAuthClient()
+  const serviceClient = createServerClient()
 
-  // Fetch the request + related data
+  // Fetch through the authenticated client first so RLS limits the request to
+  // the organizer. Related records are loaded separately to avoid ambiguous
+  // object/array relation shapes from nested PostgREST responses.
   const { data: request } = await supabase
     .from('cancellation_requests')
-    .select('*, registrations(*, participants(*), events(*))')
+    .select('*')
     .eq('id', id)
     .single()
 
@@ -54,11 +57,21 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Wniosek nie jest już oczekujący' }, { status: 409 })
   }
 
-  const reg = (request as Record<string, unknown>).registrations as Record<string, unknown> | null
-  const participant = reg?.participants as Record<string, string> | null
-  const event = reg?.events as Record<string, unknown> | null
-
+  const { data: reg } = await serviceClient
+    .from('registrations')
+    .select('*')
+    .eq('id', request.registration_id)
+    .maybeSingle()
   if (!reg) return NextResponse.json({ error: 'Nie znaleziono zgłoszenia' }, { status: 404 })
+
+  const [{ data: participant }, { data: event }] = await Promise.all([
+    serviceClient.from('participants').select('*').eq('id', reg.participant_id).maybeSingle(),
+    serviceClient.from('events').select('*').eq('id', reg.event_id).maybeSingle(),
+  ])
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  if (role !== 'admin' && event.created_by !== user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
 
   const now = new Date().toISOString()
 
@@ -76,8 +89,8 @@ export async function PATCH(req: Request, { params }: Params) {
         to: participant.owner_email,
         ownerName: participant.owner_name ?? '',
         dogName: participant.dog_name ?? '',
-        eventTitle: String(event?.title ?? ''),
-        eventDate: event?.start_at ? String(event.start_at) : null,
+        eventTitle: String(event.title ?? ''),
+        eventDate: request.cancelled_dates ? null : event.start_at ? String(event.start_at) : null,
         cancelledDates: request.cancelled_dates ?? null,
         accepted: false,
       })
@@ -99,11 +112,24 @@ export async function PATCH(req: Request, { params }: Params) {
     // Remove specific dates from multidate form fields
     const formData: Record<string, unknown> = (reg.form_data as Record<string, unknown>) ?? {}
     const eventFormFields: Array<{ id: string; type: string }> =
-      Array.isArray(event?.form_fields) ? (event.form_fields as Array<{ id: string; type: string }>) : []
+      Array.isArray(event.form_fields) ? (event.form_fields as Array<{ id: string; type: string }>) : []
 
     const multidateFieldIds = eventFormFields
       .filter(f => f.type === 'multidate')
       .map(f => f.id)
+
+    if (multidateFieldIds.length === 0) {
+      return NextResponse.json({ error: 'To wydarzenie nie obsługuje rezygnacji z wybranych dat' }, { status: 409 })
+    }
+
+    const selectedDatesBeforeCancellation = multidateFieldIds.flatMap(fieldId =>
+      Array.isArray(formData[fieldId]) ? formData[fieldId] as string[] : []
+    )
+    const unknownCancelledDate = selectedDatesBeforeCancellation.length > 0
+      && cancelledDates.some(date => !selectedDatesBeforeCancellation.includes(date))
+    if (unknownCancelledDate) {
+      return NextResponse.json({ error: 'Wniosek zawiera termin, którego nie ma w zgłoszeniu' }, { status: 409 })
+    }
 
     const updated: Record<string, unknown> = { ...formData }
 
@@ -132,33 +158,57 @@ export async function PATCH(req: Request, { params }: Params) {
   if (newRegistrationStatus) regUpdate.status = newRegistrationStatus
   if (newFormData) regUpdate.form_data = newFormData
 
-  const serviceClient = createServerClient()
-
   if (Object.keys(regUpdate).length > 0) {
-    const { error: regError } = await serviceClient
+    const { data: updatedRegistration, error: regError } = await serviceClient
       .from('registrations')
       .update(regUpdate)
-      .eq('id', reg.id as string)
+      .eq('id', reg.id)
+      .select('id, status, form_data')
+      .single()
 
     if (regError) return NextResponse.json({ error: regError.message }, { status: 500 })
+    if (newRegistrationStatus === 'cancelled' && updatedRegistration?.status !== 'cancelled') {
+      return NextResponse.json({ error: 'Nie udało się anulować zgłoszenia' }, { status: 500 })
+    }
   }
 
-  // If specific dates were cancelled, remove any schedule_assignments for those dates
-  if (cancelledDates !== null && cancelledDates.length > 0) {
-    const eventId = (event as Record<string, unknown> | null)?.id as string | undefined
-    if (eventId) {
-      const { data: cancelledSlots } = await serviceClient
-        .from('time_slots')
-        .select('id')
-        .eq('event_id', eventId)
-        .in('slot_date', cancelledDates)
+  // Remove every assignment when the last selected date was cancelled. For a
+  // partial cancellation, clean both modern item_date assignments and legacy
+  // rows whose date exists only through the linked time slot.
+  if (newRegistrationStatus === 'cancelled') {
+    const { error: assignmentError } = await serviceClient
+      .from('schedule_assignments')
+      .delete()
+      .eq('registration_id', reg.id)
+    if (assignmentError) {
+      return NextResponse.json({ error: 'Nie udało się usunąć zgłoszenia z grafiku' }, { status: 500 })
+    }
+  } else if (cancelledDates !== null && cancelledDates.length > 0) {
+    const { error: datedAssignmentError } = await serviceClient
+      .from('schedule_assignments')
+      .delete()
+      .eq('registration_id', reg.id)
+      .in('item_date', cancelledDates)
+    if (datedAssignmentError) {
+      return NextResponse.json({ error: 'Nie udało się zaktualizować grafiku' }, { status: 500 })
+    }
 
-      if (cancelledSlots?.length) {
-        await serviceClient
-          .from('schedule_assignments')
-          .delete()
-          .eq('registration_id', reg.id as string)
-          .in('time_slot_id', cancelledSlots.map(s => s.id))
+    const { data: cancelledSlots, error: slotError } = await serviceClient
+      .from('time_slots')
+      .select('id')
+      .eq('event_id', event.id)
+      .in('slot_date', cancelledDates)
+    if (slotError) {
+      return NextResponse.json({ error: 'Nie udało się sprawdzić grafiku' }, { status: 500 })
+    }
+    if (cancelledSlots?.length) {
+      const { error: legacyAssignmentError } = await serviceClient
+        .from('schedule_assignments')
+        .delete()
+        .eq('registration_id', reg.id)
+        .in('time_slot_id', cancelledSlots.map(slot => slot.id))
+      if (legacyAssignmentError) {
+        return NextResponse.json({ error: 'Nie udało się zaktualizować grafiku' }, { status: 500 })
       }
     }
   }
@@ -177,9 +227,9 @@ export async function PATCH(req: Request, { params }: Params) {
       to: participant.owner_email,
       ownerName: participant.owner_name ?? '',
       dogName: participant.dog_name ?? '',
-      eventTitle: String(event?.title ?? ''),
-      eventDate: event?.start_at ? String(event.start_at) : null,
-      cancelledDates: cancelledDates,
+      eventTitle: String(event.title ?? ''),
+      eventDate: cancelledDates ? null : event.start_at ? String(event.start_at) : null,
+      cancelledDates,
       accepted: true,
     })
   }

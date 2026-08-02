@@ -7,7 +7,6 @@ import type { FormField, Registration } from '@/types'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import OrganizerRegistrationsWorkspace from '@/components/OrganizerRegistrationsWorkspace'
 import { cancellationRequestParticipant } from '@/lib/cancellationRequestParticipant'
-import Link from 'next/link'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -31,7 +30,6 @@ export default async function RegistrationsPage({ params }: Props) {
   const [
     { data: registrations },
     { data: cancellationRequests },
-    { count: slotCount },
   ] = await Promise.all([
     supabase
       .from('registrations')
@@ -45,11 +43,9 @@ export default async function RegistrationsPage({ params }: Props) {
       .eq('event_id', eventId)
       .eq('status', 'pending')
       .order('created_at', { ascending: true }),
-    supabase.from('time_slots').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
   ])
 
   const eventFormFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
-  const hasSchedule = (slotCount ?? 0) > 0
   const participantByRegistrationId = new Map(
     (registrations ?? []).map(registration => [
       registration.id,
@@ -59,12 +55,7 @@ export default async function RegistrationsPage({ params }: Props) {
 
   return (
     <div>
-      <div className="mb-4">
-        <Link href="/organizer" className="btn btn-secondary btn-sm">
-          ← Wstecz
-        </Link>
-      </div>
-      <h1 className="page-title">👥 Zapisy</h1>
+      <h2 className="page-title">Zapisy</h2>
       <div className="card mb-4 bg-sky-50 border-sky-200">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -77,21 +68,6 @@ export default async function RegistrationsPage({ params }: Props) {
             <CsvExportButton eventId={eventId} />
           </div>
         </div>
-      </div>
-
-      {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200">
-        <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-sky-700 border-b-2 border-sky-600 -mb-px">
-          👥 Zapisy
-        </span>
-        {hasSchedule && (
-          <Link
-            href={`/organizer/events/${event.slug}/schedule`}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors"
-          >
-            📅 Grafik
-          </Link>
-        )}
       </div>
 
       <OrganizerRegistrationsWorkspace

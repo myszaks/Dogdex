@@ -98,7 +98,7 @@ export default function EditTrainingTypePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-3xl py-8">
       <Link
         href="/trainer/types"
         className="inline-flex items-center gap-2 text-accent hover:underline mb-6"

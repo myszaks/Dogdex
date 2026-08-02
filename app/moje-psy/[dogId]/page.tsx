@@ -3,6 +3,7 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import type { Dog } from '@/types'
 import DogProfileClient from './DogProfileClient'
+import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 import { effectiveEventStatus } from '@/lib/eventStatus'
 
 export const dynamic = 'force-dynamic'
@@ -134,10 +135,12 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
   }
 
   return (
-    <DogProfileClient
-      dog={dog}
-      history={history}
-      isEditMode={edit === '1'}
-    />
+    <PersonalWorkspaceShell>
+      <DogProfileClient
+        dog={dog}
+        history={history}
+        isEditMode={edit === '1'}
+      />
+    </PersonalWorkspaceShell>
   )
 }

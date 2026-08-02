@@ -89,7 +89,7 @@ export default async function PaymentsPage() {
   const attention = rows.filter(row => row.reconciliationStatus === 'attention' || row.reconciliationStatus === 'error').length
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="w-full">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="page-title">Płatności</h1><p className="mt-2 text-muted-foreground">Treningi i wydarzenia na jednym koncie Stripe.</p></div>
         <div className="space-y-2"><PaymentsActions />{profile?.stripe_onboarded ? (

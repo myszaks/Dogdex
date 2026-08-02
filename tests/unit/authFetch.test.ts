@@ -69,13 +69,19 @@ describe('authenticated request synchronization', () => {
       resolve(process.cwd(), 'components/UserMenu.tsx'),
       'utf8',
     )
+    const myTrainings = readFileSync(
+      resolve(process.cwd(), 'app/moje-treningi/MyTrainingsContent.tsx'),
+      'utf8',
+    )
 
     expect(authModal).toContain("fetchWithAuthRetry('/api/profile')")
     expect(authModal).toContain('supabase.auth.refreshSession()')
     expect(authModal).toContain('router.refresh()')
     expect(navigation).toContain(
-      "prefetch={href === '/organizer' || href === '/trainer' ? false : undefined}",
+      "prefetch={href === '/manage' ? false : undefined}",
     )
     expect(userMenu).toContain('prefetch={false}')
+    expect(myTrainings).toContain("fetchWithAuthRetry('/api/training-bookings')")
+    expect(myTrainings).toContain('!error && bookings.length === 0')
   })
 })

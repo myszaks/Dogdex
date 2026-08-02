@@ -42,7 +42,7 @@ export default function TrainerAnalyticsPage() {
   }, [range])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="w-full">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8">
         <div>
           <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-4">

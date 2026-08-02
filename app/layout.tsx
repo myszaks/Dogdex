@@ -6,6 +6,7 @@ import AuthGate from '@/components/AuthGate'
 import { Inter, Playfair_Display } from 'next/font/google'
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import PageContainer from '@/components/layout/PageContainer'
 
 const inter = Inter({
   subsets: ['latin', 'latin-ext'],
@@ -57,7 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="min-h-screen px-4 pt-[76px] pb-6 md:px-8 md:py-8"
                   style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
                 >
-                  {children}
+                  <PageContainer>{children}</PageContainer>
                 </main>
               </div>
             </div>

@@ -3,9 +3,7 @@ export function shouldHideMobileBottomNavigation(pathname: string | null | undef
 
   return pathname === '/organizer/events/new'
     || pathname === '/organizer/formats/new'
-    || pathname === '/profile/role-request'
     || pathname === '/reset-password'
-    || pathname === '/settings'
     || pathname === '/trainer/profile'
     || /^\/organizer\/events\/[^/]+\/edit$/.test(pathname)
     || /^\/organizer\/events\/[^/]+\/live-entry$/.test(pathname)

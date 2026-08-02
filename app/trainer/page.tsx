@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
-import { BarChart3, BookOpen, Calendar, CreditCard, Plus, Settings2 } from 'lucide-react'
+import { BookOpen, Calendar, Settings2 } from 'lucide-react'
 import { requireRole } from '@/lib/getServerUser'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { hydrateTrainingBookings, type TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
@@ -78,10 +78,10 @@ export default async function TrainerPage() {
   const bookingsCount = bookings.length
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="page-title mb-1">Panel trenera</h1>
+          <h2 className="font-heading text-2xl font-bold">Treningi</h2>
           <p className="text-muted-foreground">
             {isActive ? 'Twój profil jest aktywny' : 'Aktywuj profil, aby rozpocząć przyjmowanie rezerwacji'}
           </p>
@@ -131,58 +131,6 @@ export default async function TrainerPage() {
           )}
         </div>
       </div>
-
-      {isActive && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-          <Link href="/trainer/types" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                <Plus className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Rodzaje treningów</h3>
-                <p className="text-sm text-muted-foreground">Dodaj lub edytuj rodzaje treningów</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/trainer/availability" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Dostępność</h3>
-                <p className="text-sm text-muted-foreground">Ustaw dni i godziny dostępności</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/trainer/analytics" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                <BarChart3 className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Analityka</h3>
-                <p className="text-sm text-muted-foreground">Sprawdź rezerwacje, przychód i oceny</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/payments" className="card hover:shadow-lg transition-shadow p-6 cursor-pointer">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                <CreditCard className="w-6 h-6 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-lg mb-1">Płatności</h3>
-                <p className="text-sm text-muted-foreground">Wspólne rozliczenia treningów i wydarzeń</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      )}
 
       {bookingsCount > 0 && (
         <div>

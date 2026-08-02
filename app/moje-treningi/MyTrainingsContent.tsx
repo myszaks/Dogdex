@@ -8,6 +8,7 @@ import { pl } from 'date-fns/locale'
 import type { TrainingBooking } from '@/types'
 import type { TrainingReview } from '@/types'
 import TrainingReviewForm from '@/components/TrainingReviewForm'
+import { fetchWithAuthRetry } from '@/lib/authFetch'
 
 interface MyTrainingsContentProps {
   embedded?: boolean
@@ -106,7 +107,7 @@ export default function MyTrainingsContent({
 
     async function loadBookings() {
       try {
-        const response = await fetch('/api/training-bookings')
+        const response = await fetchWithAuthRetry('/api/training-bookings')
         const data = await response.json().catch(() => null)
 
         if (!response.ok) {
@@ -141,7 +142,7 @@ export default function MyTrainingsContent({
     let attempts = 0
     const interval = setInterval(() => {
       attempts += 1
-      void fetch('/api/training-bookings')
+      void fetchWithAuthRetry('/api/training-bookings')
         .then(response => response.ok ? response.json() : null)
         .then(data => {
           if (disposed || !Array.isArray(data)) return
@@ -281,7 +282,7 @@ export default function MyTrainingsContent({
 
   if (loading) {
     return (
-      <div className={embedded ? 'py-12' : 'max-w-6xl mx-auto px-4 py-12'}>
+      <div className="w-full py-12">
         {!embedded && (
           <Link
             href="/profile"
@@ -303,7 +304,7 @@ export default function MyTrainingsContent({
   )
 
   return (
-    <div className={embedded ? '' : 'max-w-6xl mx-auto px-4 py-8'}>
+    <div className={embedded ? '' : 'w-full py-8'}>
       {!embedded && (
         <>
           <Link
@@ -334,7 +335,7 @@ export default function MyTrainingsContent({
         </div>
       )}
 
-      {bookings.length === 0 ? (
+      {!error && bookings.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-slate-500 mb-4">Nie masz jeszcze żadnych rezerwacji</p>
           <Link href="/trainings" className="btn btn-primary inline-block">

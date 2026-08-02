@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import MojePsyClient from './MojePsyClient'
+import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 
-export const metadata: Metadata = { title: 'Moje psy' }
+export const metadata: Metadata = { title: 'Mój Dogdex – psy' }
 export const dynamic = 'force-dynamic'
 
 export default async function MojePsyPage() {
@@ -18,14 +19,14 @@ export default async function MojePsyPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <PersonalWorkspaceShell>
       <div className="mb-8">
-        <h1 className="page-title">Moje psy</h1>
+        <h2 className="section-title mb-0 text-2xl">Psy</h2>
         <p className="text-muted-foreground text-sm">
           Profile Twoich psów – dane uzupełniane automatycznie przy zapisach na wydarzenia.
         </p>
       </div>
       <MojePsyClient initialDogs={dogs ?? []} />
-    </div>
+    </PersonalWorkspaceShell>
   )
 }

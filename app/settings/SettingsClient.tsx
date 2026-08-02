@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { requireSupabaseBrowserClient } from '@/lib/supabaseClient'
 
 interface Props {
@@ -74,12 +73,8 @@ export default function SettingsClient({ email, provider }: Props) {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
-      <div className="flex items-center gap-4 mb-2">
-        <Link href="/profile" className="text-muted-foreground hover:text-foreground text-sm transition-colors shrink-0">← Profil</Link>
-        <span className="text-muted-foreground/30 select-none">|</span>
-        <h1 className="page-title mb-0">Ustawienia konta</h1>
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <h2 className="section-title mb-0 text-2xl">Bezpieczeństwo</h2>
 
       {/* Change password */}
       {isEmailProvider ? (

@@ -81,11 +81,8 @@ export default function ProfileClient({ email, fullName, company, role, createdA
       : 'Zostań organizatorem lub trenerem'
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        ← Strona główna
-      </Link>
-      <h1 className="page-title">Profil</h1>
+    <div className="max-w-3xl space-y-6">
+      <h2 className="section-title mb-0 text-2xl">Profil</h2>
 
       {/* Avatar + meta */}
       <div className="bg-card rounded-3xl p-6 shadow-sm flex items-center gap-5">
@@ -196,12 +193,6 @@ export default function ProfileClient({ email, fullName, company, role, createdA
         </button>
       </form>
 
-      <div className="text-center">
-        <Link href="/settings" className="text-sm text-accent hover:text-orange-600 font-medium transition-colors inline-flex items-center gap-1">
-          <Settings2 className="w-3.5 h-3.5" />
-          Ustawienia konta (hasło, bezpieczeństwo)
-        </Link>
-      </div>
     </div>
   )
 }

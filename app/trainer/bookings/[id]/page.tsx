@@ -126,7 +126,7 @@ export default async function TrainerBookingDetailPage({ params }: TrainerBookin
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="w-full">
       <Link href="/trainer/bookings" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
         Wróć do rezerwacji

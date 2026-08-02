@@ -3,8 +3,9 @@ import type { Metadata } from 'next'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import RoleRequestClient from './RoleRequestClient'
+import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 
-export const metadata: Metadata = { title: 'Wniosek o rolę' }
+export const metadata: Metadata = { title: 'Mój Dogdex – role i dostęp' }
 export const dynamic = 'force-dynamic'
 
 export default async function RoleRequestPage() {
@@ -19,11 +20,13 @@ export default async function RoleRequestPage() {
     .maybeSingle()
 
   return (
-    <RoleRequestClient
-      email={user.email ?? ''}
-      currentRole={role ?? 'user'}
-      initialFullName={(profile?.full_name as string | null) ?? ''}
-      initialBusinessName={(profile?.company as string | null) ?? ''}
-    />
+    <PersonalWorkspaceShell>
+      <RoleRequestClient
+        email={user.email ?? ''}
+        currentRole={role ?? 'user'}
+        initialFullName={(profile?.full_name as string | null) ?? ''}
+        initialBusinessName={(profile?.company as string | null) ?? ''}
+      />
+    </PersonalWorkspaceShell>
   )
 }

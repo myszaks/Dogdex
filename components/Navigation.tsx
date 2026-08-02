@@ -8,11 +8,8 @@ import UserMenu from './UserMenu'
 import useUser from '@/hooks/useUser'
 import {
   Home,
-  Archive,
   CalendarCog,
-  ClipboardList,
   Dog,
-  Dumbbell,
   PawPrint,
   LogIn,
   HelpCircle,
@@ -56,19 +53,28 @@ export default function Navigation() {
 
   const navLinks = [
     { href: '/', label: 'Główna', Icon: Home },
-    { href: '/archive', label: 'Archiwum', Icon: Archive },
     { href: '/trainings', label: 'Treningi', Icon: PawPrint },
   ]
-  if (user) navLinks.push({ href: '/moje-zapisy', label: 'Moje zapisy', Icon: ClipboardList })
-  if (user) navLinks.push({ href: '/moje-psy', label: 'Moje psy', Icon: Dog })
-  if (isTrainer) navLinks.push({ href: '/trainer', label: 'Panel trenera', Icon: Dumbbell })
-  if (isOrganizer) navLinks.push({ href: '/organizer', label: 'Panel organizatora', Icon: CalendarCog })
-  const mobileNavLinks = navLinks.filter(link =>
-    link.href !== '/trainer' && link.href !== '/organizer'
-  )
+  if (user) navLinks.push({ href: '/moje-zapisy', label: 'Mój Dogdex', Icon: Dog })
+  if (isTrainer || isOrganizer) navLinks.push({ href: '/manage', label: 'Zarządzanie', Icon: CalendarCog })
+  const mobileNavLinks = navLinks
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
+    if (href === '/moje-zapisy') {
+      return pathname?.startsWith('/moje-zapisy')
+        || pathname?.startsWith('/moje-treningi')
+        || pathname?.startsWith('/moje-psy')
+        || pathname?.startsWith('/profile')
+        || pathname?.startsWith('/settings')
+    }
+    if (href === '/manage') {
+      return pathname?.startsWith('/manage')
+        || pathname?.startsWith('/trainer')
+        || pathname?.startsWith('/organizer')
+        || pathname?.startsWith('/payments')
+        || pathname?.startsWith('/admin')
+    }
     return pathname?.startsWith(href)
   }
 
@@ -92,7 +98,7 @@ export default function Navigation() {
             <Link
               key={href}
               href={href}
-              prefetch={href === '/organizer' || href === '/trainer' ? false : undefined}
+              prefetch={href === '/manage' ? false : undefined}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
                 isActive(href)
@@ -154,7 +160,7 @@ export default function Navigation() {
               <Link
                 key={href}
                 href={href}
-                prefetch={href === '/organizer' || href === '/trainer' ? false : undefined}
+                prefetch={href === '/manage' ? false : undefined}
                 className={cn(
                   'flex-1 flex flex-col items-center py-2.5 gap-0.5 text-[10px] font-medium transition-colors min-h-[52px] justify-center',
                   isActive(href) ? 'text-accent' : 'text-muted-foreground'

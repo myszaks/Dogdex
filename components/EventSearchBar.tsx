@@ -1,7 +1,8 @@
 'use client'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Search, SlidersHorizontal, X, MapPin, User } from 'lucide-react'
+import { Search, SlidersHorizontal, X, MapPin, User, Tag } from 'lucide-react'
+import { EVENT_TYPES } from '@/lib/eventTypes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -20,6 +21,7 @@ export default function EventSearchBar() {
   const searchParams = useSearchParams()
 
   const currentSearch = searchParams.get('szukaj') ?? ''
+  const currentType = searchParams.get('typ') ?? ''
   const currentLocation = searchParams.get('lokalizacja') ?? ''
   const currentOrganizer = searchParams.get('organizator') ?? ''
 
@@ -33,6 +35,7 @@ export default function EventSearchBar() {
   }, [currentSearch])
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [draftType, setDraftType] = useState(currentType)
   const [draftLocation, setDraftLocation] = useState(currentLocation)
   const [draftOrganizer, setDraftOrganizer] = useState(currentOrganizer)
 
@@ -54,6 +57,7 @@ export default function EventSearchBar() {
 
   function handleOpenChange(open: boolean) {
     if (open) {
+      setDraftType(searchParams.get('typ') ?? '')
       setDraftLocation(searchParams.get('lokalizacja') ?? '')
       setDraftOrganizer(searchParams.get('organizator') ?? '')
     }
@@ -61,16 +65,17 @@ export default function EventSearchBar() {
   }
 
   function applyFilters() {
-    push({ lokalizacja: draftLocation, organizator: draftOrganizer })
+    push({ typ: draftType, lokalizacja: draftLocation, organizator: draftOrganizer })
     setDialogOpen(false)
   }
 
   function clearAll() {
-    router.push(pathname, { scroll: false })
+    const view = searchParams.get('widok')
+    router.push(view ? `${pathname}?widok=${encodeURIComponent(view)}` : pathname, { scroll: false })
   }
 
-  const advancedCount = [currentLocation, currentOrganizer].filter(Boolean).length
-  const hasAny = !!(searchValue || currentLocation || currentOrganizer)
+  const advancedCount = [currentType, currentLocation, currentOrganizer].filter(Boolean).length
+  const hasAny = !!(searchValue || currentType || currentLocation || currentOrganizer)
 
   return (
     <div className="mb-6">
@@ -119,6 +124,24 @@ export default function EventSearchBar() {
             </DialogHeader>
 
             <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <label htmlFor="event-filter-type" className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-accent" />
+                  Typ wydarzenia
+                </label>
+                <select
+                  id="event-filter-type"
+                  className="form-input rounded-xl"
+                  value={draftType}
+                  onChange={event => setDraftType(event.target.value)}
+                >
+                  <option value="">Wszystkie typy</option>
+                  {EVENT_TYPES.map(eventType => (
+                    <option key={eventType.id} value={eventType.id}>{eventType.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="space-y-1.5">
                 <label htmlFor="event-filter-location" className="text-sm font-medium text-foreground flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-accent" />
@@ -181,6 +204,12 @@ export default function EventSearchBar() {
             <FilterChip
               label={`Szukaj: ${currentSearch}`}
               onRemove={() => push({ szukaj: '' })}
+            />
+          )}
+          {currentType && (
+            <FilterChip
+              label={`Typ: ${EVENT_TYPES.find(eventType => eventType.id === currentType)?.name ?? currentType}`}
+              onRemove={() => push({ typ: '' })}
             />
           )}
           {currentLocation && (

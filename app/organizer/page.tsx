@@ -5,7 +5,7 @@ import OrganizerEventFilters from '@/components/OrganizerEventFilters'
 import OrganizerCalendar from '@/components/OrganizerCalendar'
 import type { DogEvent } from '@/types'
 import type { Metadata } from 'next'
-import { Plus, Calendar, Calculator, CreditCard } from 'lucide-react'
+import { Plus, Calendar } from 'lucide-react'
 
 export const metadata: Metadata = { title: 'Panel organizatora' }
 export const dynamic = 'force-dynamic'
@@ -43,21 +43,13 @@ export default async function OrganizerPage() {
   const eventList = (events ?? []) as DogEvent[]
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="page-title mb-1">Panel organizatora</h1>
-          <p className="text-muted-foreground text-sm">Zarządzaj swoimi wydarzeniami</p>
+          <h2 className="font-heading text-2xl font-bold">Wydarzenia</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Zarządzaj swoimi wydarzeniami i zapisami.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/payments" className="btn btn-secondary">
-            <CreditCard className="w-4 h-4" />
-            Płatności
-          </Link>
-          <Link href="/organizer/formats" className="btn btn-secondary">
-            <Calculator className="w-4 h-4" />
-            Formaty wyników
-          </Link>
           <Link href="/organizer/events/new" className="btn btn-primary">
             <Plus className="w-4 h-4" />
             Nowe wydarzenie

@@ -29,7 +29,7 @@ export default async function EventPaymentDetailsPage({ params }: Props) {
   const refunds = (payment.event_refunds ?? []) as RefundRow[]
   const money = (amount: number) => Number(amount).toLocaleString('pl-PL', { style: 'currency', currency: payment.currency })
 
-  return <div className="mx-auto max-w-5xl px-4 py-8">
+  return <div className="w-full">
     <Link href="/payments" className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" /> Wróć do płatności</Link>
     <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="page-title">{event?.title ?? 'Płatność wydarzenia'}</h1><p className="mt-2 text-muted-foreground">{participant?.owner_name} · {participant?.dog_name} · {participant?.owner_email}</p></div><div className="text-right"><p className="text-2xl font-bold">{money(payment.amount)}</p><p className="text-sm text-muted-foreground">po zwrotach: {money(Number(payment.amount) - Number(payment.refunded_amount ?? 0))}</p></div></div>
 

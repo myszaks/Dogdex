@@ -132,7 +132,7 @@ export default function TrainerProfilePage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12">
+      <div className="max-w-3xl py-12">
         <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
           <ArrowLeft className="w-4 h-4" />
           Wróć do panelu
@@ -143,7 +143,7 @@ export default function TrainerProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-3xl py-8">
       <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
         Wróć do panelu

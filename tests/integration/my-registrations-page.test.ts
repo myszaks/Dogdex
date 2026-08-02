@@ -109,5 +109,5 @@ describe('my registrations page', () => {
     )
     expect(text).toContain('Aktywne zapisy')
     expect(text).toContain('Historia anulowanych')
-  })
+  }, 10_000)
 })

@@ -33,6 +33,12 @@ export async function GET() {
 
   if (error) {
     console.error('[training-bookings][GET] Failed to load bookings:', error)
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      return NextResponse.json(
+        { error: 'Treningi nie są skonfigurowane w tym środowisku.' },
+        { status: 503 },
+      )
+    }
     return NextResponse.json({ error: 'Nie udało się pobrać rezerwacji' }, { status: 500 })
   }
 

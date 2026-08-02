@@ -2,7 +2,6 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
 import { requireRole } from '@/lib/getServerUser'
 import LiveEntryClient from './LiveEntryClient'
-import Link from 'next/link'
 import type { Metadata } from 'next'
 
 interface Props {
@@ -59,14 +58,7 @@ export default async function LiveEntryPage({ params }: Props) {
 
   return (
     <div>
-      <Link
-        href={`/organizer/events/${event.slug}/results`}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-sky-600 mb-5 transition-colors"
-      >
-        ← Powrót do wyników
-      </Link>
-
-      <h1 className="page-title">⚡ Wprowadzanie na żywo</h1>
+      <h2 className="page-title">Wprowadzanie na żywo</h2>
 
       <div className="card mb-4 bg-sky-50 border-sky-200">
         <p className="font-semibold text-sky-800">{event.title}</p>

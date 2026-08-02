@@ -8,8 +8,9 @@ import { cn } from '@/lib/utils'
 import { createAuthClient } from '@/lib/supabaseServer'
 import MyTrainingsContent from '@/app/moje-treningi/MyTrainingsContent'
 import { splitRegistrationHistory } from '@/lib/registrationManagement'
+import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 
-export const metadata: Metadata = { title: 'Moje zapisy' }
+export const metadata: Metadata = { title: 'Mój Dogdex – zapisy' }
 export const dynamic = 'force-dynamic'
 
 interface MyRegistrationsPageProps {
@@ -133,9 +134,9 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
   } = splitRegistrationHistory(registrations)
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <PersonalWorkspaceShell>
       <div className="mb-8">
-        <h1 className="page-title">Moje zapisy</h1>
+        <h2 className="section-title mb-0 text-2xl">Zapisy</h2>
         <p className="text-muted-foreground mt-2">
           W jednym miejscu sprawdzisz wydarzenia i treningi indywidualne.
         </p>
@@ -231,6 +232,6 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
           )}
         </>
       )}
-    </div>
+    </PersonalWorkspaceShell>
   )
 }

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import Link from 'next/link'
-import { ArrowLeft, CheckCircle2, Clock, HelpCircle, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, HelpCircle, XCircle } from 'lucide-react'
 import {
   ROLE_REQUEST_LABELS,
   ROLE_REQUEST_STATUS_LABELS,
@@ -188,14 +187,9 @@ export default function RoleRequestClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <Link href="/profile" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft className="w-4 h-4" />
-        Profil
-      </Link>
-
+    <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="page-title mb-2">Wniosek o rolę</h1>
+        <h2 className="section-title mb-2 text-2xl">Role i dostęp</h2>
         <p className="text-muted-foreground text-sm">
           Rozdzielamy role organizatora i trenera. Wybierz dostęp, którego potrzebujesz, i podaj dane do weryfikacji.
         </p>

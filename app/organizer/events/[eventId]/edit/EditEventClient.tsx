@@ -67,6 +67,7 @@ type SaveMode = 'draft' | 'save'
 
 interface Props {
   eventId: string
+  eventSlug: string
   initialData: {
     title: string
     description: string | null
@@ -135,7 +136,7 @@ function durationLabel(startAt: string | null, endAt: string | null) {
   return formatPolishCount(days, POLISH_FORMS.day)
 }
 
-export default function EditEventClient({ eventId, initialData }: Props) {
+export default function EditEventClient({ eventId, eventSlug, initialData }: Props) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -396,7 +397,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
         const json = await res.json()
         throw new Error(json.error ?? 'Błąd serwera')
       }
-      router.push('/organizer')
+      router.push(`/organizer/events/${eventSlug}`)
       router.refresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Nieznany błąd')
@@ -407,11 +408,11 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Edycja wydarzenia</p>
-          <h1 className="mt-2 text-4xl font-heading font-bold text-primary">Kreator wydarzenia</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Ustawienia wydarzenia</p>
+          <h2 className="mt-2 text-3xl font-heading font-bold text-primary">Kreator wydarzenia</h2>
           <p className="mt-2 text-muted-foreground">Krok {currentStep + 1}: {STEPS[currentStep].label}</p>
         </div>
         <div className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm text-sage-600 shadow-sm">

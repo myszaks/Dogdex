@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { createAuthClient } from '@/lib/supabaseServer'
 import type { Metadata } from 'next'
 import SettingsClient from './SettingsClient'
+import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 
-export const metadata: Metadata = { title: 'Ustawienia' }
+export const metadata: Metadata = { title: 'Mój Dogdex – bezpieczeństwo' }
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
@@ -13,5 +14,9 @@ export default async function SettingsPage() {
 
   const provider = user.app_metadata?.provider ?? 'email'
 
-  return <SettingsClient email={user.email ?? ''} provider={provider} />
+  return (
+    <PersonalWorkspaceShell>
+      <SettingsClient email={user.email ?? ''} provider={provider} />
+    </PersonalWorkspaceShell>
+  )
 }

@@ -62,7 +62,7 @@ export default async function CompetitionFormatPreviewPage({ params }: Props) {
   const count = usageCount ?? 0
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       <Link
         href="/organizer/formats"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

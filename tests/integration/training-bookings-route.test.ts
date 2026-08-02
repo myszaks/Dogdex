@@ -108,3 +108,40 @@ describe('POST /api/training-bookings', () => {
     expect(from).not.toHaveBeenCalledWith('training_bookings')
   })
 })
+
+describe('GET /api/training-bookings', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    getServerUser.mockResolvedValue({
+      user: { id: 'user-1', email: 'user@example.com', user_metadata: {} },
+      role: 'user',
+    })
+  })
+
+  it('reports a missing training schema as an environment configuration error', async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+    }
+    query.select.mockReturnValue(query)
+    query.eq.mockReturnValue(query)
+    query.order.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST205', message: 'training_bookings is missing' },
+    })
+    createAuthClient.mockResolvedValue({
+      from: vi.fn().mockReturnValue(query),
+    })
+    createServerClient.mockReturnValue({ from })
+
+    const { GET } = await import('@/app/api/training-bookings/route')
+    const response = await GET()
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'Treningi nie są skonfigurowane w tym środowisku.',
+    })
+  })
+})

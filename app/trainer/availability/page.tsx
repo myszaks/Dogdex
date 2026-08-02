@@ -6,7 +6,7 @@ import DateAvailabilityManager from '@/components/DateAvailabilityManager'
 
 export default function AvailabilityPage() {
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="w-full">
       <Link href="/trainer" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
         Wróć do panelu

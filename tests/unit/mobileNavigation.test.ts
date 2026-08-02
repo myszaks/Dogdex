@@ -10,9 +10,7 @@ describe('mobile bottom navigation on long forms', () => {
     '/organizer/formats/new',
     '/organizer/formats/format-1/edit',
     '/register/event-1',
-    '/profile/role-request',
     '/reset-password',
-    '/settings',
     '/trainer/profile',
     '/trainings/trainer-1/book/type-1',
     '/live/event-1',
@@ -26,6 +24,8 @@ describe('mobile bottom navigation on long forms', () => {
     '/organizer/formats',
     '/events/event-1',
     '/moje-zapisy',
+    '/profile/role-request',
+    '/settings',
   ])('keeps navigation on %s', pathname => {
     expect(shouldHideMobileBottomNavigation(pathname)).toBe(false)
   })

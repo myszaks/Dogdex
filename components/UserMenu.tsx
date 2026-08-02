@@ -4,13 +4,9 @@ import Link from 'next/link'
 import useUser from '@/hooks/useUser'
 import {
   ClipboardCheck,
-  User,
-  Settings,
   Shield,
   LogOut,
   ChevronDown,
-  CalendarCog,
-  Dumbbell,
 } from 'lucide-react'
 import { ROLE_LABELS, isAppRole } from '@/lib/roles'
 import { cn } from '@/lib/utils'
@@ -20,7 +16,7 @@ interface Props {
 }
 
 export default function UserMenu({ sidebar = false }: Props) {
-  const { user, role, isAdmin, isOrganizer, isTrainer, logout } = useUser()
+  const { user, role, isAdmin, logout } = useUser()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -62,12 +58,10 @@ export default function UserMenu({ sidebar = false }: Props) {
         </button>
 
         {open && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 border-0 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
-            <p className="border-0 text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
+          <div className="absolute bottom-full left-0 right-0 z-[200] mb-1 rounded-2xl bg-white p-1.5 shadow-xl">
+            <p className="text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
               {user.email}
             </p>
-            <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
-            <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
             {isAdmin && (
               <>
                 <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
@@ -76,7 +70,7 @@ export default function UserMenu({ sidebar = false }: Props) {
             )}
             <button
               onClick={() => { setOpen(false); logout() }}
-              className="mt-1 w-full border-0 text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors outline-none"
+              className="mt-1 w-full text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors"
             >
               <LogOut className="w-4 h-4" />
               Wyloguj
@@ -98,18 +92,10 @@ export default function UserMenu({ sidebar = false }: Props) {
         {initials.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-52 border-0 bg-white rounded-2xl shadow-xl p-1.5 z-[200]">
-          <p className="border-0 text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
+        <div className="absolute right-0 z-[200] mt-2 w-52 rounded-2xl bg-white p-1.5 shadow-xl">
+          <p className="text-xs text-muted-foreground px-3 py-1.5 mb-1 truncate">
             {user.email}
           </p>
-          <DropdownItem href="/profile" icon={<User className="w-4 h-4" />} label="Profil" onClose={() => setOpen(false)} />
-          <DropdownItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Ustawienia" onClose={() => setOpen(false)} />
-          {isTrainer && (
-            <DropdownItem href="/trainer" icon={<Dumbbell className="w-4 h-4" />} label="Panel trenera" onClose={() => setOpen(false)} accent />
-          )}
-          {isOrganizer && (
-            <DropdownItem href="/organizer" icon={<CalendarCog className="w-4 h-4" />} label="Panel organizatora" onClose={() => setOpen(false)} accent />
-          )}
           {isAdmin && (
             <>
               <DropdownItem href="/admin/users" icon={<Shield className="w-4 h-4" />} label="Użytkownicy" onClose={() => setOpen(false)} accent />
@@ -118,7 +104,7 @@ export default function UserMenu({ sidebar = false }: Props) {
           )}
           <button
             onClick={() => { setOpen(false); logout() }}
-            className="mt-1 w-full border-0 text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors outline-none"
+            className="mt-1 w-full text-left flex items-center gap-2.5 px-3 py-2 hover:bg-red-50 rounded-xl text-red-600 text-sm font-medium transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Wyloguj
@@ -144,7 +130,7 @@ function DropdownItem({
       prefetch={false}
       onClick={onClose}
       className={cn(
-        'flex items-center gap-2.5 border-0 px-3 py-2 hover:bg-secondary rounded-xl text-sm font-medium transition-colors outline-none',
+        'flex items-center gap-2.5 px-3 py-2 hover:bg-secondary rounded-xl text-sm font-medium transition-colors',
         accent ? 'text-accent' : 'text-foreground'
       )}
     >

@@ -51,10 +51,7 @@ export default async function ResultsPage({ params }: Props) {
   if (!event.has_results) {
     return (
       <div>
-        <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-          ← Panel organizatora
-        </Link>
-        <h1 className="page-title">🏆 Wyniki</h1>
+        <h2 className="page-title">Wyniki</h2>
         <div className="card text-center py-12 text-slate-500">
           <p className="text-4xl mb-3">⚙️</p>
           <p className="font-semibold text-slate-700">Wyniki nie są włączone dla tego wydarzenia</p>
@@ -137,10 +134,7 @@ export default async function ResultsPage({ params }: Props) {
 
   return (
     <div>
-      <Link href="/organizer" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        ← Panel organizatora
-      </Link>
-      <h1 className="page-title">🏆 Wyniki</h1>
+      <h2 className="page-title">Wyniki</h2>
 
       {/* Live control panel – only for ongoing events with ordered participants */}
       {effectiveStatus(event) === 'ongoing' && !isSpeedway && !competitionDefinition && (registrations?.length ?? 0) > 0 && (

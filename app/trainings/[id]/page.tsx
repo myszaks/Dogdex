@@ -35,12 +35,12 @@ export default function TrainerDetailPage({ params }: Props) {
   }, [trainerSlug])
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto px-4 py-12 text-center text-muted-foreground">Ładowanie…</div>
+    return <div className="w-full py-12 text-center text-muted-foreground">Ładowanie…</div>
   }
 
   if (error || !trainer) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-12">
+      <div className="w-full py-12">
         <Link href="/trainings" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
           <ArrowLeft className="w-4 h-4" />
           Wróć do listy trenerów
@@ -53,7 +53,7 @@ export default function TrainerDetailPage({ params }: Props) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="w-full py-8">
       <Link href="/trainings" className="inline-flex items-center gap-2 text-accent hover:underline mb-6">
         <ArrowLeft className="w-4 h-4" />
         Wróć do listy trenerów

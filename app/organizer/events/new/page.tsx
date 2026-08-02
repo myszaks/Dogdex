@@ -501,11 +501,15 @@ export default function NewEventPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      const createdEvent = await res.json().catch(() => null)
       if (!res.ok) {
-        const json = await res.json()
-        throw new Error(json.error ?? 'Błąd serwera')
+        throw new Error(createdEvent?.error ?? 'Błąd serwera')
       }
-      router.push('/organizer')
+      router.push(
+        typeof createdEvent?.slug === 'string'
+          ? `/organizer/events/${createdEvent.slug}`
+          : '/organizer',
+      )
       router.refresh()
     } catch (err: unknown) {
       showCreatorError(err instanceof Error ? err.message : 'Nieznany błąd')
@@ -516,7 +520,7 @@ export default function NewEventPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-accent">Nowe wydarzenie</p>

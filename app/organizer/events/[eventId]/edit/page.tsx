@@ -27,6 +27,7 @@ export default async function EditEventPage({ params }: Props) {
     <div>
       <EditEventClient
         eventId={eventId}
+        eventSlug={event.slug}
         initialData={{
           title: event.title,
           description: event.description,

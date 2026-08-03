@@ -1,0 +1,15 @@
+{
+  "confirmation": "Potwierdź adres e-mail — Dogdex",
+  "invite": "Masz zaproszenie do Dogdex",
+  "magic_link": "Twój link do logowania — Dogdex",
+  "email_change": "Potwierdź nowy adres e-mail — Dogdex",
+  "recovery": "Ustaw nowe hasło — Dogdex",
+  "reauthentication": "{{ .Token }} to Twój kod potwierdzający — Dogdex",
+  "password_changed": "Hasło do konta Dogdex zostało zmienione",
+  "email_changed": "Adres e-mail konta Dogdex został zmieniony",
+  "phone_changed": "Numer telefonu konta Dogdex został zmieniony",
+  "identity_linked": "Połączono nową metodę logowania — Dogdex",
+  "identity_unlinked": "Usunięto metodę logowania — Dogdex",
+  "mfa_factor_enrolled": "Dodano metodę weryfikacji — Dogdex",
+  "mfa_factor_unenrolled": "Usunięto metodę weryfikacji — Dogdex"
+}

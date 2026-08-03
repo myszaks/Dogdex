@@ -1,131 +1,71 @@
-# Konfiguracja e-maili – Resend lub Nodemailer
+# E-maile Dogdex
 
-Aplikacja ma gotową integrację w `lib/email.ts`. Wystarczy skonfigurować jeden z poniższych providerów.
+Wiadomości aplikacyjne i szablony Supabase korzystają z jednego języka wizualnego: leśna zieleń `#1E3932`, pomarańczowy akcent `#FF8024`, tło sage `#F6FAF8`, białe karty i proste komunikaty po polsku.
 
----
+## Wiadomości aplikacyjne
 
-## Opcja A: Resend (zalecane – masz już konto)
+Kod wysyłki znajduje się w `lib/email.ts`, a współdzielony układ w `lib/emailTemplate.ts`.
 
-### 1. Zainstaluj SDK (opcjonalnie – obecna impl. używa natywnego fetch, SDK nie jest wymagany)
+Każda wiadomość zawiera:
 
-```bash
-npm install resend
-```
+- preheader widoczny na liście wiadomości w programie pocztowym,
+- jednoznaczny tytuł i status,
+- tabelę z nazwanymi danymi zamiast luźnych wartości,
+- jeden główny przycisk prowadzący do właściwego miejsca,
+- wersję tekstową generowaną obok HTML,
+- bezpieczne kodowanie danych pochodzących od użytkowników.
 
-### 2. Pobierz API Key
-
-1. Zaloguj się na [resend.com](https://resend.com)
-2. Idź do **API Keys** → **Create API Key**
-3. Skopiuj klucz
-
-### 3. Zweryfikuj domenę nadawcy
-
-1. W panelu Resend: **Domains** → **Add Domain**
-2. Dodaj wymagane rekordy DNS (SPF, DKIM) u swojego dostawcy domeny
-3. Poczekaj na weryfikację (zwykle kilka minut)
-
-> Bez własnej domeny możesz testować wysyłając **tylko na swój zarejestrowany adres** (ograniczenie sandbox Resend).
-
-### 4. Dodaj zmienne środowiskowe
-
-W `.env.local`:
-
-```env
-RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-RESEND_FROM_EMAIL=noreply@twojadomena.pl
-```
-
-Na Vercel / innym hostingu dodaj te same zmienne w panelu deployment.
-
-### 5. Gotowe
-
-Żadnych zmian w kodzie. `lib/email.ts` używa już Resend przez natywny fetch.
-
----
-
-## Opcja B: Nodemailer (własny SMTP / Gmail)
-
-### 1. Zainstaluj
-
-```bash
-npm install nodemailer
-npm install --save-dev @types/nodemailer
-```
-
-### 2. Dodaj zmienne środowiskowe
+Wymagane zmienne środowiskowe:
 
 ```env
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=twoj@gmail.com
-SMTP_PASS=twoje-haslo-aplikacji
+SMTP_PASS=haslo-aplikacji
 SMTP_FROM=Dogdex <twoj@gmail.com>
+CONTACT_EMAIL=kontakt@dogdex.pro
+NEXT_PUBLIC_SITE_URL=https://dogdex.pro
 ```
 
-> Dla Gmaila użyj **App Password** (nie zwykłego hasła): konto Google → Bezpieczeństwo → Hasła do aplikacji.
+`CONTACT_EMAIL` jest opcjonalne. Bez niego formularz kontaktowy trafia na adres zapasowy zdefiniowany w kodzie. `NEXT_PUBLIC_SITE_URL` służy do budowania przycisków w wiadomościach.
 
-### 3. Zastąp implementację w `lib/email.ts`
+## Szablony Supabase Auth
 
-Zamień całą funkcję `sendRegistrationEmail` na:
+Wersjonowane pliki znajdują się w `supabase/email-templates/`. Tematy są zapisane w `subjects.json`.
 
-```ts
-import nodemailer from 'nodemailer'
+| Plik | Ekran w Supabase Dashboard |
+| --- | --- |
+| `confirmation.html` | Confirm signup |
+| `invite.html` | Invite user |
+| `magic_link.html` | Magic link |
+| `email_change.html` | Change email address |
+| `recovery.html` | Reset password |
+| `reauthentication.html` | Reauthentication |
+| `password_changed.html` | Password changed |
+| `email_changed.html` | Email address changed |
+| `phone_changed.html` | Phone number changed |
+| `identity_linked.html` | Sign-in method linked |
+| `identity_unlinked.html` | Sign-in method removed |
+| `mfa_factor_enrolled.html` | Verification method added |
+| `mfa_factor_unenrolled.html` | Verification method removed |
 
-export async function sendRegistrationEmail(payload: RegistrationEmailPayload): Promise<void> {
-  const host = process.env.SMTP_HOST
-  if (!host) {
-    if (process.env.NODE_ENV === 'development') console.log('[Email] SMTP not configured')
-    return
-  }
+W projekcie hostowanym otwórz **Authentication → Email Templates**, wklej zawartość właściwego pliku i ustaw temat z `subjects.json`. Powiadomienia bezpieczeństwa trzeba dodatkowo włączyć na poziomie projektu. Szablony lokalne można wskazać przez `auth.email.template.<type>.content_path` w `supabase/config.toml`; zmiany wymagają ponownego uruchomienia lokalnego Supabase.
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT ?? 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER!,
-      pass: process.env.SMTP_PASS!,
-    },
-  })
+Nie zamieniaj `{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .OldEmail }}` ani `{{ .SiteURL }}` na stałe wartości. Supabase uzupełnia je osobno dla każdej wiadomości.
 
-  const statusText =
-    payload.status === 'confirmed'
-      ? '✅ Twój zapis został potwierdzony!'
-      : '📝 Twój zapis został przyjęty i oczekuje na potwierdzenie.'
+Przed publikacją sprawdź w Supabase:
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM ?? 'Dogdex <noreply@dogdex.pl>',
-    to: payload.to,
-    subject: payload.status === 'confirmed'
-      ? `✅ Zapis potwierdzony – ${payload.eventTitle}`
-      : `📝 Przyjęto zapis – ${payload.eventTitle}`,
-    html: `<p>${statusText}</p><p>Pies: <b>${payload.dogName}</b></p><p>Wydarzenie: <b>${payload.eventTitle}</b></p>`,
-  })
-}
+1. **Site URL** wskazuje produkcyjną domenę Dogdex.
+2. Dozwolone adresy przekierowań zawierają `/auth/callback` i `/reset-password` dla używanych środowisk.
+3. Własny SMTP ma poprawne SPF, DKIM i DMARC, a śledzenie linków jest wyłączone dla wiadomości Auth.
+4. Każdy szablon został wysłany testowo na telefon i komputer.
+
+Oficjalne zasady zmiennych i wdrażania: [Supabase Email Templates](https://supabase.com/docs/guides/auth/auth-email-templates) oraz [Customizing email templates](https://supabase.com/docs/guides/local-development/customizing-email-templates).
+
+## Test SMTP
+
+```powershell
+node scripts/send-test-email.js adres@example.com
 ```
 
----
-
-## Testowanie lokalnie
-
-Możesz użyć [Mailpit](https://mailpit.axllent.org/) jako lokalnego SMTP catcha:
-
-```bash
-# Windows (scoop)
-scoop install mailpit
-
-# lub Docker
-docker run -p 1025:1025 -p 8025:8025 axllent/mailpit
-```
-
-Ustaw w `.env.local`:
-
-```env
-SMTP_HOST=localhost
-SMTP_PORT=1025
-SMTP_USER=
-SMTP_PASS=
-SMTP_FROM=test@dogdex.pl
-```
-
-Maile widoczne na `http://localhost:8025`.
+Wiadomości aplikacyjne można bezpiecznie przechwytywać lokalnie przez Mailpit. Ustaw host i port lokalnego serwera SMTP, nie używając produkcyjnych danych odbiorców.

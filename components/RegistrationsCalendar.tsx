@@ -8,19 +8,22 @@ import {
 import { pl } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
 
-interface EventDate {
+interface CalendarDate {
   date: string       // ISO date string YYYY-MM-DD
   id: string
-  slug: string
+  href: string
+  kind: 'event' | 'training'
   title: string
 }
 
 interface Props {
-  eventDates: EventDate[]
+  dates: CalendarDate[]
+  className?: string
 }
 
-export default function RegistrationsCalendar({ eventDates }: Props) {
+export default function RegistrationsCalendar({ className, dates }: Props) {
   const [current, setCurrent] = useState(() => startOfMonth(new Date()))
 
   const monthStart = startOfMonth(current)
@@ -29,14 +32,14 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start: calStart, end: calEnd })
 
-  function eventsOnDay(day: Date): EventDate[] {
-    return eventDates.filter(ed => isSameDay(parseISO(ed.date), day))
+  function datesOnDay(day: Date): CalendarDate[] {
+    return dates.filter(entry => isSameDay(parseISO(entry.date), day))
   }
 
   const DOW = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd']
 
   return (
-    <div className="bg-card rounded-2xl shadow-sm p-5 mb-8">
+    <div className={cn('rounded-2xl bg-card p-5 shadow-sm', className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
@@ -70,36 +73,53 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
       {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-y-1">
         {days.map(day => {
-          const evs = eventsOnDay(day)
+          const entries = datesOnDay(day)
           const inMonth = isSameMonth(day, current)
           const today = isToday(day)
-          const hasEvents = evs.length > 0
+          const hasEntries = entries.length > 0
+          const hasEvent = entries.some(entry => entry.kind === 'event')
+          const hasTraining = entries.some(entry => entry.kind === 'training')
+          const hasBothKinds = hasEvent && hasTraining
 
           return (
             <div key={day.toISOString()} className="flex flex-col items-center py-0.5 px-0.5 group relative">
               <div
-                className={[
+                className={cn(
                   'w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-colors',
-                  !inMonth ? 'text-muted-foreground/30' : '',
-                  today ? 'ring-2 ring-primary ring-offset-1' : '',
-                  hasEvents && inMonth ? 'bg-primary text-primary-foreground font-bold' : inMonth ? 'text-foreground' : '',
-                ].join(' ')}
+                  !inMonth && 'text-muted-foreground/30',
+                  inMonth && !hasEntries && 'text-foreground',
+                  inMonth && hasEntries && 'font-bold text-white',
+                  inMonth && hasEvent && !hasTraining && 'bg-primary',
+                  inMonth && hasTraining && !hasEvent && 'bg-accent',
+                  today && 'ring-2 ring-primary ring-offset-1'
+                )}
+                style={inMonth && hasBothKinds
+                  ? {
+                      background: 'linear-gradient(135deg, hsl(var(--primary)) 0 50%, hsl(var(--accent)) 50% 100%)',
+                    }
+                  : undefined}
               >
                 {format(day, 'd')}
               </div>
 
               {/* Tooltip on hover */}
-              {hasEvents && inMonth && (
+              {hasEntries && inMonth && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:flex flex-col gap-1 min-w-max pointer-events-auto">
-                  {evs.map(ev => (
+                  {entries.map(entry => (
                     <Link
-                      key={`${ev.id}-${ev.date}`}
-                      href={`/events/${ev.slug}`}
-                      className="block bg-popover rounded-lg shadow-lg px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
+                      key={`${entry.id}-${entry.date}`}
+                      href={entry.href}
+                      className="flex items-center bg-popover rounded-lg shadow-lg px-3 py-1.5 text-xs text-foreground hover:bg-secondary transition-colors whitespace-nowrap"
                     >
-                      <span className="font-medium">{ev.title}</span>
+                      <span
+                        className={cn(
+                          'mr-2 h-2 w-2 shrink-0 rounded-full',
+                          entry.kind === 'event' ? 'bg-primary' : 'bg-accent'
+                        )}
+                      />
+                      <span className="font-medium">{entry.title}</span>
                       <span className="text-muted-foreground ml-1.5">
-                        {format(parseISO(ev.date), 'd MMM', { locale: pl })}
+                        {format(parseISO(entry.date), 'd MMM', { locale: pl })}
                       </span>
                     </Link>
                   ))}
@@ -111,10 +131,14 @@ export default function RegistrationsCalendar({ eventDates }: Props) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-border text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 pt-3 border-t border-border text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-primary inline-block" />
-          Twój termin
+          Wydarzenie
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-accent inline-block" />
+          Trening indywidualny
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full border-2 border-primary inline-block" />

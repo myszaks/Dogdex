@@ -48,6 +48,7 @@ import { cn } from '@/lib/utils'
 import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import type { FormField } from '@/types'
 import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
+import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -74,6 +75,7 @@ interface Props {
     location: string | null
     start_at: string | null
     end_at: string | null
+    registration_opens_at: string | null
     registration_deadline: string | null
     status: string
     event_type_id: string | null
@@ -181,6 +183,7 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
   const [description, setDescription] = useState(initialData.description ?? '')
   const [startAt, setStartAt] = useState<string | null>(initialData.start_at ?? null)
   const [endAt, setEndAt] = useState<string | null>(initialData.end_at ?? null)
+  const [registrationOpensAt, setRegistrationOpensAt] = useState<string | null>(initialData.registration_opens_at ?? null)
   const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(initialData.registration_deadline ?? null)
   const [lat, setLat] = useState<number | null>(initialData.lat ?? null)
   const [lng, setLng] = useState<number | null>(initialData.lng ?? null)
@@ -268,6 +271,16 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
     }
 
     if (step === 2) {
+      const registrationWindowError = validateEventRegistrationWindow({
+        eventStartsAt: startAt,
+        registrationDeadline,
+        registrationOpensAt,
+      })
+      if (registrationWindowError) {
+        setError(registrationWindowError)
+        setDateErrorFieldId('edit-event-registration-opens-at')
+        return false
+      }
       if (publishing) {
         const formIssues = validateFormFieldDefinitions(formFields)
         if (formIssues.length > 0) {
@@ -360,6 +373,7 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
       location: location.trim() || null,
       start_at: startAt,
       end_at: endAt || null,
+      registration_opens_at: registrationOpensAt || null,
       registration_deadline: registrationDeadline || null,
       status: nextStatus,
       event_type_id: eventTypeId || null,
@@ -638,8 +652,16 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
                 </Panel>
 
                 <Panel Icon={CalendarDays} title="Terminy zapisów">
-                  <label htmlFor="edit-event-registration-deadline" className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
-                  <DateTimePicker id="edit-event-registration-deadline" value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="edit-event-registration-opens-at" className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</label>
+                      <DateTimePicker id="edit-event-registration-opens-at" value={registrationOpensAt} onChange={setRegistrationOpensAt} placeholder="Po publikacji" />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-event-registration-deadline" className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
+                      <DateTimePicker id="edit-event-registration-deadline" value={registrationDeadline} onChange={setRegistrationDeadline} placeholder="Opcjonalnie" />
+                    </div>
+                  </div>
                 </Panel>
 
                 <Panel Icon={Wallet} title="Opłaty">
@@ -738,6 +760,7 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
                   <SummaryTile Icon={CalendarDays} label="Data i czas" value={formatDateTime(startAt)} detail={endAt ? `Do: ${formatDateTime(endAt)}` : 'Bez osobnej daty zakończenia'} accent />
                   <SummaryTile Icon={MapPin} label="Lokalizacja" value={location || 'Lokalizacja do uzupełnienia'} detail={organizerName ? `Organizator: ${organizerName}` : 'Organizator nieuzupełniony'} />
                   <SummaryTile Icon={Wallet} label="Koszt uczestnictwa" value={feeLabel} detail={autoConfirm ? 'Zapisy auto-potwierdzane' : 'Zapisy wymagają akceptacji'} />
+                  <SummaryTile Icon={CalendarDays} label="Zapisy od" value={registrationOpensAt ? formatDateTime(registrationOpensAt) : 'Od publikacji'} detail="Można włączyć powiadomienie o starcie" />
                   <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
                 </div>
 

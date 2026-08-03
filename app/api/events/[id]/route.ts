@@ -21,6 +21,7 @@ import {
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
+import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
 
@@ -53,7 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, location, title, status, results_public, form_fields, entry_fee, pricing_mode, date_prices, currency, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
+    .select('created_by, start_at, end_at, registration_opens_at, registration_deadline, location, title, status, results_public, form_fields, entry_fee, pricing_mode, date_prices, currency, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
     .eq('id', id)
     .single()
 
@@ -74,7 +75,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Only allow updating safe fields (including new phase-1 columns)
   const allowedFields = [
     'title', 'description', 'location', 'start_at', 'end_at', 'status',
-    'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_deadline',
+    'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_opens_at', 'registration_deadline',
     'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'pricing_mode', 'date_prices', 'currency', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
     'live_phase', 'form_template_id', 'competition_values',
@@ -82,6 +83,29 @@ export async function PATCH(req: Request, { params }: Params) {
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+  if (
+    'registration_opens_at' in update
+    && !update.registration_opens_at
+    && existingEvent.registration_opens_at
+    && new Date(existingEvent.registration_opens_at).getTime() > Date.now()
+  ) {
+    // Removing a future opening date from an already published event means
+    // "open now". Keeping the timestamp lets the notification cron find it.
+    update.registration_opens_at = new Date().toISOString()
+  }
+
+  const registrationWindowError = validateEventRegistrationWindow({
+    eventStartsAt: ('start_at' in update ? update.start_at : existingEvent.start_at) as string | null,
+    registrationDeadline: ('registration_deadline' in update
+      ? update.registration_deadline
+      : existingEvent.registration_deadline) as string | null,
+    registrationOpensAt: ('registration_opens_at' in update
+      ? update.registration_opens_at
+      : existingEvent.registration_opens_at) as string | null,
+  })
+  if (registrationWindowError) {
+    return NextResponse.json({ error: registrationWindowError }, { status: 400 })
   }
 
   if ('pricing_mode' in update && !['free', 'flat', 'per_date'].includes(String(update.pricing_mode))) {

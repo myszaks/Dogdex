@@ -54,6 +54,19 @@ describe('eventStatus', () => {
     }, new Date('2026-07-09T10:00:01.000Z'))).toBe(false)
   })
 
+  it('keeps registration closed until the configured opening time', () => {
+    const event = {
+      status: 'upcoming',
+      start_at: '2026-08-10T10:00:00.000Z',
+      end_at: null,
+      registration_opens_at: '2026-08-05T10:00:00.000Z',
+      registration_deadline: '2026-08-09T10:00:00.000Z',
+    }
+
+    expect(isEventRegistrationOpen(event, new Date('2026-08-05T09:59:59.000Z'))).toBe(false)
+    expect(isEventRegistrationOpen(event, new Date('2026-08-05T10:00:00.000Z'))).toBe(true)
+  })
+
   it('closes registration once the event is already ongoing', () => {
     expect(isEventRegistrationOpen({
       status: 'upcoming',

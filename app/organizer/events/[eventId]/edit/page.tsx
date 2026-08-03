@@ -34,6 +34,7 @@ export default async function EditEventPage({ params }: Props) {
           location: event.location,
           start_at: event.start_at,
           end_at: event.end_at,
+          registration_opens_at: event.registration_opens_at ?? null,
           registration_deadline: event.registration_deadline ?? null,
           status: event.status,
           event_type_id: event.event_type_id ?? null,

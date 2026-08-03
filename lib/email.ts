@@ -659,3 +659,37 @@ export async function sendTrainingCancellationEmail(payload: TrainingCancellatio
   })
   await deliverEmail({ to: payload.to, subject: `Anulowanie treningu — ${payload.trainingType}`, html })
 }
+
+interface RegistrationOpenedEmailPayload {
+  to: string
+  eventTitle: string
+  eventSlug: string
+  eventDate: string | null
+  eventLocation: string | null
+}
+
+export async function sendRegistrationOpenedEmail(payload: RegistrationOpenedEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `Zapisy na „${payload.eventTitle}” są już otwarte`,
+    eyebrow: 'Powiadomienie o zapisach',
+    title: 'Zapisy właśnie ruszyły',
+    body: [
+      greeting(),
+      paragraph(`Możesz już zapisać się na wydarzenie <strong>${escapeEmailHtml(payload.eventTitle)}</strong>.`),
+      emailDetails([
+        { label: 'Wydarzenie', value: payload.eventTitle },
+        { label: 'Termin', value: payload.eventDate ? formatEmailDateTime(payload.eventDate) : null },
+        { label: 'Miejsce', value: payload.eventLocation },
+      ]),
+      emailNotice('Liczba miejsc może być ograniczona. Powiadomienie nie rezerwuje miejsca — zapis zostanie potwierdzony dopiero po wysłaniu formularza.', 'warning'),
+      emailButton('Przejdź do zapisów', `${appUrl()}/events/${encodeURIComponent(payload.eventSlug)}`),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `Zapisy ruszyły — ${payload.eventTitle}`,
+    html,
+    throwOnError: true,
+  })
+}

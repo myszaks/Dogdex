@@ -44,6 +44,12 @@ const organizerTabs: WorkspaceTab[] = [
     Icon: SlidersHorizontal,
     active: pathname => pathname.startsWith('/organizer/formats'),
   },
+  {
+    href: '/organizer/profile',
+    label: 'Profil publiczny',
+    Icon: Settings2,
+    active: pathname => pathname.startsWith('/organizer/profile'),
+  },
 ]
 
 const trainerTabs: WorkspaceTab[] = [

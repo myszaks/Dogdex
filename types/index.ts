@@ -5,6 +5,7 @@ export interface DogEvent {
   description: string | null
   start_at: string | null
   end_at: string | null
+  registration_opens_at?: string | null
   registration_deadline: string | null
   location: string | null
   status: string
@@ -387,4 +388,39 @@ export interface TrainerProfileWithStats extends TrainerProfile {
   review_count?: number
   min_price?: number | null
   total_bookings?: number
+}
+
+export interface OrganizerProfile {
+  id: string
+  organizer_id: string
+  slug: string
+  display_name: string
+  organization_name: string | null
+  bio: string | null
+  profile_image_url: string | null
+  location_city: string | null
+  website_url: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface EventReview {
+  id: string
+  event_id: string
+  organizer_id: string
+  user_id: string
+  author_name: string
+  rating: number
+  comment: string | null
+  created_at: string
+  updated_at: string
+  events?: Pick<DogEvent, 'id' | 'slug' | 'title'>
+}
+
+export interface OrganizerProfileWithStats extends OrganizerProfile {
+  rating?: number | null
+  review_count?: number
+  reviews?: EventReview[]
+  events?: DogEvent[]
 }

@@ -9,6 +9,7 @@ import {
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
+import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, pricing_mode, date_prices, currency, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_opens_at, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, pricing_mode, date_prices, currency, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
 
   const normalizedPricingMode = typeof pricing_mode === 'string' ? pricing_mode : 'free'
   if (!['free', 'flat', 'per_date'].includes(normalizedPricingMode)) {
@@ -56,6 +57,18 @@ export async function POST(req: Request) {
 
   if (!normalizedTitle) {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
+  }
+  const registrationWindowError = validateEventRegistrationWindow({
+    eventStartsAt: typeof start_at === 'string' && start_at ? start_at : null,
+    registrationDeadline: typeof registration_deadline === 'string' && registration_deadline
+      ? registration_deadline
+      : null,
+    registrationOpensAt: typeof registration_opens_at === 'string' && registration_opens_at
+      ? registration_opens_at
+      : null,
+  })
+  if (registrationWindowError) {
+    return NextResponse.json({ error: registrationWindowError }, { status: 400 })
   }
   if (nextStatus !== 'draft') {
     const fieldIssues = validateFormFieldDefinitions(Array.isArray(form_fields) ? form_fields : [])
@@ -198,6 +211,7 @@ export async function POST(req: Request) {
       location: (location as string | null) ?? null,
       start_at: (start_at as string | null) ?? null,
       end_at: (end_at as string | null) ?? null,
+      registration_opens_at: (registration_opens_at as string | null) ?? null,
       registration_deadline: (registration_deadline as string | null) ?? null,
       status: nextStatus,
       event_type_id: (event_type_id as string | null) ?? null,

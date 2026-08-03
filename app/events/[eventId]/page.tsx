@@ -13,6 +13,8 @@ import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
 import EventMapClient from '@/components/EventMapClient'
 import EventRegistrationTerms from '@/components/EventRegistrationTerms'
+import RegistrationOpeningNotification from '@/components/RegistrationOpeningNotification'
+import OrganizerReviewForm from '@/components/OrganizerReviewForm'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight } from 'lucide-react'
@@ -96,12 +98,17 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
   const dispStatus = effectiveStatus(event)
   const regOpen = isRegistrationOpen(event)
+  const now = new Date()
+  const registrationNotStarted = Boolean(
+    event.registration_opens_at
+    && new Date(event.registration_opens_at).getTime() > now.getTime()
+    && dispStatus === 'upcoming'
+  )
   const isOngoing = dispStatus === 'ongoing'
   const mapsQuery = event.location ? encodeURIComponent(event.location) : null
   const hasSchedule = (slotCount ?? 0) > 0
 
   // Days remaining to registration deadline or event start
-  const now = new Date()
   const deadlineDate = event.registration_deadline ? new Date(event.registration_deadline) : null
   const startDate = event.start_at ? new Date(event.start_at) : null
   const targetDate = deadlineDate && deadlineDate > now ? deadlineDate : startDate
@@ -194,11 +201,11 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
                   <span className="wrap-anywhere">{event.location}</span>
                 </span>
               )}
-              {event.organizer_name && (
-                <span className="flex items-center gap-1.5">
+              {event.created_by && (
+                <Link href={`/organizers/${event.created_by}`} className="flex items-center gap-1.5 hover:text-white">
                   <User className="w-3.5 h-3.5 shrink-0" />
-                  {event.organizer_name}
-                </span>
+                  {event.organizer_name || 'Profil organizatora'}
+                </Link>
               )}
             </div>
           </div>
@@ -351,6 +358,13 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
               </div>
             )}
 
+            {registrationNotStarted && event.registration_opens_at && (
+              <RegistrationOpeningNotification
+                eventId={event.id}
+                opensAt={event.registration_opens_at}
+              />
+            )}
+
             {/* User registration status */}
             <UserRegistrationStatus
               eventId={event.id}
@@ -380,7 +394,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
                 Brak wolnych miejsc na to wydarzenie
               </div>
             )}
-            {dispStatus === 'upcoming' && !regOpen && (
+            {dispStatus === 'upcoming' && !regOpen && !registrationNotStarted && (
               <div className="flex items-center gap-2 text-sm text-orange-600 font-medium bg-orange-50 rounded-xl px-3 py-2.5">
                 <Lock className="w-4 h-4 shrink-0" />
                 Zapisy zostały zamknięte
@@ -449,11 +463,17 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
           )}
 
           {/* Organizer */}
-          {event.organizer_name && (
+          {event.created_by && (
             <div className="bg-secondary rounded-2xl p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">Organizator</p>
-              <p className="text-foreground font-semibold">{event.organizer_name}</p>
+              <Link href={`/organizers/${event.created_by}`} className="font-semibold text-foreground hover:text-accent">
+                {event.organizer_name || 'Zobacz profil organizatora'}
+              </Link>
             </div>
+          )}
+
+          {dispStatus === 'finished' && event.created_by && (
+            <OrganizerReviewForm eventId={event.id} organizerId={event.created_by} />
           )}
         </div>
       </div>

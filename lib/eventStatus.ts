@@ -4,6 +4,7 @@ type EventStatusLike = {
   status: DogEvent['status']
   start_at: string | null
   end_at?: string | null
+  registration_opens_at?: string | null
   registration_deadline?: string | null
 }
 
@@ -38,6 +39,7 @@ export function eventLiveState(event: EventStatusLike, now = new Date()): EventL
 
 export function isEventRegistrationOpen(event: EventStatusLike, now = new Date()): boolean {
   if (effectiveEventStatus(event, now) !== 'upcoming') return false
+  if (event.registration_opens_at && new Date(event.registration_opens_at) > now) return false
   if (event.registration_deadline) {
     return new Date(event.registration_deadline) > now
   }

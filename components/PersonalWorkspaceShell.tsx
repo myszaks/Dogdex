@@ -15,46 +15,68 @@ const tabs = [
   { href: '/settings', label: 'Bezpieczeństwo', Icon: ShieldCheck, active: (path: string) => path.startsWith('/settings') },
 ]
 
-export default function PersonalWorkspaceShell({ children }: { children: React.ReactNode }) {
+interface PersonalWorkspaceShellProps {
+  children: React.ReactNode
+  headerContent?: React.ReactNode
+  headerAside?: React.ReactNode
+}
+
+export default function PersonalWorkspaceShell({
+  children,
+  headerAside,
+  headerContent,
+}: PersonalWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const searchParams = useSearchParams()
   const trainingsTab = pathname === '/moje-zapisy' && searchParams.get('tab') === 'trainings'
 
   return (
     <PageContainer className="space-y-7">
-      <header className="space-y-5">
-        <PageHeader
-          eyebrow="Twoja przestrzeń"
-          title="Mój Dogdex"
-          description="Zapisy, psy oraz ustawienia konta w jednym miejscu."
-          breadcrumbs={[{ label: 'Główna', href: '/' }, { label: 'Mój Dogdex' }]}
-        />
+      <div className={cn(
+        headerAside && 'grid gap-7 xl:grid-cols-2 xl:items-start',
+      )}>
+        <header className="space-y-5">
+          <PageHeader
+            eyebrow="Twoja przestrzeń"
+            title="Mój Dogdex"
+            description="Zapisy, psy oraz ustawienia konta w jednym miejscu."
+            breadcrumbs={[{ label: 'Główna', href: '/' }, { label: 'Mój Dogdex' }]}
+          />
 
-        <nav aria-label="Mój Dogdex" className="-mx-1 overflow-x-auto px-1 pb-1">
-          <div className="flex min-w-max gap-1 rounded-2xl bg-secondary/80 p-1.5">
-            {tabs.map(({ href, label, Icon, active }) => {
-              const isActive = active(pathname)
-              const target = href === '/moje-zapisy' && trainingsTab ? '/moje-zapisy?tab=trainings' : href
-              return (
-                <Link
-                  key={href}
-                  href={target}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-white text-primary shadow-sm'
-                      : 'text-muted-foreground hover:bg-white/70 hover:text-foreground',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </Link>
-              )
-            })}
-          </div>
-        </nav>
-      </header>
+          <nav aria-label="Mój Dogdex" className="-mx-1 overflow-x-auto px-1 pb-1">
+            <div className="flex min-w-max gap-1 rounded-2xl bg-secondary/80 p-1.5">
+              {tabs.map(({ href, label, Icon, active }) => {
+                const isActive = active(pathname)
+                const target = href === '/moje-zapisy' && trainingsTab ? '/moje-zapisy?tab=trainings' : href
+                return (
+                  <Link
+                    key={href}
+                    href={target}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-white text-primary shadow-sm'
+                        : 'text-muted-foreground hover:bg-white/70 hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>
+
+          {headerContent}
+        </header>
+
+        {headerAside && (
+          <aside className="min-w-0" aria-label="Kalendarz zapisów">
+            {headerAside}
+          </aside>
+        )}
+      </div>
 
       {children}
     </PageContainer>

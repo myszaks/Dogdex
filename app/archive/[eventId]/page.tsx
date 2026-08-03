@@ -6,6 +6,7 @@ import { formatDate, formatTime, effectiveStatus, statusLabel, statusColor } fro
 import { SIZE_CLASSES, SIZE_CLASS_LABELS, formatRunTime, medalEmoji, computeStoredSpeedKmh } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 import type { Metadata } from 'next'
+import OrganizerReviewForm from '@/components/OrganizerReviewForm'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -312,6 +313,10 @@ export default async function EventArchivePage({ params }: Props) {
               )}
             </div>
           </div>
+
+          {event.created_by && (
+            <OrganizerReviewForm eventId={event.id} organizerId={event.created_by} />
+          )}
 
           {results && results.length > 0 && !isSpeedway && (
             <div className="card">

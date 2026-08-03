@@ -59,6 +59,7 @@ import {
 } from '@/lib/eventCreatorFormatSelection'
 import type { FormField } from '@/types'
 import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
+import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -214,6 +215,7 @@ export default function NewEventPage() {
   const [galleryImages, setGalleryImages] = useState<string[]>([])
   const [startAt, setStartAt] = useState<string | null>(null)
   const [endAt, setEndAt] = useState<string | null>(null)
+  const [registrationOpensAt, setRegistrationOpensAt] = useState<string | null>(null)
   const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(null)
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -365,6 +367,15 @@ export default function NewEventPage() {
     }
 
     if (step === 2) {
+      const registrationWindowError = validateEventRegistrationWindow({
+        eventStartsAt: startAt,
+        registrationDeadline,
+        registrationOpensAt,
+      })
+      if (registrationWindowError) {
+        showCreatorError(registrationWindowError, 'event-registration-opens-at')
+        return false
+      }
       const formIssues = validateFormFieldDefinitions(formFields)
       if (formIssues.length > 0) {
         showCreatorError(formIssues[0].message, 'registration-form')
@@ -470,6 +481,7 @@ export default function NewEventPage() {
       location: locationSummary || null,
       start_at: startAt,
       end_at: endAt || null,
+      registration_opens_at: registrationOpensAt || null,
       registration_deadline: registrationDeadline || null,
       status,
       event_type_id: eventTypeId || null,
@@ -678,6 +690,7 @@ export default function NewEventPage() {
           {currentStep === 2 && (
             <StepRegistration
               maxParticipants={maxParticipants}
+              registrationOpensAt={registrationOpensAt}
               registrationDeadline={registrationDeadline}
               entryFee={entryFee}
               pricingMode={pricingMode}
@@ -693,6 +706,7 @@ export default function NewEventPage() {
               errorFieldId={errorFieldId}
               errorMessageId={CREATOR_ERROR_ID}
               onMaxParticipantsChange={setMaxParticipants}
+              onRegistrationOpensAtChange={setRegistrationOpensAt}
               onRegistrationDeadlineChange={setRegistrationDeadline}
               onEntryFeeChange={value => {
                 setEntryFee(value)
@@ -753,6 +767,7 @@ export default function NewEventPage() {
               location={visibleLocation}
               startAt={startAt}
               endAt={endAt}
+              registrationOpensAt={registrationOpensAt}
               registrationDeadline={registrationDeadline}
               seatsLabel={seatsLabel}
               feeLabel={feeLabel}
@@ -1216,6 +1231,7 @@ function StepLocationTime({
 
 function StepRegistration({
   maxParticipants,
+  registrationOpensAt,
   registrationDeadline,
   entryFee,
   pricingMode,
@@ -1231,6 +1247,7 @@ function StepRegistration({
   errorFieldId,
   errorMessageId,
   onMaxParticipantsChange,
+  onRegistrationOpensAtChange,
   onRegistrationDeadlineChange,
   onEntryFeeChange,
   onPricingModeChange,
@@ -1242,6 +1259,7 @@ function StepRegistration({
   onGroupingFieldChange,
 }: {
   maxParticipants: string
+  registrationOpensAt: string | null
   registrationDeadline: string | null
   entryFee: string
   pricingMode: EventPricingMode
@@ -1257,6 +1275,7 @@ function StepRegistration({
   errorFieldId: string | null
   errorMessageId: string
   onMaxParticipantsChange: (value: string) => void
+  onRegistrationOpensAtChange: (value: string | null) => void
   onRegistrationDeadlineChange: (value: string | null) => void
   onEntryFeeChange: (value: string) => void
   onPricingModeChange: (mode: EventPricingMode) => void
@@ -1408,10 +1427,13 @@ function StepRegistration({
         <Panel Icon={CalendarDays} title="Terminy zapisów" tutorialId="registration-dates">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <p className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</p>
-              <div className="flex min-h-12 items-center rounded-xl border border-sage-200 bg-sage-50 px-3 text-sm text-sage-600">
-                Po opublikowaniu wydarzenia
-              </div>
+              <label htmlFor="event-registration-opens-at" className="form-label uppercase tracking-[0.16em] text-sage-500">Otwarcie zapisów</label>
+              <DateTimePicker
+                id="event-registration-opens-at"
+                value={registrationOpensAt}
+                onChange={onRegistrationOpensAtChange}
+                placeholder="Po publikacji"
+              />
             </div>
             <div>
               <label htmlFor="event-registration-deadline" className="form-label uppercase tracking-[0.16em] text-sage-500">Zamknięcie zapisów</label>
@@ -1426,7 +1448,7 @@ function StepRegistration({
           <div className="mt-6 rounded-2xl border border-sage-200 bg-sage-50 p-4 text-sm leading-6 text-sage-700">
             <div className="flex gap-3">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-              <p>Po terminie zamknięcia zapisy zostaną automatycznie zablokowane.</p>
+              <p>Puste otwarcie oznacza zapisy dostępne od publikacji. Przy przyszłej dacie odbiorcy będą mogli poprosić o powiadomienie.</p>
             </div>
           </div>
         </Panel>
@@ -1474,6 +1496,7 @@ function StepPreview({
   location,
   startAt,
   endAt,
+  registrationOpensAt,
   registrationDeadline,
   seatsLabel,
   feeLabel,
@@ -1494,6 +1517,7 @@ function StepPreview({
   location: string
   startAt: string | null
   endAt: string | null
+  registrationOpensAt: string | null
   registrationDeadline: string | null
   seatsLabel: string
   feeLabel: string
@@ -1541,6 +1565,7 @@ function StepPreview({
           <SummaryTile Icon={CalendarDays} label="Data i czas" value={formatDateTime(startAt)} detail={endAt ? `Do: ${formatDateTime(endAt)}` : 'Bez osobnej daty zakończenia'} accent />
           <SummaryTile Icon={MapPin} label="Lokalizacja" value={location} detail={organizerName ? `Organizator: ${organizerName}` : 'Organizator nieuzupełniony'} />
           <SummaryTile Icon={Wallet} label="Koszt uczestnictwa" value={feeLabel} detail={autoConfirm ? 'Zapisy auto-potwierdzane' : 'Zapisy wymagają akceptacji'} />
+          <SummaryTile Icon={CalendarDays} label="Zapisy od" value={registrationOpensAt ? formatDateTime(registrationOpensAt) : 'Od publikacji'} detail="Można włączyć powiadomienie o starcie" />
           <SummaryTile Icon={Clock} label="Zapisy do" value={registrationDeadline ? formatDateTime(registrationDeadline) : 'Bez terminu'} detail="Po terminie zapisy zostaną zamknięte" />
         </div>
 

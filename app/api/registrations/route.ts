@@ -124,7 +124,7 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, slug, created_by, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_deadline, pricing_mode, entry_fee, date_prices, currency')
+    .select('id, slug, created_by, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_opens_at, registration_deadline, pricing_mode, entry_fee, date_prices, currency')
     .eq('id', eventId)
     .single()
 

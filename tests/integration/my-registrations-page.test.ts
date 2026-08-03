@@ -93,6 +93,15 @@ describe('my registrations page', () => {
             }),
           }
         }
+        if (table === 'training_bookings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                neq: async () => ({ data: [] }),
+              }),
+            }),
+          }
+        }
         throw new Error(`Unexpected table ${table}`)
       }),
     })

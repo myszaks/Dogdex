@@ -3,14 +3,16 @@ import { SPEEDWAY_FORMAT } from '@/lib/competitionPresets'
 
 const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
+const requireEventAccessForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
-  createAuthClient,
+  createServerClient: createAuthClient,
 }))
 
 vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
 }))
+vi.mock('@/lib/eventAccess', () => ({ requireEventAccessForApi }))
 
 function queryReturning<T>(data: T) {
   const query = {
@@ -31,6 +33,7 @@ describe('POST /api/events/[id]/competition-live-state', () => {
       user: { id: 'organizer-1' },
       role: 'organizer',
     })
+    requireEventAccessForApi.mockResolvedValue({ access: { user: { id: 'organizer-1' } } })
   })
 
   it('moves the public live cursor to a confirmed participant', async () => {
@@ -51,7 +54,7 @@ describe('POST /api/events/[id]/competition-live-state', () => {
     const upsert = vi.fn(() => ({
       select: () => ({ single }),
     }))
-    createAuthClient.mockResolvedValue({
+    createAuthClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') return eventQuery
         if (table === 'registrations') return registrationQuery
@@ -92,7 +95,7 @@ describe('POST /api/events/[id]/competition-live-state', () => {
       competition_config: SPEEDWAY_FORMAT,
     })
     const registrationQuery = queryReturning(null)
-    createAuthClient.mockResolvedValue({
+    createAuthClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') return eventQuery
         if (table === 'registrations') return registrationQuery

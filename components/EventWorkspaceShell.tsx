@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarClock, ClipboardCheck, Eye, LayoutDashboard, ListChecks, Settings2, Trophy } from 'lucide-react'
+import { CalendarClock, ClipboardCheck, Eye, LayoutDashboard, ListChecks, Settings2, Trophy, UsersRound, WalletCards } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import { cn } from '@/lib/utils'
+import type { EventTeamPermission } from '@/lib/eventPermissions'
 
 interface EventWorkspaceShellProps {
   children: React.ReactNode
@@ -15,18 +16,25 @@ interface EventWorkspaceShellProps {
     hasSchedule: boolean
     hasResults: boolean
   }
+  permissions: EventTeamPermission[]
+  canManageTeam: boolean
 }
 
-export default function EventWorkspaceShell({ children, event }: EventWorkspaceShellProps) {
+export default function EventWorkspaceShell({ children, event, permissions, canManageTeam }: EventWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const baseHref = `/organizer/events/${event.slug}`
+  const can = (permission: EventTeamPermission) => permissions.includes(permission)
   const tabs = [
     { href: baseHref, label: 'Podsumowanie', Icon: LayoutDashboard, active: pathname === baseHref },
-    { href: `${baseHref}/registrations`, label: 'Zapisy', Icon: ListChecks, active: pathname.startsWith(`${baseHref}/registrations`) },
-    ...(event.hasSchedule ? [{ href: `${baseHref}/schedule`, label: 'Grafik', Icon: CalendarClock, active: pathname.startsWith(`${baseHref}/schedule`) }] : []),
-    ...(event.eventTypeId === 'speedway' ? [{ href: `${baseHref}/checkin`, label: 'Check-in', Icon: ClipboardCheck, active: pathname.startsWith(`${baseHref}/checkin`) }] : []),
-    ...(event.hasResults ? [{ href: `${baseHref}/results`, label: 'Wyniki', Icon: Trophy, active: pathname.startsWith(`${baseHref}/results`) || pathname.startsWith(`${baseHref}/live-entry`) }] : []),
-    { href: `${baseHref}/edit`, label: 'Ustawienia', Icon: Settings2, active: pathname.startsWith(`${baseHref}/edit`) },
+    ...(can('registrations') ? [{ href: `${baseHref}/registrations`, label: 'Zapisy', Icon: ListChecks, active: pathname.startsWith(`${baseHref}/registrations`) }] : []),
+    ...(event.hasSchedule && (can('registrations') || can('results')) ? [{ href: `${baseHref}/schedule`, label: 'Grafik', Icon: CalendarClock, active: pathname.startsWith(`${baseHref}/schedule`) }] : []),
+    ...(event.eventTypeId === 'speedway' && can('checkin') ? [{ href: `${baseHref}/checkin`, label: 'Check-in', Icon: ClipboardCheck, active: pathname.startsWith(`${baseHref}/checkin`) }] : []),
+    ...(event.hasResults && can('results') ? [{ href: `${baseHref}/results`, label: 'Wyniki', Icon: Trophy, active: pathname.startsWith(`${baseHref}/results`) || pathname.startsWith(`${baseHref}/live-entry`) }] : []),
+    ...(can('finance') ? [{ href: `${baseHref}/finances`, label: 'Finanse', Icon: WalletCards, active: pathname.startsWith(`${baseHref}/finances`) }] : []),
+    ...(canManageTeam ? [
+      { href: `${baseHref}/team`, label: 'Zespół', Icon: UsersRound, active: pathname.startsWith(`${baseHref}/team`) },
+      { href: `${baseHref}/edit`, label: 'Ustawienia', Icon: Settings2, active: pathname.startsWith(`${baseHref}/edit`) },
+    ] : []),
   ]
 
   return (

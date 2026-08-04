@@ -11,6 +11,7 @@ type FilterKey = 'all' | 'draft' | 'upcoming' | 'ongoing'
 interface Props {
   events: DogEvent[]
   registrationCountMap?: Record<string, number>
+  ownedEventIds?: string[]
 }
 
 const FILTERS: Array<{
@@ -55,7 +56,7 @@ const FILTERS: Array<{
   },
 ]
 
-export default function OrganizerEventFilters({ events, registrationCountMap = {} }: Props) {
+export default function OrganizerEventFilters({ events, registrationCountMap = {}, ownedEventIds = [] }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
 
   const counts = useMemo(() => {
@@ -120,10 +121,11 @@ export default function OrganizerEventFilters({ events, registrationCountMap = {
           </p>
         </div>
       ) : (
-        <OrganizerEventGroups
-          events={filteredEvents}
-          registrationCountMap={registrationCountMap}
-        />
+      <OrganizerEventGroups
+        events={filteredEvents}
+        registrationCountMap={registrationCountMap}
+        ownedEventIds={ownedEventIds}
+      />
       )}
     </div>
   )

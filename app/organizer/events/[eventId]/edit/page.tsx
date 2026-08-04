@@ -2,6 +2,7 @@ import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
 import EditEventClient from './EditEventClient'
 import type { Metadata } from 'next'
+import { getEventAccess } from '@/lib/eventAccess'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -13,6 +14,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function EditEventPage({ params }: Props) {
   const { eventId: param } = await params
+  const access = await getEventAccess(param)
+  if (!access?.canManageTeam) notFound()
   const supabase = await createAuthClient()
   const { data: event } = await supabase
     .from('events')

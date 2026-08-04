@@ -11,9 +11,11 @@ import { effectiveStatus } from '@/lib/utils'
 export default function OrganizerEventCard({
   event,
   registeredCount,
+  canConfigure = true,
 }: {
   event: DogEvent
   registeredCount?: number | null
+  canConfigure?: boolean
 }) {
   const displayStatus = effectiveStatus(event)
   const isDraft = displayStatus === 'draft'
@@ -31,7 +33,7 @@ export default function OrganizerEventCard({
             {isDraft ? 'Dokończ konfigurację' : 'Zarządzaj'}
           </Link>
 
-          {!isDraft && (
+          {!isDraft && canConfigure && (
             <Link
               href={displayStatus === 'finished' || displayStatus === 'cancelled'
                 ? `/archive/${event.slug}`

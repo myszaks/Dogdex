@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { checkRoleForApi } from '@/lib/getServerUser'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
+import { createServerClient } from '@/lib/supabaseServer'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -11,10 +11,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
   const { id: eventId } = await params
-  const supabase = await createAuthClient()
+  const authResult = await requireEventAccessForApi(eventId, 'results')
+  if ('error' in authResult) return authResult.error
+  const supabase = createServerClient()
 
   const { data: event } = await supabase
     .from('events')
@@ -22,9 +22,6 @@ export async function POST(req: Request, { params }: Params) {
     .eq('id', eventId)
     .maybeSingle()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia.' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień.' }, { status: 403 })
-  }
   if (!event.competition_config) {
     return NextResponse.json({ error: 'Wydarzenie nie używa uniwersalnego formatu.' }, { status: 409 })
   }
@@ -66,7 +63,7 @@ export async function POST(req: Request, { params }: Params) {
     current_participant_id: currentParticipantId,
     cursor,
     state: isRecord(body.state) ? body.state : {},
-    updated_by: authResult.user.id,
+    updated_by: authResult.access.user.id,
     updated_at: new Date().toISOString(),
   }
   const { data, error } = await supabase

@@ -39,7 +39,7 @@ export default function Navigation() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
-  const { isOrganizer, isTrainer, user } = useUser()
+  const { isTrainer, canManageEvents, user } = useUser()
   const hideMobileBottomNav = shouldHideMobileBottomNavigation(pathname)
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function Navigation() {
     { href: '/trainings', label: 'Treningi', Icon: PawPrint },
   ]
   if (user) navLinks.push({ href: '/moje-zapisy', label: 'Mój Dogdex', Icon: Dog })
-  if (isTrainer || isOrganizer) navLinks.push({ href: '/manage', label: 'Zarządzanie', Icon: CalendarCog })
+  if (isTrainer || canManageEvents) navLinks.push({ href: '/manage', label: 'Zarządzanie', Icon: CalendarCog })
   const mobileNavLinks = navLinks
 
   function isActive(href: string) {

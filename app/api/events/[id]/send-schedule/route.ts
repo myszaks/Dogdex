@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 import { sendScheduleEmail } from '@/lib/email'
 
 interface Params {
@@ -10,7 +10,7 @@ interface Params {
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
 
   const supabase = createServerClient()
@@ -23,9 +23,6 @@ export async function POST(req: Request, { params }: Params) {
     .single()
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
 
   // Optionally accept a list of assignment ids to send to (or send to all)
   let body: { assignmentIds?: string[] } = {}

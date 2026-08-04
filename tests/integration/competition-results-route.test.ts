@@ -3,14 +3,16 @@ import { SPEEDWAY_FORMAT } from '@/lib/competitionPresets'
 
 const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
+const requireEventAccessForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
-  createAuthClient,
+  createServerClient: createAuthClient,
 }))
 
 vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
 }))
+vi.mock('@/lib/eventAccess', () => ({ requireEventAccessForApi }))
 
 function queryReturning<T>(data: T) {
   const query = {
@@ -47,6 +49,7 @@ describe('POST /api/events/[id]/competition-results', () => {
       user: { id: 'organizer-1' },
       role: 'organizer',
     })
+    requireEventAccessForApi.mockResolvedValue({ access: { user: { id: 'organizer-1' } } })
 
     const eventQuery = queryReturning({
       id: 'event-1',
@@ -66,7 +69,7 @@ describe('POST /api/events/[id]/competition-results', () => {
       if (table === 'registrations') return registrationQuery
       throw new Error(`Unexpected table ${table}`)
     })
-    createAuthClient.mockResolvedValue({ from })
+    createAuthClient.mockReturnValue({ from })
 
     const { POST } = await import('@/app/api/events/[id]/competition-results/route')
     const response = await POST(new Request('http://localhost/api/events/event-1/competition-results', {
@@ -168,7 +171,7 @@ describe('POST /api/events/[id]/competition-results', () => {
       }
       throw new Error(`Unexpected table ${table}`)
     })
-    createAuthClient.mockResolvedValue({ from })
+    createAuthClient.mockReturnValue({ from })
 
     const { POST } = await import('@/app/api/events/[id]/competition-results/route')
     const response = await POST(new Request('http://localhost/api/events/event-1/competition-results', {

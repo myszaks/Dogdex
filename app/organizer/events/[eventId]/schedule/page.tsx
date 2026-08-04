@@ -1,6 +1,6 @@
 import { createServerClient } from '@/lib/supabaseServer'
 import { notFound } from 'next/navigation'
-import { requireRole } from '@/lib/getServerUser'
+import { getEventAccess } from '@/lib/eventAccess'
 import ScheduleClient from './ScheduleClient'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -16,13 +16,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function SchedulePage({ params }: Props) {
   const { eventId: param } = await params
-  const { user, role } = await requireRole(['organizer', 'admin'])
+  const access = await getEventAccess(param)
+  if (!access || (!access.can('registrations') && !access.can('results'))) notFound()
 
   const supabase = createServerClient()
 
   const { data: event } = await supabase.from('events').select('*')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
-  if (!event || (role !== 'admin' && event.created_by !== user.id)) notFound()
+  if (!event) notFound()
   const eventId = event.id
 
   const [{ data: slots }, { data: registrations }] = await Promise.all([

@@ -18,19 +18,20 @@ Audyt został wykonany przez `npm run db:dev:audit` z użyciem połączenia
 - baza nie prowadzi tabeli `supabase_migrations.schema_migrations`, dlatego stan
   ustalamy po obiektach schematu, a nie po historii numerów migracji.
 
-## Jedyna migracja do wgrania na development
+## Migracje do wgrania na development
 
-W Supabase Dashboard projektu developerskiego otwórz **SQL Editor**, wklej całą
-zawartość poniższego pliku i uruchom ją jeden raz:
+W Supabase Dashboard projektu developerskiego otwórz **SQL Editor** i uruchom
+poniższe pliki po kolei:
 
 ```text
 supabase/migrations/20260804150000_add_review_safety.sql
+supabase/migrations/20260804180000_add_event_team_management.sql
 ```
 
-Migracja jest idempotentna. Dodaje bezpieczeństwo opinii, zgłoszenia i
-moderację, a istniejące poprawne opinie oznacza domyślnie jako zweryfikowane i
-opublikowane. Dodaje też blokadę dostarczeń komunikatów, której używa kod tego
-wydania.
+Pierwsza migracja dodaje bezpieczeństwo opinii, zgłoszenia i moderację oraz
+blokadę dostarczeń komunikatów. Druga dodaje zespoły wydarzeń, zakresy dostępu
+do zapisów, odprawy, wyników i finansów oraz polityki RLS potrzebne pracownikom
+klubu i sekretariatowi.
 
 Po wykonaniu uruchom lokalnie:
 
@@ -41,6 +42,12 @@ npm run db:dev:audit
 W wyniku powinny pojawić się `review_reports`, wszystkie kolumny bezpieczeństwa
 opinii, `validate_review_report_target`, `claim_event_announcement_deliveries`
 oraz kolumna `event_announcement_deliveries.claimed_at`.
+
+Dodatkowo poniższe zapytanie powinno zwrócić `event_team_members`:
+
+```sql
+select to_regclass('public.event_team_members');
+```
 
 ## Ustawienia poza migracją
 

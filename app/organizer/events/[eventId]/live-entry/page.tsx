@@ -1,6 +1,6 @@
 import { createAuthClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
-import { requireRole } from '@/lib/getServerUser'
+import { getEventAccess } from '@/lib/eventAccess'
 import LiveEntryClient from './LiveEntryClient'
 import type { Metadata } from 'next'
 
@@ -14,7 +14,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function LiveEntryPage({ params }: Props) {
   const { eventId: param } = await params
-  await requireRole(['organizer', 'admin'])
+  const access = await getEventAccess(param)
+  if (!access?.can('results')) notFound()
 
   const supabase = await createAuthClient()
 

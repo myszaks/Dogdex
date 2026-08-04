@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 
 interface Params {
   params: Promise<{ id: string; slotId: string }>
@@ -9,22 +9,9 @@ interface Params {
 export async function DELETE(_req: Request, { params }: Params) {
   const { id, slotId } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
-
-  const supabase = await createAuthClient()
-
-  // Verify event ownership
-  const { data: event } = await supabase
-    .from('events')
-    .select('created_by')
-    .eq('id', id)
-    .single()
-
-  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const supabase = createServerClient()
 
   const { error } = await supabase
     .from('time_slots')
@@ -39,21 +26,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id, slotId } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
-
-  const supabase = await createAuthClient()
-
-  const { data: event } = await supabase
-    .from('events')
-    .select('created_by')
-    .eq('id', id)
-    .single()
-
-  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const supabase = createServerClient()
 
   let body: Record<string, unknown>
   try {

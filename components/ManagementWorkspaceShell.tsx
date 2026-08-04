@@ -25,6 +25,7 @@ import PageHeader from '@/components/layout/PageHeader'
 interface ManagementWorkspaceShellProps {
   children: React.ReactNode
   role: string | null
+  sharedEventAccess?: boolean
 }
 
 interface WorkspaceTab {
@@ -70,7 +71,7 @@ const adminTabs: WorkspaceTab[] = [
   { href: '/admin/reviews', label: 'Zgłoszone opinie', Icon: Flag, active: pathname => pathname.startsWith('/admin/reviews') },
 ]
 
-export default function ManagementWorkspaceShell({ children, role }: ManagementWorkspaceShellProps) {
+export default function ManagementWorkspaceShell({ children, role, sharedEventAccess = false }: ManagementWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const organizer = isOrganizerRole(role)
   const trainer = isTrainerRole(role)
@@ -78,15 +79,15 @@ export default function ManagementWorkspaceShell({ children, role }: ManagementW
 
   const primaryTabs: WorkspaceTab[] = [
     { href: '/manage', label: 'Przegląd', Icon: LayoutDashboard, active: path => path === '/manage' },
-    ...(organizer ? [{ href: '/organizer', label: 'Wydarzenia', Icon: CalendarCog, active: (path: string) => path.startsWith('/organizer') }] : []),
+    ...(organizer || sharedEventAccess ? [{ href: '/organizer', label: 'Wydarzenia', Icon: CalendarCog, active: (path: string) => path.startsWith('/organizer') }] : []),
     ...(trainer ? [{ href: '/trainer', label: 'Treningi', Icon: Dumbbell, active: (path: string) => path.startsWith('/trainer') }] : []),
-    { href: '/payments', label: 'Płatności', Icon: CreditCard, active: path => path.startsWith('/payments') },
+    ...(organizer || trainer ? [{ href: '/payments', label: 'Płatności', Icon: CreditCard, active: (path: string) => path.startsWith('/payments') }] : []),
     ...(role === 'admin' ? [{ href: '/admin/users', label: 'Administracja', Icon: Shield, active: (path: string) => path.startsWith('/admin') }] : []),
   ]
 
   const secondaryTabs = pathname.startsWith('/organizer')
     && !eventWorkspace
-    ? organizerTabs
+    ? organizer ? organizerTabs : organizerTabs.slice(0, 1)
     : pathname.startsWith('/trainer')
       ? trainerTabs
       : pathname.startsWith('/admin')

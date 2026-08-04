@@ -1,18 +1,40 @@
-import { createAuthClient } from '@/lib/supabaseServer'
-import { requireRole } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import OrganizerEventFilters from '@/components/OrganizerEventFilters'
 import OrganizerCalendar from '@/components/OrganizerCalendar'
 import type { DogEvent } from '@/types'
 import type { Metadata } from 'next'
 import { Plus, Calendar } from 'lucide-react'
+import { isOrganizerRole } from '@/lib/roles'
 
 export const metadata: Metadata = { title: 'Panel organizatora' }
 export const dynamic = 'force-dynamic'
 
 export default async function OrganizerPage() {
-  const { user, role } = await requireRole(['organizer', 'admin'])
-  const supabase = await createAuthClient()
+  const { user, role } = await getServerUser()
+  if (!user) redirect('/')
+  const supabase = createServerClient()
+
+  const normalizedEmail = user.email?.trim().toLowerCase() ?? ''
+  const { data: userMemberships } = role === 'admin'
+    ? { data: [] as Array<{ event_id: string }> }
+    : await supabase
+        .from('event_team_members')
+        .select('event_id')
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'active'])
+  const { data: emailMemberships } = role === 'admin' || !normalizedEmail
+    ? { data: [] as Array<{ event_id: string }> }
+    : await supabase
+        .from('event_team_members')
+        .select('event_id')
+        .eq('email', normalizedEmail)
+        .in('status', ['pending', 'active'])
+  const sharedEventIds = [...new Set([...(userMemberships ?? []), ...(emailMemberships ?? [])].map(member => member.event_id as string))]
+  const organizer = isOrganizerRole(role)
+  if (!organizer && sharedEventIds.length === 0) redirect('/profile/role-request')
 
   const query = supabase
     .from('events')
@@ -22,7 +44,9 @@ export default async function OrganizerPage() {
 
   const { data: events } = role === 'admin'
     ? await query
-    : await query.eq('created_by', user.id)
+    : sharedEventIds.length > 0
+      ? await query.or(`created_by.eq.${user.id},id.in.(${sharedEventIds.join(',')})`)
+      : await query.eq('created_by', user.id)
 
   const eventIds = (events ?? []).map(event => event.id)
   const registrationCountMap: Record<string, number> = {}
@@ -41,6 +65,9 @@ export default async function OrganizerPage() {
   }
 
   const eventList = (events ?? []) as DogEvent[]
+  const ownedEventIds = role === 'admin'
+    ? eventList.map(event => event.id)
+    : eventList.filter(event => event.created_by === user.id).map(event => event.id)
 
   return (
     <div className="w-full">
@@ -50,10 +77,12 @@ export default async function OrganizerPage() {
           <p className="mt-1 text-sm text-muted-foreground">Zarządzaj swoimi wydarzeniami i zapisami.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/organizer/events/new" className="btn btn-primary">
-            <Plus className="w-4 h-4" />
-            Nowe wydarzenie
-          </Link>
+          {organizer && (
+            <Link href="/organizer/events/new" className="btn btn-primary">
+              <Plus className="w-4 h-4" />
+              Nowe wydarzenie
+            </Link>
+          )}
         </div>
       </div>
 
@@ -66,15 +95,18 @@ export default async function OrganizerPage() {
               </div>
               <p className="font-heading font-semibold text-foreground text-lg">Brak wydarzeń</p>
               <p className="text-muted-foreground text-sm mt-1 mb-6">Utwórz swoje pierwsze wydarzenie.</p>
-              <Link href="/organizer/events/new" className="btn btn-primary inline-flex">
-                <Plus className="w-4 h-4" />
-                Nowe wydarzenie
-              </Link>
+              {organizer && (
+                <Link href="/organizer/events/new" className="btn btn-primary inline-flex">
+                  <Plus className="w-4 h-4" />
+                  Nowe wydarzenie
+                </Link>
+              )}
             </div>
           ) : (
             <OrganizerEventFilters
               events={eventList}
               registrationCountMap={registrationCountMap}
+              ownedEventIds={ownedEventIds}
             />
           )}
         </div>

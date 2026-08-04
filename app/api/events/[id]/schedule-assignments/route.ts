@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -12,7 +12,7 @@ interface Params {
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
 
   const supabase = createServerClient()
@@ -24,9 +24,6 @@ export async function GET(_req: Request, { params }: Params) {
     .single()
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
 
   const multiDateFieldIds: string[] = Array.isArray((event as Record<string, unknown> | null)?.form_fields)
     ? ((event as Record<string, unknown>).form_fields as Array<{ id: string; type: string }>)
@@ -77,7 +74,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
 
   const supabase = createServerClient()
@@ -88,8 +85,6 @@ export async function POST(req: Request, { params }: Params) {
     .eq('id', id)
     .single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id)
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   let body: { registration_id: string; time_slot_id: string; item_date?: string }
   try { body = await req.json() }
@@ -179,15 +174,13 @@ export async function POST(req: Request, { params }: Params) {
 export async function DELETE(req: Request, { params }: Params) {
   const { id } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, ['registrations', 'results'])
   if ('error' in authResult) return authResult.error
 
   const supabase = createServerClient()
 
   const { data: event } = await supabase.from('events').select('created_by').eq('id', id).single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id)
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
 
   let body: { assignment_id: string }
   try { body = await req.json() }

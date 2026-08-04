@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -9,10 +9,9 @@ interface Params {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
 
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
+  const authResult = await requireEventAccessForApi(id, 'results')
   if ('error' in authResult) return authResult.error
-
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   let body: { action?: 'next' | 'prev' | 'set'; value?: number }
   try {
@@ -29,9 +28,6 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
   if (event.status === 'finished' || event.status === 'cancelled') {
     return NextResponse.json(
       { error: 'Zawody są zakończone. Kolejka startowa jest zablokowana.' },

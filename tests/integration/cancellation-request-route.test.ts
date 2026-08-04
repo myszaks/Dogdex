@@ -47,6 +47,7 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
         },
         events: {
           id: 'event-1',
+          created_by: 'organizer-1',
           title: 'Speedway',
           start_at: '2026-08-10T10:00:00.000Z',
           form_fields: [],
@@ -127,7 +128,7 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
       registrations: {
         id: 'reg-paid', status: 'confirmed', form_data: { dates: ['2030-08-01', '2030-08-08'] },
         participants: { owner_email: 'user@example.com', owner_name: 'Anna', dog_name: 'Figa' },
-        events: { id: 'event-1', title: 'Spacery', form_fields: [{ id: 'dates', type: 'multidate' }] },
+        events: { id: 'event-1', created_by: 'organizer-1', title: 'Spacery', form_fields: [{ id: 'dates', type: 'multidate' }] },
       },
     }
     createAuthClient.mockResolvedValue({

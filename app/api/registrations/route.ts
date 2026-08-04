@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
+import { getServerUser } from '@/lib/getServerUser'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 import { sendEventWaitlistJoinedEmail, sendRegistrationEmail } from '@/lib/email'
 import { isEventRegistrationOpen } from '@/lib/eventStatus'
 import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
@@ -12,27 +13,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_FORM_DATA_BYTES = 50_000
 
 export async function GET(req: Request) {
-  const auth = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in auth) return auth.error
-
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
   if (!eventId) {
     return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
   }
+  const auth = await requireEventAccessForApi(eventId, 'registrations')
+  if ('error' in auth) return auth.error
 
   const supabase = createServerClient()
-  const { data: event } = await supabase
-    .from('events')
-    .select('created_by')
-    .eq('id', eventId)
-    .maybeSingle()
-
-  if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
-  if (auth.role !== 'admin' && event.created_by !== auth.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
-
   const query = supabase
     .from('registrations')
     .select('*, participants(*)')

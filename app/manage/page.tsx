@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { CalendarCog, CreditCard, Dumbbell, Shield } from 'lucide-react'
 import { getServerUser } from '@/lib/getServerUser'
 import { isOrganizerRole, isTrainerRole } from '@/lib/roles'
+import { hasSharedEventAccess } from '@/lib/eventAccess'
 
 export const metadata: Metadata = { title: 'Zarządzanie' }
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,8 @@ export default async function ManagePage() {
 
   const organizer = isOrganizerRole(role)
   const trainer = isTrainerRole(role)
-  if (!organizer && !trainer) redirect('/profile/role-request')
+  const sharedEvents = await hasSharedEventAccess()
+  if (!organizer && !trainer && !sharedEvents) redirect('/profile/role-request')
 
   return (
     <div className="space-y-7">
@@ -26,13 +28,15 @@ export default async function ManagePage() {
       </header>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {organizer && (
+        {(organizer || sharedEvents) && (
           <WorkspaceCard href="/organizer" title="Wydarzenia" description="Zapisy, grafiki, check-in i wyniki." Icon={CalendarCog} />
         )}
         {trainer && (
           <WorkspaceCard href="/trainer" title="Treningi" description="Rezerwacje, dostępność i oferta treningów." Icon={Dumbbell} />
         )}
-        <WorkspaceCard href="/payments" title="Płatności" description="Wspólne rozliczenia wydarzeń i treningów." Icon={CreditCard} />
+        {(organizer || trainer) && (
+          <WorkspaceCard href="/payments" title="Płatności" description="Wspólne rozliczenia wydarzeń i treningów." Icon={CreditCard} />
+        )}
         {role === 'admin' && (
           <WorkspaceCard href="/admin/users" title="Administracja" description="Użytkownicy, role i uprawnienia." Icon={Shield} />
         )}

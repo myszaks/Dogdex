@@ -7,5 +7,6 @@ export default function useUser() {
   const isOrganizer = isOrganizerRole(ctx.role)
   const isTrainer = isTrainerRole(ctx.role)
   const isAdmin = ctx.role === 'admin'
-  return { ...ctx, isOrganizer, isTrainer, isAdmin }
+  const canManageEvents = isOrganizer || ctx.hasEventManagement
+  return { ...ctx, isOrganizer, isTrainer, isAdmin, canManageEvents }
 }

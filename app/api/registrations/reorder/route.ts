@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 
 export async function PATCH(req: Request) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-
   const supabase = createServerClient()
 
   let body: { items?: { id: string; order_index: number }[] }
@@ -37,7 +34,7 @@ export async function PATCH(req: Request) {
 
   const { data: registrations, error: registrationsError } = await supabase
     .from('registrations')
-    .select('id, event_id, events(created_by)')
+    .select('id, event_id')
     .in('id', ids)
 
   if (registrationsError) {
@@ -47,15 +44,10 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Nie znaleziono części zapisów' }, { status: 404 })
   }
 
-  const unauthorized = (registrations ?? []).some(registration => {
-    const event = Array.isArray(registration.events)
-      ? registration.events[0]
-      : registration.events
-    return authResult.role !== 'admin' && event?.created_by !== authResult.user.id
-  })
-  if (unauthorized) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const eventIds = [...new Set((registrations ?? []).map(registration => registration.event_id as string))]
+  if (eventIds.length !== 1) return NextResponse.json({ error: 'Zapisy muszą należeć do jednego wydarzenia' }, { status: 400 })
+  const authResult = await requireEventAccessForApi(eventIds[0], ['registrations', 'results'])
+  if ('error' in authResult) return authResult.error
 
   // Update each registration's order_index in parallel
   const updates = body.items.map(({ id, order_index }) =>

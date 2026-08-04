@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
-import { isOrganizerRole } from '@/lib/roles'
+import { getEventAccess } from '@/lib/eventAccess'
 import { tryProcessEventWaitlist } from '@/lib/eventWaitlist'
 
 interface Params {
@@ -10,7 +10,7 @@ interface Params {
 
 export async function DELETE(_req: Request, { params }: Params) {
   const { id } = await params
-  const { user, role } = await getServerUser()
+  const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const supabase = createServerClient()
@@ -22,10 +22,9 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (!entry) return NextResponse.json({ error: 'Nie znaleziono wpisu' }, { status: 404 })
 
   const participant = Array.isArray(entry.participants) ? entry.participants[0] : entry.participants
-  const event = Array.isArray(entry.events) ? entry.events[0] : entry.events
   const ownsEntry = participant?.user_id === user.id
     || participant?.owner_email?.toLowerCase() === user.email?.toLowerCase()
-  const managesEvent = isOrganizerRole(role) && (role === 'admin' || event?.created_by === user.id)
+  const managesEvent = Boolean((await getEventAccess(entry.event_id))?.can('registrations'))
   if (!ownsEntry && !managesEvent) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   if (!['waiting', 'offered'].includes(entry.status)) {
     return NextResponse.json({ error: 'Tego wpisu nie można już anulować' }, { status: 409 })

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 
 export async function GET(req: Request) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
   if (!eventId) return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
+  const authResult = await requireEventAccessForApi(eventId, 'registrations')
+  if ('error' in authResult) return authResult.error
 
   const supabase = createServerClient()
 
@@ -19,9 +18,6 @@ export async function GET(req: Request) {
     .single()
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
 
   const { data: registrations } = await supabase
     .from('registrations')

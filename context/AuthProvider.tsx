@@ -8,6 +8,7 @@ type AuthContextValue = {
   user: User | null
   session: Session | null
   role: string | null
+  hasEventManagement: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<string | null>(null)
+  const [hasEventManagement, setHasEventManagement] = useState(false)
   const [loading, setLoading] = useState(true)
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
 
@@ -31,6 +33,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .single()
     setRole((data as { role: string } | null)?.role ?? 'user')
+    try {
+      const response = await fetchWithAuthRetry('/api/event-team-access')
+      const access = response.ok ? await response.json() as { hasEventManagement?: boolean } : null
+      setHasEventManagement(Boolean(access?.hasEventManagement))
+    } catch {
+      setHasEventManagement(false)
+    }
   }
 
   function subscribeToProfileChanges(userId: string) {
@@ -108,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         subscribeToProfileChanges(s.user.id)
       } else {
         setRole(null)
+        setHasEventManagement(false)
         unsubscribeFromProfileChanges()
       }
     })
@@ -146,11 +156,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setSession(null)
     setRole(null)
+    setHasEventManagement(false)
     window.location.href = '/'
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, session, role, hasEventManagement, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
-import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
-import { isOrganizerRole } from '@/lib/roles'
+import { createServerClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { getEventAccess, requireEventAccessForApi } from '@/lib/eventAccess'
 import {
   bestMs as computeBestMs,
   computeStoredSpeedKmh,
@@ -25,12 +25,9 @@ export async function GET(req: Request) {
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
 
-  const { user, role } = await getServerUser()
-  const canManage = Boolean(
-    user
-    && isOrganizerRole(role)
-    && (role === 'admin' || event.created_by === user.id)
-  )
+  const { user } = await getServerUser()
+  const access = user ? await getEventAccess(eventId) : null
+  const canManage = Boolean(access?.can('results'))
   if ((event.status === 'draft' || !event.results_public) && !canManage) {
     return NextResponse.json({ error: 'Nie znaleziono wyników' }, { status: 404 })
   }
@@ -66,10 +63,6 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-  const supabase = await createAuthClient()
-
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -87,6 +80,9 @@ export async function POST(req: Request) {
   if (!eventId || !participantId) {
     return NextResponse.json({ error: 'Wymagane: eventId, participantId' }, { status: 400 })
   }
+  const authResult = await requireEventAccessForApi(eventId as string, 'results')
+  if ('error' in authResult) return authResult.error
+  const supabase = createServerClient()
 
   const { data: event, error: eventError } = await supabase
     .from('events')
@@ -98,9 +94,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
   }
 
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień do edycji tego wydarzenia' }, { status: 403 })
-  }
 
   if (event.status === 'finished' || event.status === 'cancelled') {
     return NextResponse.json(

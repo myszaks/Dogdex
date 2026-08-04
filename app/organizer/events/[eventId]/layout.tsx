@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation'
 import EventWorkspaceShell from '@/components/EventWorkspaceShell'
-import { createAuthClient } from '@/lib/supabaseServer'
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { getEventAccess } from '@/lib/eventAccess'
 
 export default async function EventLayout({
   children,
@@ -12,24 +10,21 @@ export default async function EventLayout({
   params: Promise<{ eventId: string }>
 }) {
   const { eventId } = await params
-  const supabase = await createAuthClient()
-  const { data: event } = await supabase
-    .from('events')
-    .select('slug, title, event_type_id, has_schedule, has_results')
-    .eq(UUID_RE.test(eventId) ? 'id' : 'slug', eventId)
-    .maybeSingle()
-
-  if (!event) notFound()
+  const access = await getEventAccess(eventId)
+  if (!access) notFound()
+  const event = access.event
 
   return (
     <EventWorkspaceShell
       event={{
         slug: event.slug,
         title: event.title,
-        eventTypeId: event.event_type_id,
+        eventTypeId: event.event_type_id ?? null,
         hasSchedule: Boolean(event.has_schedule),
         hasResults: Boolean(event.has_results),
       }}
+      permissions={access.permissions}
+      canManageTeam={access.canManageTeam}
     >
       {children}
     </EventWorkspaceShell>

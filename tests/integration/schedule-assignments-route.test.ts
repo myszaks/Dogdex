@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createServerClient = vi.fn()
 const checkRoleForApi = vi.fn()
+const requireEventAccessForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
   createServerClient,
@@ -10,14 +11,17 @@ vi.mock('@/lib/supabaseServer', () => ({
 vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
 }))
+vi.mock('@/lib/eventAccess', () => ({ requireEventAccessForApi }))
 
 describe('GET /api/events/[id]/schedule-assignments', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    requireEventAccessForApi.mockResolvedValue({ access: { user: { id: 'organizer-1' } } })
   })
 
   it('rejects organizers who do not own the event', async () => {
+    requireEventAccessForApi.mockResolvedValue({ error: new Response(null, { status: 403 }) })
     checkRoleForApi.mockResolvedValue({
       user: { id: 'organizer-1' },
       role: 'organizer',

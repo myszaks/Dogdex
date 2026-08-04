@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { checkRoleForApi } from '@/lib/getServerUser'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import {
   calculateCompetitionResults,
   validateCompetitionFieldValues,
@@ -47,10 +47,10 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
   const { id: eventId } = await params
-  const supabase = await createAuthClient()
+  const authResult = await requireEventAccessForApi(eventId, 'results')
+  if ('error' in authResult) return authResult.error
+  const supabase = createServerClient()
 
   let body: Record<string, unknown>
   try {
@@ -67,9 +67,6 @@ export async function POST(req: Request, { params }: Params) {
 
   if (eventError) return NextResponse.json({ error: eventError.message }, { status: 500 })
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia.' }, { status: 404 })
-  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień do wyników tego wydarzenia.' }, { status: 403 })
-  }
   if (event.status === 'finished' || event.status === 'cancelled') {
     return NextResponse.json(
       { error: 'Wyniki zakończonego lub anulowanego wydarzenia są zablokowane.' },
@@ -160,7 +157,7 @@ export async function POST(req: Request, { params }: Params) {
   const entryPayload = {
     status,
     values: normalizedValues,
-    recorded_by: authResult.user.id,
+      recorded_by: authResult.access.user.id,
     updated_at: new Date().toISOString(),
     revision: (existingEntry?.revision ?? 0) + 1,
   }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendRegistrationEmail, sendCancellationEmailToOrganizer, sendEventPaymentRequestEmail } from '@/lib/email'
+import { getEventAccess } from '@/lib/eventAccess'
 import { isOrganizerRole } from '@/lib/roles'
 import { buildEventPriceItems } from '@/lib/eventPricing'
 import { cancelPendingEventCheckouts, createEventCheckout } from '@/lib/eventCheckout'
@@ -17,7 +18,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
-  const supabase = await createAuthClient()
+  let supabase = await createAuthClient()
 
   let body: Record<string, unknown>
   try {
@@ -42,10 +43,12 @@ export async function PATCH(req: Request, { params }: Params) {
     participant?.user_id === user.id
     || Boolean(participantEmail && participantEmail.toLowerCase() === user.email?.toLowerCase())
   )
-  const isOrganizerOrAdmin = isOrganizerRole(role) && (
-    role === 'admin'
-    || event?.created_by === user.id
-  )
+  const requiresRegistrations = Object.keys(body).some(key => key !== 'checked_in')
+  const isEventOwner = isOrganizerRole(role) && (role === 'admin' || event?.created_by === user.id)
+  const eventAccess = isEventOwner ? null : await getEventAccess(String(reg.event_id))
+  const isCollaborator = Boolean(eventAccess?.can(requiresRegistrations ? 'registrations' : 'checkin'))
+  const isOrganizerOrAdmin = isEventOwner || isCollaborator
+  if (isCollaborator) supabase = createServerClient()
 
   if (!isOrganizerOrAdmin && !isOwner) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })

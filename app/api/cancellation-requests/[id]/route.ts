@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { sendCancellationResultEmail } from '@/lib/email'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 import { isOrganizerRole } from '@/lib/roles'
 import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
@@ -29,9 +30,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
 
   const { user, role } = await getServerUser()
-  if (!user || !isOrganizerRole(role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: { action: 'accept' | 'reject' }
   try {
@@ -44,7 +43,7 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nieprawidłowa akcja' }, { status: 400 })
   }
 
-  const supabase = await createAuthClient()
+  let supabase = await createAuthClient()
 
   // Fetch the request + related data
   const { data: request } = await supabase
@@ -63,6 +62,12 @@ export async function PATCH(req: Request, { params }: Params) {
   const event = reg?.events as Record<string, unknown> | null
 
   if (!reg) return NextResponse.json({ error: 'Nie znaleziono zgłoszenia' }, { status: 404 })
+  const isEventOwner = isOrganizerRole(role) && (role === 'admin' || event?.created_by === user.id)
+  if (!isEventOwner) {
+    const access = await requireEventAccessForApi(String(reg.event_id), 'registrations')
+    if ('error' in access) return access.error
+    supabase = createServerClient()
+  }
 
   const now = new Date().toISOString()
 

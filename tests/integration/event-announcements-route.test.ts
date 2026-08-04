@@ -4,10 +4,12 @@ const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   getServerUser: vi.fn(),
   processPendingAnnouncementDeliveries: vi.fn(),
+  requireEventAccessForApi: vi.fn(),
 }))
 
 vi.mock('@/lib/supabaseServer', () => ({ createServerClient: mocks.createServerClient }))
 vi.mock('@/lib/getServerUser', () => ({ getServerUser: mocks.getServerUser }))
+vi.mock('@/lib/eventAccess', () => ({ requireEventAccessForApi: mocks.requireEventAccessForApi }))
 vi.mock('@/lib/eventAnnouncements', () => ({
   processPendingAnnouncementDeliveries: mocks.processPendingAnnouncementDeliveries,
 }))
@@ -19,10 +21,14 @@ describe('event announcements route', () => {
     mocks.processPendingAnnouncementDeliveries.mockResolvedValue({
       processed: 0, delivered: 0, failed: 0, errors: [],
     })
+    mocks.requireEventAccessForApi.mockResolvedValue({
+      access: { user: { id: 'organizer-1', email: 'org@example.com' } },
+    })
   })
 
   it('rejects sending without an organizer session', async () => {
     mocks.getServerUser.mockResolvedValue({ user: null, role: null })
+    mocks.requireEventAccessForApi.mockResolvedValue({ error: new Response(null, { status: 403 }) })
     const { POST } = await import('@/app/api/events/[id]/announcements/route')
     const response = await POST(
       new Request('https://dogdex.test/api/events/event-1/announcements', {

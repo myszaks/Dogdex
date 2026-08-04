@@ -1,7 +1,11 @@
 import ManagementWorkspaceShell from '@/components/ManagementWorkspaceShell'
-import { requireRole } from '@/lib/getServerUser'
+import { getServerUser } from '@/lib/getServerUser'
+import { hasSharedEventAccess } from '@/lib/eventAccess'
+import { redirect } from 'next/navigation'
 
 export default async function OrganizerLayout({ children }: { children: React.ReactNode }) {
-  const { role } = await requireRole(['organizer', 'admin'])
-  return <ManagementWorkspaceShell role={role}>{children}</ManagementWorkspaceShell>
+  const { user, role } = await getServerUser()
+  if (!user) redirect('/')
+  const sharedEventAccess = await hasSharedEventAccess()
+  return <ManagementWorkspaceShell role={role} sharedEventAccess={sharedEventAccess}>{children}</ManagementWorkspaceShell>
 }

@@ -2,19 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
+const requireEventAccessForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
-  createAuthClient,
+  createServerClient: createAuthClient,
 }))
 
 vi.mock('@/lib/getServerUser', () => ({
   checkRoleForApi,
 }))
+vi.mock('@/lib/eventAccess', () => ({ requireEventAccessForApi }))
 
 describe('POST /api/events/[id]/recalculate-ranks', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    requireEventAccessForApi.mockResolvedValue({ error: new Response(null, { status: 403 }) })
   })
 
   it('rejects organizers who do not own the event', async () => {

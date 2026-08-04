@@ -8,6 +8,7 @@ import { ChevronDown, ChevronRight, Radio, Calendar, CheckCircle2, XCircle, File
 interface Props {
   events: DogEvent[]
   registrationCountMap?: Record<string, number>
+  ownedEventIds?: string[]
 }
 
 interface GroupConfig {
@@ -56,7 +57,7 @@ const GROUPS: GroupConfig[] = [
   },
 ]
 
-export default function OrganizerEventGroups({ events, registrationCountMap = {} }: Props) {
+export default function OrganizerEventGroups({ events, registrationCountMap = {}, ownedEventIds = [] }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(GROUPS.map(g => [g.key, g.defaultCollapsed]))
   )
@@ -130,6 +131,7 @@ export default function OrganizerEventGroups({ events, registrationCountMap = {}
                     key={event.id}
                     event={event}
                     registeredCount={registrationCountMap[event.id] ?? 0}
+                    canConfigure={ownedEventIds.includes(event.id)}
                   />
                 ))}
               </div>

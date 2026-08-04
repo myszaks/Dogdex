@@ -62,7 +62,7 @@ describe('UI information architecture', () => {
     ]) {
       const layout = readFileSync(layoutPath, 'utf8')
       expect(layout).toContain('ManagementWorkspaceShell')
-      expect(layout).toContain('requireRole(')
+      expect(layout).toMatch(/requireRole\(|getServerUser\(/)
     }
   })
 

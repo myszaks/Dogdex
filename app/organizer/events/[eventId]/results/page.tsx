@@ -11,6 +11,7 @@ import type { Metadata } from 'next'
 import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { effectiveStatus } from '@/lib/utils'
 import type { CompetitionFormatDefinition } from '@/types/competition'
+import { getEventAccess } from '@/lib/eventAccess'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -29,6 +30,8 @@ function relatedParticipant(value: unknown): Record<string, unknown> {
 
 export default async function ResultsPage({ params }: Props) {
   const { eventId: param } = await params
+  const access = await getEventAccess(param)
+  if (!access?.can('results')) notFound()
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase.from('events').select('*')

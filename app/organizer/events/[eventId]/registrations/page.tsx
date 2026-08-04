@@ -8,6 +8,7 @@ import type { CompetitionFormatDefinition } from '@/types/competition'
 import OrganizerRegistrationsWorkspace from '@/components/OrganizerRegistrationsWorkspace'
 import { cancellationRequestParticipant } from '@/lib/cancellationRequestParticipant'
 import OrganizerWaitlistPanel from '@/components/OrganizerWaitlistPanel'
+import { getEventAccess } from '@/lib/eventAccess'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -20,6 +21,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function RegistrationsPage({ params }: Props) {
   const { eventId: param } = await params
+  const access = await getEventAccess(param)
+  if (!access?.can('registrations')) notFound()
 
   const supabase = await createAuthClient()
 

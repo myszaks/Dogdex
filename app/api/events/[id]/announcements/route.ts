@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
-import { isOrganizerRole } from '@/lib/roles'
+import { requireEventAccessForApi } from '@/lib/eventAccess'
 import { processPendingAnnouncementDeliveries } from '@/lib/eventAnnouncements'
 
 interface Params { params: Promise<{ id: string }> }
@@ -30,13 +30,14 @@ async function loadEvent(id: string) {
 
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
-  const { user, role } = await getServerUser()
+  const { user } = await getServerUser()
   if (!user?.email) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const event = await loadEvent(id)
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
   const supabase = createServerClient()
-  const managesEvent = isOrganizerRole(role) && (role === 'admin' || event.created_by === user.id)
+  const managerAccess = await requireEventAccessForApi(id, 'registrations')
+  const managesEvent = !('error' in managerAccess)
 
   if (managesEvent) {
     const { data, error } = await supabase
@@ -69,16 +70,12 @@ export async function GET(_req: Request, { params }: Params) {
 
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params
-  const { user, role } = await getServerUser()
-  if (!user || !isOrganizerRole(role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const auth = await requireEventAccessForApi(id, 'registrations')
+  if ('error' in auth) return auth.error
+  const user = auth.access.user
 
   const event = await loadEvent(id)
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
-  if (role !== 'admin' && event.created_by !== user.id) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
 
   let body: { title?: unknown; message?: unknown; audience?: unknown }
   try {

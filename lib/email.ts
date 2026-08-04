@@ -802,3 +802,35 @@ export async function sendEventAnnouncementEmail(payload: EventAnnouncementEmail
     throwOnError: true,
   })
 }
+
+interface EventTeamInvitationEmailPayload {
+  to: string
+  eventTitle: string
+  eventSlug: string
+  permissions: string[]
+  inviterName?: string | null
+}
+
+export async function sendEventTeamInvitationEmail(payload: EventTeamInvitationEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `Zaproszenie do zespołu wydarzenia ${payload.eventTitle}`,
+    eyebrow: 'Zespół wydarzenia',
+    title: 'Możesz współzarządzać wydarzeniem',
+    body: [
+      greeting(),
+      paragraph(`${payload.inviterName ? `<strong>${escapeEmailHtml(payload.inviterName)}</strong> zaprasza Cię` : 'Otrzymujesz zaproszenie'} do zespołu wydarzenia <strong>${escapeEmailHtml(payload.eventTitle)}</strong>.`),
+      emailDetails([
+        { label: 'Wydarzenie', value: payload.eventTitle },
+        { label: 'Twój zakres dostępu', value: payload.permissions.join(', ') },
+      ]),
+      emailNotice('Zaloguj się lub utwórz konto Dogdex przy użyciu adresu e-mail, na który wysłaliśmy tę wiadomość. Dostęp zostanie przypisany automatycznie.', 'neutral'),
+      emailButton('Przejdź do wydarzenia', `${appUrl()}/organizer/events/${encodeURIComponent(payload.eventSlug)}`),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `Zaproszenie do zespołu — ${payload.eventTitle}`,
+    html,
+  })
+}

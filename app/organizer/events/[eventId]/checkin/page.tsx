@@ -11,6 +11,7 @@ import { configuredCompetitionGroupValues } from '@/lib/competitionViews'
 import CheckInClient from '@/components/CheckInClient'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import type { Metadata } from 'next'
+import { getEventAccess } from '@/lib/eventAccess'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -30,6 +31,8 @@ function relatedRecord(value: unknown): Record<string, unknown> {
 
 export default async function CheckInPage({ params }: Props) {
   const { eventId: param } = await params
+  const access = await getEventAccess(param)
+  if (!access?.can('checkin')) notFound()
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase

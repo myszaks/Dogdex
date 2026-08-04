@@ -5,6 +5,7 @@ const createServerClient = vi.fn()
 const getServerUser = vi.fn()
 const sendRegistrationEmail = vi.fn()
 const sendCancellationEmailToOrganizer = vi.fn()
+const getEventAccess = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
   createAuthClient,
@@ -14,6 +15,7 @@ vi.mock('@/lib/supabaseServer', () => ({
 vi.mock('@/lib/getServerUser', () => ({
   getServerUser,
 }))
+vi.mock('@/lib/eventAccess', () => ({ getEventAccess }))
 
 vi.mock('@/lib/email', () => ({
   sendRegistrationEmail,
@@ -84,6 +86,7 @@ describe('PATCH /api/registrations/[id]', () => {
       user: { id: 'organizer-1', email: 'org@example.com' },
       role: 'organizer',
     })
+    getEventAccess.mockResolvedValue(null)
   })
 
   it('rejects an organizer who does not own the registration event', async () => {

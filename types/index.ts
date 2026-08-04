@@ -378,6 +378,11 @@ export interface TrainingReview {
   author_name: string
   rating: number
   comment: string | null
+  is_verified: boolean
+  moderation_status: 'published' | 'hidden' | 'removed'
+  moderation_reason?: string | null
+  response_text: string | null
+  response_at: string | null
   created_at: string
   updated_at: string
 }
@@ -388,6 +393,22 @@ export interface TrainerProfileWithStats extends TrainerProfile {
   review_count?: number
   min_price?: number | null
   total_bookings?: number
+}
+
+export interface EventWaitlistEntry {
+  id: string
+  event_id: string
+  participant_id: string
+  form_data: Record<string, unknown>
+  status: 'waiting' | 'offered' | 'converted' | 'cancelled' | 'expired'
+  offer_token: string | null
+  offered_at: string | null
+  offer_expires_at: string | null
+  converted_registration_id: string | null
+  converted_at: string | null
+  created_at: string
+  updated_at: string
+  participants?: Participant
 }
 
 export interface OrganizerProfile {
@@ -413,6 +434,11 @@ export interface EventReview {
   author_name: string
   rating: number
   comment: string | null
+  is_verified: boolean
+  moderation_status: 'published' | 'hidden' | 'removed'
+  moderation_reason?: string | null
+  response_text: string | null
+  response_at: string | null
   created_at: string
   updated_at: string
   events?: Pick<DogEvent, 'id' | 'slug' | 'title'>

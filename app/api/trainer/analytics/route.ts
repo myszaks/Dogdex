@@ -66,6 +66,7 @@ export async function GET(req: Request) {
     .from('training_reviews')
     .select('*')
     .eq('trainer_id', user.id)
+    .eq('moderation_status', 'published')
   if (start) reviewsQuery = reviewsQuery.gte('created_at', start.toISOString())
   const { data: reviews, error: reviewsError } = await reviewsQuery
   if (reviewsError) {

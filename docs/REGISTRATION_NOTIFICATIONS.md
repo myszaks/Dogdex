@@ -1,9 +1,10 @@
 # Powiadomienia o rozpoczęciu zapisów
 
-Powiadomienia są uruchamiane przez Supabase Cron co pięć minut. Zadanie wykonuje
-żądanie `POST /api/event-registration-notifications`; endpoint pobiera oczekujące
-subskrypcje, wysyła wiadomości i zapisuje czas wysłania, aby nie wysłać ich
-ponownie.
+Automatyzacja zapisów jest uruchamiana przez Supabase Cron co pięć minut. Zadanie
+wykonuje żądanie `POST /api/event-registration-notifications`; endpoint obsługuje
+powiadomienia o rozpoczęciu zapisów, propozycje miejsc z listy rezerwowej oraz
+oczekujące komunikaty organizatorów. Każda kolejka zapisuje stan przetwarzania,
+aby nie wysłać tej samej wiadomości ponownie.
 
 ## Konfiguracja środowiska
 
@@ -68,9 +69,10 @@ limit 20;
 Ręczne, zabezpieczone uruchomienie:
 
 ```powershell
+$dogdexBaseUrl = 'https://develop.dogdex.pro' # na produkcji: https://dogdex.pro
 Invoke-RestMethod `
   -Method Post `
-  -Uri 'https://dogdex.pro/api/event-registration-notifications' `
+  -Uri "$dogdexBaseUrl/api/event-registration-notifications" `
   -Headers @{ Authorization = 'Bearer WKLEJ_TUTAJ_CRON_SECRET' }
 ```
 

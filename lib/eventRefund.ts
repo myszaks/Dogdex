@@ -2,6 +2,7 @@ import Stripe from 'stripe'
 import { createServerClient } from '@/lib/supabaseServer'
 import { sendEventRefundResultEmail } from '@/lib/email'
 import { buildEventRefundPlan } from '@/lib/eventRefundPlanning'
+import { tryProcessEventWaitlist } from '@/lib/eventWaitlist'
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
@@ -79,6 +80,16 @@ export async function applyStripeRefundStatus(
     if (error) throw error
     const transition = Array.isArray(data) ? data[0] : data
     if (transition?.notification_required) await sendEventRefundNotification(refundId, true)
+    if (transition?.registration_id) {
+      const { data: releasedRegistration } = await db
+        .from('registrations')
+        .select('event_id, status')
+        .eq('id', transition.registration_id)
+        .maybeSingle()
+      if (releasedRegistration?.status === 'cancelled') {
+        await tryProcessEventWaitlist(releasedRegistration.event_id)
+      }
+    }
     return status
   }
 

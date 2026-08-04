@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Dogdex</title>
+  <desc id="desc">Ikona aplikacji Dogdex</desc>
+  <rect width="512" height="512" fill="#1E3932" />
+  <g fill="none" stroke="#F6FAF8" stroke-width="58" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 166l204 196" />
+    <path d="M154 362l178-184c29-30 44-55 50-86" />
+  </g>
+  <path d="M408 142c14-14 22-31 25-50" fill="none" stroke="#FF8024" stroke-width="38" stroke-linecap="round" />
+  <path d="M452 164c13-14 21-30 24-48" fill="none" stroke="#F6FAF8" stroke-width="30" stroke-linecap="round" />
+</svg>

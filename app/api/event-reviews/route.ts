@@ -106,6 +106,7 @@ export async function POST(req: Request) {
       author_name: authorName.slice(0, 120),
       rating: validated.rating,
       comment: validated.comment,
+      is_verified: true,
     })
     .select()
     .single()

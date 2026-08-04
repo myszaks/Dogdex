@@ -9,6 +9,7 @@ import type { TrainingBooking } from '@/types'
 import type { TrainingReview } from '@/types'
 import TrainingReviewForm from '@/components/TrainingReviewForm'
 import { fetchWithAuthRetry } from '@/lib/authFetch'
+import GoogleCalendarPopupLink from '@/components/GoogleCalendarPopupLink'
 
 interface MyTrainingsContentProps {
   embedded?: boolean
@@ -382,6 +383,11 @@ export default function MyTrainingsContent({
                     )}
 
                     <div className="flex flex-wrap items-center gap-3">
+                      <GoogleCalendarPopupLink
+                        href={`/api/calendar/google/trainings/${booking.id}`}
+                        label="Google Calendar"
+                        className="btn btn-secondary btn-sm inline-flex items-center gap-2"
+                      />
                       {booking.status === 'pending'
                         && booking.training_payments?.[0]?.status === 'pending' && (
                         <button

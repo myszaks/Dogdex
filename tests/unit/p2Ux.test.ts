@@ -50,11 +50,14 @@ describe('P2 UX improvements', () => {
     expect(successfulLogin.indexOf('onClose()')).toBeLessThan(successfulLogin.indexOf("fetchWithAuthRetry('/api/profile')"))
   })
 
-  it('declares an existing application icon in page metadata', () => {
+  it('declares the branded favicon and fallback icon in page metadata', () => {
     const source = readFileSync(resolve(process.cwd(), 'app/layout.tsx'), 'utf8')
-    const iconPath = resolve(process.cwd(), 'public/icon-192.png')
+    const markPath = resolve(process.cwd(), 'public/brand/dogdex-mark.svg')
+    const fallbackPath = resolve(process.cwd(), 'public/favicon-32.png')
 
-    expect(source).toContain("url: '/icon-192.png'")
-    expect(() => readFileSync(iconPath)).not.toThrow()
+    expect(source).toContain("url: '/brand/dogdex-mark.svg'")
+    expect(source).toContain("url: '/favicon-32.png'")
+    expect(() => readFileSync(markPath)).not.toThrow()
+    expect(() => readFileSync(fallbackPath)).not.toThrow()
   })
 })

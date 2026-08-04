@@ -14,6 +14,9 @@ import {
   Settings2,
   Shield,
   SlidersHorizontal,
+  Flag,
+  Users,
+  UserCog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isOrganizerRole, isTrainerRole } from '@/lib/roles'
@@ -61,6 +64,12 @@ const trainerTabs: WorkspaceTab[] = [
   { href: '/trainer/profile', label: 'Profil trenera', Icon: Settings2, active: pathname => pathname.startsWith('/trainer/profile') },
 ]
 
+const adminTabs: WorkspaceTab[] = [
+  { href: '/admin/users', label: 'Użytkownicy', Icon: Users, active: pathname => pathname.startsWith('/admin/users') },
+  { href: '/admin/role-requests', label: 'Wnioski o role', Icon: UserCog, active: pathname => pathname.startsWith('/admin/role-requests') },
+  { href: '/admin/reviews', label: 'Zgłoszone opinie', Icon: Flag, active: pathname => pathname.startsWith('/admin/reviews') },
+]
+
 export default function ManagementWorkspaceShell({ children, role }: ManagementWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const organizer = isOrganizerRole(role)
@@ -80,7 +89,9 @@ export default function ManagementWorkspaceShell({ children, role }: ManagementW
     ? organizerTabs
     : pathname.startsWith('/trainer')
       ? trainerTabs
-      : []
+      : pathname.startsWith('/admin')
+        ? adminTabs
+        : []
 
   return (
     <div className="space-y-7">
@@ -99,7 +110,7 @@ export default function ManagementWorkspaceShell({ children, role }: ManagementW
         {secondaryTabs.length > 0 && (
           <WorkspaceNavigation
             compact
-            label={pathname.startsWith('/organizer') ? 'Narzędzia organizatora' : 'Narzędzia trenera'}
+            label={pathname.startsWith('/organizer') ? 'Narzędzia organizatora' : pathname.startsWith('/trainer') ? 'Narzędzia trenera' : 'Narzędzia administratora'}
             pathname={pathname}
             tabs={secondaryTabs}
           />

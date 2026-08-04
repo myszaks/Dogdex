@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Clock, MapPin, ShieldCheck, Star } from 'lucide-react'
 import type { TrainerProfileWithStats, TrainingReview } from '@/types'
+import ReviewSafetyActions from '@/components/ReviewSafetyActions'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -138,6 +139,15 @@ export default function TrainerDetailPage({ params }: Props) {
                 <p className="text-xs text-muted-foreground mt-3">
                   {new Date(review.created_at).toLocaleDateString('pl-PL')}
                 </p>
+                <ReviewSafetyActions
+                  reviewId={review.id}
+                  reviewType="training"
+                  ownerId={trainer.trainer_id}
+                  authorUserId={review.user_id}
+                  isVerified={review.is_verified}
+                  initialResponse={review.response_text}
+                  initialResponseAt={review.response_at}
+                />
               </article>
             ))}
           </div>

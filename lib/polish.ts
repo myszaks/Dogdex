@@ -13,6 +13,7 @@ export const POLISH_FORMS = {
   section: ['sekcja', 'sekcje', 'sekcji'],
   criterion: ['kryterium', 'kryteria', 'kryteriów'],
   term: ['termin', 'terminy', 'terminów'],
+  place: ['miejsce', 'miejsca', 'miejsc'],
 } satisfies Record<string, PolishForms>
 
 /**

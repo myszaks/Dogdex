@@ -693,3 +693,112 @@ export async function sendRegistrationOpenedEmail(payload: RegistrationOpenedEma
     throwOnError: true,
   })
 }
+
+interface EventWaitlistJoinedEmailPayload {
+  to: string
+  dogName: string
+  eventTitle: string
+  eventSlug: string
+  eventDate: string | null
+  eventLocation: string | null
+  position: number
+}
+
+export async function sendEventWaitlistJoinedEmail(payload: EventWaitlistJoinedEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `Lista rezerwowa: ${payload.eventTitle}`,
+    eyebrow: 'Lista rezerwowa',
+    title: 'Dopisaliśmy Cię do kolejki',
+    body: [
+      greeting(),
+      paragraph(`Pies <strong>${escapeEmailHtml(payload.dogName)}</strong> jest na liście rezerwowej wydarzenia.`),
+      emailDetails([
+        { label: 'Wydarzenie', value: payload.eventTitle },
+        { label: 'Termin', value: payload.eventDate ? formatEmailDateTime(payload.eventDate) : null },
+        { label: 'Miejsce', value: payload.eventLocation },
+        { label: 'Pies', value: payload.dogName },
+        { label: 'Pozycja w kolejce', value: String(payload.position) },
+      ]),
+      emailNotice('Gdy zwolni się miejsce, wyślemy osobną wiadomość. Dopiero wtedy będzie można potwierdzić udział.', 'warning'),
+      emailButton('Zobacz wydarzenie', `${appUrl()}/events/${encodeURIComponent(payload.eventSlug)}`),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `Lista rezerwowa — ${payload.eventTitle}`,
+    html,
+    throwOnError: true,
+  })
+}
+
+interface EventWaitlistOfferEmailPayload {
+  to: string
+  dogName: string
+  eventTitle: string
+  eventDate: string | null
+  eventLocation: string | null
+  offerUrl: string
+  expiresAt: string
+}
+
+export async function sendEventWaitlistOfferEmail(payload: EventWaitlistOfferEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `Zwolniło się miejsce na ${payload.eventTitle}`,
+    eyebrow: 'Lista rezerwowa',
+    title: 'Zwolniło się dla Ciebie miejsce',
+    body: [
+      greeting(),
+      paragraph(`Możesz teraz potwierdzić udział psa <strong>${escapeEmailHtml(payload.dogName)}</strong> w wydarzeniu.`),
+      emailDetails([
+        { label: 'Wydarzenie', value: payload.eventTitle },
+        { label: 'Termin', value: payload.eventDate ? formatEmailDateTime(payload.eventDate) : null },
+        { label: 'Miejsce', value: payload.eventLocation },
+        { label: 'Oferta ważna do', value: formatEmailDateTime(payload.expiresAt) },
+      ]),
+      emailNotice('Miejsce jest w tym czasie zarezerwowane tylko dla Ciebie. Jeśli go nie potwierdzisz, propozycję otrzyma kolejna osoba.', 'warning'),
+      emailButton('Potwierdź miejsce', payload.offerUrl),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `Zwolniło się miejsce — ${payload.eventTitle}`,
+    html,
+    throwOnError: true,
+  })
+}
+
+interface EventAnnouncementEmailPayload {
+  to: string
+  eventTitle: string
+  eventSlug: string
+  announcementTitle: string
+  message: string
+  dogNames: string[]
+}
+
+export async function sendEventAnnouncementEmail(payload: EventAnnouncementEmailPayload): Promise<boolean> {
+  const safeMessage = escapeEmailHtml(payload.message).replace(/\r?\n/g, '<br>')
+  const html = renderEmail({
+    preheader: `${payload.announcementTitle}: ${payload.eventTitle}`,
+    eyebrow: 'Komunikat organizatora',
+    title: payload.announcementTitle,
+    body: [
+      greeting(),
+      paragraph(`Organizator wydarzenia <strong>${escapeEmailHtml(payload.eventTitle)}</strong> przekazuje ważną informację.`),
+      `<div style="margin:18px 0;padding:16px 18px;border-radius:14px;background:#F3F7F5;color:#1E3932;line-height:1.65">${safeMessage}</div>`,
+      payload.dogNames.length > 0
+        ? emailDetails([{ label: payload.dogNames.length === 1 ? 'Dotyczy psa' : 'Dotyczy psów', value: payload.dogNames.join(', ') }])
+        : '',
+      emailButton('Zobacz wydarzenie', `${appUrl()}/events/${encodeURIComponent(payload.eventSlug)}`),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `${payload.announcementTitle} — ${payload.eventTitle}`,
+    html,
+    throwOnError: true,
+  })
+}

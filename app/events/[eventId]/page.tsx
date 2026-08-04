@@ -11,10 +11,13 @@ import {
 import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import RegisterModal from '@/components/RegisterModal'
 import UserRegistrationStatus from '@/components/UserRegistrationStatus'
+import UserWaitlistStatus from '@/components/UserWaitlistStatus'
 import EventMapClient from '@/components/EventMapClient'
 import EventRegistrationTerms from '@/components/EventRegistrationTerms'
 import RegistrationOpeningNotification from '@/components/RegistrationOpeningNotification'
 import OrganizerReviewForm from '@/components/OrganizerReviewForm'
+import EventAnnouncementsHistory from '@/components/EventAnnouncementsHistory'
+import GoogleCalendarPopupLink from '@/components/GoogleCalendarPopupLink'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
 import { ArrowLeft, MapPin, CalendarDays, Clock, Radio, Trophy, User, ImageIcon, Lock, PawPrint, ChevronRight } from 'lucide-react'
@@ -90,9 +93,11 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
   if (redirectTo) redirect(redirectTo)
 
   const supabase = createServerClient()
-  const [{ count: slotCount }, { count: regCount }] = await Promise.all([
+  const [{ count: slotCount }, { count: regCount }, { count: offeredCount }] = await Promise.all([
     supabase.from('time_slots').select('id', { count: 'exact', head: true }).eq('event_id', event.id),
     supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', event.id).in('status', ['pending', 'confirmed']),
+    supabase.from('event_waitlist_entries').select('id', { count: 'exact', head: true })
+      .eq('event_id', event.id).eq('status', 'offered').gt('offer_expires_at', new Date().toISOString()),
   ])
 
   const formFields: FormField[] = Array.isArray(event.form_fields) ? event.form_fields : []
@@ -117,10 +122,12 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
     : null
 
   const registeredCount = regCount ?? 0
+  const reservedOfferCount = offeredCount ?? 0
   const maxParticipants = event.max_participants
-  const isFull = typeof maxParticipants === 'number' && maxParticipants > 0 && registeredCount >= maxParticipants
+  const isFull = typeof maxParticipants === 'number' && maxParticipants > 0
+    && registeredCount + reservedOfferCount >= maxParticipants
   const fillPct = maxParticipants && maxParticipants > 0
-    ? Math.min(100, Math.round((registeredCount / maxParticipants) * 100))
+    ? Math.min(100, Math.round(((registeredCount + reservedOfferCount) / maxParticipants) * 100))
     : null
 
   const statusDotColor: Record<string, string> = {
@@ -242,6 +249,8 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
         {/* ── Left column ──────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
 
+          <EventAnnouncementsHistory eventId={event.id} />
+
           {/* About */}
           {event.description && (
             <div className="bg-card rounded-3xl p-6 shadow-sm">
@@ -324,6 +333,11 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
                     style={{ width: `${fillPct ?? 0}%` }}
                   />
                 </div>
+                {reservedOfferCount > 0 && (
+                  <p className="text-xs text-amber-700">
+                    Czasowa rezerwacja dla osób z listy: {formatPolishCount(reservedOfferCount, POLISH_FORMS.place)}.
+                  </p>
+                )}
               </div>
             )}
 
@@ -358,6 +372,14 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
               </div>
             )}
 
+            {event.start_at && (
+              <GoogleCalendarPopupLink
+                href={`/api/calendar/google/events/${event.id}`}
+                label="Dodaj do Google Calendar"
+                className="btn btn-secondary w-full"
+              />
+            )}
+
             {registrationNotStarted && event.registration_opens_at && (
               <RegistrationOpeningNotification
                 eventId={event.id}
@@ -372,6 +394,7 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
               formFields={formFields}
               eventStatus={dispStatus}
             />
+            <UserWaitlistStatus eventId={event.id} />
 
             {/* CTA */}
             {dispStatus === 'upcoming' && regOpen && !isFull && (
@@ -389,9 +412,24 @@ export default async function EventDetailPage({ params, searchParams }: Props) {
               />
             )}
             {dispStatus === 'upcoming' && regOpen && isFull && (
-              <div className="flex items-start gap-2 text-sm text-red-600 font-medium bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
-                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
-                Brak wolnych miejsc na to wydarzenie
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 text-sm text-amber-700 font-medium bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                  <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                  Brak wolnych miejsc. Możesz dołączyć do listy rezerwowej.
+                </div>
+                <RegisterModal
+                  eventId={event.id}
+                  eventTitle={event.title}
+                  formFields={formFields}
+                  pricingMode={event.pricing_mode ?? 'free'}
+                  entryFee={event.entry_fee}
+                  datePrices={event.date_prices ?? {}}
+                  currency={event.currency ?? 'PLN'}
+                  autoConfirm={event.auto_confirm}
+                  waitlistMode
+                  triggerClassName="btn btn-secondary w-full py-2.5"
+                  triggerLabel="Dołącz do listy rezerwowej"
+                />
               </div>
             )}
             {dispStatus === 'upcoming' && !regOpen && !registrationNotStarted && (

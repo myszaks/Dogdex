@@ -18,6 +18,24 @@ const TONES: Record<EmailTone, { background: string; border: string; text: strin
   danger: { background: '#FEF2F2', border: '#EF4444', text: '#991B1B' },
 }
 
+function emailSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL
+    ?? process.env.NEXT_PUBLIC_SITE_URL
+    ?? 'https://dogdex.pro'
+  ).replace(/\/$/, '')
+}
+
+function emailBrandHeader(eyebrow: string): string {
+  const siteUrl = escapeEmailHtml(emailSiteUrl())
+  const logoUrl = `${siteUrl}/brand/dogdex-email-logo.png`
+
+  return `<a href="${siteUrl}" style="display:inline-block;text-decoration:none">
+          <img src="${logoUrl}" width="160" height="40" alt="Dogdex" style="display:block;width:160px;height:40px;border:0;outline:none;text-decoration:none;color:#F6FAF8;font-family:Arial,sans-serif;font-size:22px;font-weight:700" />
+        </a>
+        <span style="display:block;margin-top:5px;color:#DCE8E3;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase">${escapeEmailHtml(eyebrow)}</span>`
+}
+
 export function escapeEmailHtml(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return ''
   return String(value)
@@ -79,8 +97,7 @@ export function renderEmail({ preheader, eyebrow, title, body, footerNote }: Ren
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;background:${COLORS.background}"><tr><td align="center" style="padding:24px 12px">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px">
       <tr><td style="padding:18px 22px;background:${COLORS.forest};border-radius:20px 20px 0 0">
-        <span style="display:inline-block;color:#FFFFFF;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:700;letter-spacing:.2px">Dogdex</span>
-        <span style="display:block;margin-top:3px;color:#DCE8E3;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase">${escapeEmailHtml(eyebrow)}</span>
+        ${emailBrandHeader(eyebrow)}
       </td></tr>
       <tr><td style="padding:28px 22px 24px;background:${COLORS.card};border:1px solid ${COLORS.border};border-top:0;border-radius:0 0 20px 20px;box-shadow:0 8px 24px rgba(30,57,50,.06)">
         <h1 style="margin:0 0 18px;color:${COLORS.forest};font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:1.2">${escapeEmailHtml(title)}</h1>
@@ -100,6 +117,7 @@ export function emailHtmlToText(html: string): string {
     .replace(/<head[\s\S]*?<\/head>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<div[^>]*display:none[^>]*>[\s\S]*?<\/div>/i, '')
+    .replace(/<img[^>]*alt=["']([^"']*)["'][^>]*>/gi, '$1')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|h1|h2|h3|tr|li|table)>/gi, '\n')
     .replace(/<li[^>]*>/gi, '• ')

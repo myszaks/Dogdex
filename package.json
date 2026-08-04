@@ -13,6 +13,7 @@
     "schema:check": "node scripts/build-full-schema.mjs --check",
     "db:dev:build": "node scripts/build-dev-database-sql.mjs",
     "db:dev:check": "node scripts/build-dev-database-sql.mjs --check",
+    "db:dev:audit": "node scripts/audit-dev-database.mjs",
     "db:dev:migrate:trainings": "node scripts/apply-training-p0-dev.mjs --confirm-dev",
     "db:dev:migrate:training-p1": "node scripts/apply-training-p1-dev.mjs --confirm-dev",
     "db:dev:migrate:event-payments-p0": "node scripts/apply-event-payments-p0-dev.mjs --confirm-dev",

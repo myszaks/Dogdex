@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 import { sendRegistrationOpenedEmail } from '@/lib/email'
+import { processAllEventWaitlists } from '@/lib/eventWaitlist'
+import { processPendingAnnouncementDeliveries } from '@/lib/eventAnnouncements'
 
 async function processRegistrationOpeningNotifications(req: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -88,7 +90,22 @@ async function processRegistrationOpeningNotifications(req: Request) {
     }
   }
 
-  return NextResponse.json({ sent, skipped, errors: errors.length ? errors : undefined })
+  const waitlist = await processAllEventWaitlists()
+  const announcements = await processPendingAnnouncementDeliveries({ limit: 100 })
+
+  return NextResponse.json({
+    registrationOpening: { sent, skipped, errors: errors.length ? errors : undefined },
+    waitlist: {
+      offered: waitlist.offered,
+      errors: waitlist.errors.length ? waitlist.errors : undefined,
+    },
+    announcements: {
+      processed: announcements.processed,
+      delivered: announcements.delivered,
+      failed: announcements.failed,
+      errors: announcements.errors.length ? announcements.errors : undefined,
+    },
+  })
 }
 
 // Supabase Cron invokes this endpoint with POST through pg_net. GET remains

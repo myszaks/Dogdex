@@ -3,10 +3,11 @@ import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import CsvExportButton from '@/components/CsvExportButton'
 import type { Metadata } from 'next'
-import type { FormField, Registration } from '@/types'
+import type { EventWaitlistEntry, FormField, Registration } from '@/types'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import OrganizerRegistrationsWorkspace from '@/components/OrganizerRegistrationsWorkspace'
 import { cancellationRequestParticipant } from '@/lib/cancellationRequestParticipant'
+import OrganizerWaitlistPanel from '@/components/OrganizerWaitlistPanel'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -30,6 +31,7 @@ export default async function RegistrationsPage({ params }: Props) {
   const [
     { data: registrations },
     { data: cancellationRequests },
+    { data: waitlistEntries },
   ] = await Promise.all([
     supabase
       .from('registrations')
@@ -42,6 +44,12 @@ export default async function RegistrationsPage({ params }: Props) {
       .select('*, registrations(participant_id, participants(dog_name, owner_name, owner_email))')
       .eq('event_id', eventId)
       .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('event_waitlist_entries')
+      .select('*, participants(*)')
+      .eq('event_id', eventId)
+      .in('status', ['waiting', 'offered'])
       .order('created_at', { ascending: true }),
   ])
 
@@ -69,6 +77,8 @@ export default async function RegistrationsPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      <OrganizerWaitlistPanel initialEntries={(waitlistEntries ?? []) as unknown as EventWaitlistEntry[]} />
 
       <OrganizerRegistrationsWorkspace
         initialRegistrations={(registrations ?? []) as unknown as Registration[]}

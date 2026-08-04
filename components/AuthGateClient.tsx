@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import AuthModal from './AuthModal'
 
 interface Props {
@@ -32,8 +33,14 @@ export default function AuthGateClient({ state, email }: Props) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center space-y-6">
-        <div className="text-5xl">🐾</div>
-        <h1 className="text-2xl font-bold text-slate-800">Dogdex</h1>
+        <Image
+          src="/brand/dogdex-logo.svg"
+          alt="Dogdex"
+          width={184}
+          height={46}
+          priority
+          className="mx-auto h-[46px] w-[184px]"
+        />
         <p className="text-slate-500">
           Zaloguj się, aby uzyskać dostęp do aplikacji.
         </p>

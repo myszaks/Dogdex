@@ -27,8 +27,9 @@ export async function GET(req: Request) {
   const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('training_reviews')
-    .select('id, booking_id, trainer_id, author_name, rating, comment, created_at, updated_at')
+    .select('id, booking_id, trainer_id, author_name, rating, comment, is_verified, moderation_status, response_text, response_at, created_at, updated_at')
     .eq('trainer_id', trainerId)
+    .eq('moderation_status', 'published')
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
       author_name: authorName.slice(0, 120),
       rating: validated.rating,
       comment: validated.comment,
+      is_verified: true,
     })
     .select()
     .single()

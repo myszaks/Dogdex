@@ -5,6 +5,7 @@ import { sendCancellationResultEmail } from '@/lib/email'
 import { isOrganizerRole } from '@/lib/roles'
 import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
+import { tryProcessEventWaitlist } from '@/lib/eventWaitlist'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -212,6 +213,7 @@ export async function PATCH(req: Request, { params }: Params) {
       .from('schedule_assignments')
       .delete()
       .eq('registration_id', reg.id as string)
+    if (event?.id) await tryProcessEventWaitlist(String(event.id))
   } else if (cancelledDates !== null && cancelledDates.length > 0) {
     const eventId = (event as Record<string, unknown> | null)?.id as string | undefined
     if (eventId) {

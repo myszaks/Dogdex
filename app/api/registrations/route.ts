@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
-import { sendRegistrationEmail } from '@/lib/email'
+import { sendEventWaitlistJoinedEmail, sendRegistrationEmail } from '@/lib/email'
 import { isEventRegistrationOpen } from '@/lib/eventStatus'
 import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
 import { validateRegistrationFormData } from '@/lib/registrationFormValidation'
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { eventId, ownerName, ownerEmail, dogName, dogBreed, dogId, extraFields } =
+  const { eventId, ownerName, ownerEmail, dogName, dogBreed, dogId, extraFields, joinWaitlist } =
     body as {
       eventId: string
       ownerName: string
@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       dogBreed?: string
       dogId?: string | null
       extraFields?: Record<string, unknown>
+      joinWaitlist?: boolean
     }
 
   if (!eventId || !dogName?.trim() || !ownerName?.trim() || !ownerEmail?.trim()) {
@@ -159,15 +160,29 @@ export async function POST(req: Request) {
     }
   }
 
-  // Check max_participants limit
+  // Offered waitlist places are exclusive holds and count against capacity.
+  let eventIsFull = false
   if (event.max_participants) {
-    const { count } = await supabase
-      .from('registrations')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-      .in('status', ['pending', 'confirmed'])
-    if ((count ?? 0) >= event.max_participants) {
-      return NextResponse.json({ error: 'Brak wolnych miejsc na to wydarzenie' }, { status: 409 })
+    const now = new Date().toISOString()
+    const [{ count: registrationCount }, { count: offeredCount }] = await Promise.all([
+      supabase
+        .from('registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .in('status', ['pending', 'confirmed']),
+      supabase
+        .from('event_waitlist_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('status', 'offered')
+        .gt('offer_expires_at', now),
+    ])
+    eventIsFull = (registrationCount ?? 0) + (offeredCount ?? 0) >= event.max_participants
+    if (eventIsFull && joinWaitlist !== true) {
+      return NextResponse.json(
+        { error: 'Brak wolnych miejsc na to wydarzenie', waitlistAvailable: true },
+        { status: 409 },
+      )
     }
   }
 
@@ -225,6 +240,21 @@ export async function POST(req: Request) {
     if (existingRegs && existingRegs.length > 0) {
       return NextResponse.json({ error: 'Istnieje już zapis dla tego e-maila i imienia psa na to wydarzenie' }, { status: 409 })
     }
+
+    const { data: existingWaitlistEntries } = await supabase
+      .from('event_waitlist_entries')
+      .select('id')
+      .in('participant_id', participantIds)
+      .eq('event_id', eventId)
+      .in('status', ['waiting', 'offered'])
+      .limit(1)
+
+    if ((existingWaitlistEntries ?? []).length > 0) {
+      return NextResponse.json(
+        { error: 'Ten pies jest już na liście rezerwowej tego wydarzenia' },
+        { status: 409 },
+      )
+    }
   }
 
   // Create participant
@@ -249,6 +279,61 @@ export async function POST(req: Request) {
     )
   }
 
+  const createWaitlistResponse = async () => {
+    const { data: waitlistEntry, error: waitlistError } = await supabase
+      .from('event_waitlist_entries')
+      .insert({
+        event_id: eventId,
+        participant_id: participant.id,
+        form_data: normalizedExtraFields,
+      })
+      .select('id, status, created_at')
+      .single()
+
+    if (waitlistError || !waitlistEntry) {
+      await supabase.from('participants').delete().eq('id', participant.id)
+      if (waitlistError?.message.includes('duplicate_waitlist_entry')) {
+        return NextResponse.json(
+          { error: 'Ten pies jest już na liście rezerwowej tego wydarzenia' },
+          { status: 409 },
+        )
+      }
+      return NextResponse.json(
+        { error: waitlistError?.message ?? 'Nie udało się dołączyć do listy rezerwowej' },
+        { status: 500 },
+      )
+    }
+
+    const { count: waitlistPosition } = await supabase
+      .from('event_waitlist_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .in('status', ['waiting', 'offered'])
+      .lte('created_at', waitlistEntry.created_at)
+
+    try {
+      await sendEventWaitlistJoinedEmail({
+        to: ownerEmailNorm,
+        dogName: dogNameTrim,
+        eventTitle: event.title,
+        eventSlug: event.slug,
+        eventDate: event.start_at ?? null,
+        eventLocation: event.location ?? null,
+        position: Math.max(1, waitlistPosition ?? 1),
+      })
+    } catch (emailError) {
+      console.error('[event-waitlist] Failed to send join confirmation:', emailError)
+    }
+
+    return NextResponse.json({
+      id: waitlistEntry.id,
+      status: 'waitlisted',
+      waitlistPosition: Math.max(1, waitlistPosition ?? 1),
+    }, { status: 201 })
+  }
+
+  if (eventIsFull) return createWaitlistResponse()
+
   const { data: registration, error: rError } = await supabase
     .from('registrations')
     .insert([{
@@ -261,6 +346,9 @@ export async function POST(req: Request) {
     .single()
 
   if (rError || !registration) {
+    if (rError?.message?.includes('event_capacity_reached') && joinWaitlist === true) {
+      return createWaitlistResponse()
+    }
     await supabase
       .from('participants')
       .delete()
@@ -320,17 +408,23 @@ export async function POST(req: Request) {
 
   // Send email notification before returning so serverless runtimes do not stop it mid-flight.
   if (!isPaidRegistration || !event.auto_confirm) {
-    await sendRegistrationEmail({
-      to: ownerEmailNorm,
-      ownerName: ownerName.trim(),
-      dogName: dogName.trim(),
-      eventTitle: event.title,
-      eventDate: event.start_at ?? null,
-      eventLocation: event.location ?? null,
-      status: event.auto_confirm && !isPaidRegistration ? 'confirmed' : 'pending',
-      formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
-      formData: registration.form_data ?? {},
-    })
+    try {
+      await sendRegistrationEmail({
+        to: ownerEmailNorm,
+        ownerName: ownerName.trim(),
+        dogName: dogName.trim(),
+        eventTitle: event.title,
+        eventDate: event.start_at ?? null,
+        eventLocation: event.location ?? null,
+        status: event.auto_confirm && !isPaidRegistration ? 'confirmed' : 'pending',
+        formFields: Array.isArray(event.form_fields) ? event.form_fields : [],
+        formData: registration.form_data ?? {},
+      })
+    } catch (emailError) {
+      // The registration is already committed. A mail transport failure must not
+      // turn a successful registration into a retry that creates confusing errors.
+      console.error('[event-registration] Failed to send confirmation email:', emailError)
+    }
   }
 
   return NextResponse.json({ ...registration, checkoutUrl }, { status: 201 })

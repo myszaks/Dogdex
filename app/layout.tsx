@@ -28,8 +28,12 @@ export const metadata: Metadata = {
   description: 'Platforma do organizacji i zapisu na psie zawody, eventy i spacery',
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/icon-192.png', type: 'image/png', sizes: '192x192' }],
-    apple: [{ url: '/icon-192.png', type: 'image/png', sizes: '192x192' }],
+    icon: [
+      { url: '/brand/dogdex-mark.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+    ],
+    shortcut: [{ url: '/favicon-32.png', type: 'image/png', sizes: '32x32' }],
+    apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
   },
   appleWebApp: {
     capable: true,

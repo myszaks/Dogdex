@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" shape-rendering="geometricPrecision" role="img" aria-labelledby="title desc">
+  <title id="title">Dogdex</title>
+  <desc id="desc">Logotyp Dogdex z merdającą końcówką litery x</desc>
+  <g fill="none" stroke="#1E3932" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 78V18h22c34 0 34 60 0 60H20Z" />
+    <circle cx="93" cy="50" r="24" />
+    <path d="M169 50a24 24 0 1 1-48 0 24 24 0 0 1 48 0Zm0-23v43c0 20-18 25-31 17" />
+    <path d="M229 50a24 24 0 1 1-48 0 24 24 0 0 1 48 0Zm0 24V12" />
+    <path d="M292 61c-5 9-13 13-23 13-15 0-25-10-25-24s10-24 25-24c14 0 23 9 23 23h-47" />
+    <path d="M309 31l35 39M309 70l34-38c8-9 12-16 14-24" />
+  </g>
+  <path d="M367 23c5-5 8-11 9-17" fill="none" stroke="#FF8024" stroke-width="9" stroke-linecap="round" />
+  <path d="M384 29c5-5 8-11 9-17" fill="none" stroke="#1E3932" stroke-width="8" stroke-linecap="round" />
+</svg>

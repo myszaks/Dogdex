@@ -8,6 +8,7 @@ Kod wysyłki znajduje się w `lib/email.ts`, a współdzielony układ w `lib/ema
 
 Każda wiadomość zawiera:
 
+- pełny logotyp Dogdex z tekstowym opisem zastępczym dla klientów blokujących obrazy,
 - preheader widoczny na liście wiadomości w programie pocztowym,
 - jednoznaczny tytuł i status,
 - tabelę z nazwanymi danymi zamiast luźnych wartości,
@@ -28,6 +29,7 @@ NEXT_PUBLIC_SITE_URL=https://dogdex.pro
 ```
 
 `CONTACT_EMAIL` jest opcjonalne. Bez niego formularz kontaktowy trafia na adres zapasowy zdefiniowany w kodzie. `NEXT_PUBLIC_SITE_URL` służy do budowania przycisków w wiadomościach.
+Służy również do ładowania logotypu z `/brand/dogdex-email-logo.png`, dlatego adres musi być publicznie dostępny i odpowiadać środowisku wysyłającemu wiadomość.
 
 ## Szablony Supabase Auth
 
@@ -49,9 +51,26 @@ Wersjonowane pliki znajdują się w `supabase/email-templates/`. Tematy są zapi
 | `mfa_factor_enrolled.html` | Verification method added |
 | `mfa_factor_unenrolled.html` | Verification method removed |
 
-W projekcie hostowanym otwórz **Authentication → Email Templates**, wklej zawartość właściwego pliku i ustaw temat z `subjects.json`. Powiadomienia bezpieczeństwa trzeba dodatkowo włączyć na poziomie projektu. Szablony lokalne można wskazać przez `auth.email.template.<type>.content_path` w `supabase/config.toml`; zmiany wymagają ponownego uruchomienia lokalnego Supabase.
+W projekcie hostowanym najpierw wdróż aplikację i sprawdź, czy publiczny adres
+`/brand/dogdex-email-logo.png` zwraca plik z nagłówkiem `Content-Type: image/png`.
+Następnie otwórz **Authentication → Email Templates**, wklej zawartość
+właściwego pliku i ustaw temat z `subjects.json`. Powiadomienia bezpieczeństwa
+trzeba dodatkowo włączyć na poziomie projektu. Szablony lokalne można wskazać
+przez `auth.email.template.<type>.content_path` w `supabase/config.toml`; zmiany
+wymagają ponownego uruchomienia lokalnego Supabase.
 
-Nie zamieniaj `{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .OldEmail }}` ani `{{ .SiteURL }}` na stałe wartości. Supabase uzupełnia je osobno dla każdej wiadomości.
+Nie zamieniaj zmiennych szablonów na stałe wartości. Supabase uzupełnia je osobno dla każdej wiadomości. W używanych przez Dogdex szablonach są to: `{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .OldEmail }}`, `{{ .Phone }}`, `{{ .OldPhone }}`, `{{ .Provider }}`, `{{ .FactorType }}` i `{{ .SiteURL }}`.
+
+| Rodzaj wiadomości | Dane dynamiczne, które muszą pozostać w szablonie |
+| --- | --- |
+| Rejestracja, zaproszenie, magic link, reset hasła | `Email`, `ConfirmationURL`, `SiteURL` |
+| Zmiana adresu e-mail | `Email`, `NewEmail`, `ConfirmationURL`, `SiteURL` |
+| Kod ponownego uwierzytelnienia | `Email`, `Token`, `SiteURL` |
+| Zmiana hasła | `Email`, `SiteURL` |
+| Powiadomienie o zmianie e-maila | `OldEmail`, `Email`, `SiteURL` |
+| Powiadomienie o zmianie telefonu | `OldPhone`, `Phone`, `Email`, `SiteURL` |
+| Połączenie lub odłączenie tożsamości | `Provider`, `Email`, `SiteURL` |
+| Dodanie lub usunięcie MFA | `FactorType`, `Email`, `SiteURL` |
 
 Przed publikacją sprawdź w Supabase:
 

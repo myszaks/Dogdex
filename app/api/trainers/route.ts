@@ -21,7 +21,8 @@ export async function GET(req: Request) {
         .eq('is_active', true),
       supabase
         .from('training_reviews')
-        .select('trainer_id, rating'),
+        .select('trainer_id, rating')
+        .eq('moderation_status', 'published'),
     ])
 
   if (error || typesError || reviewsError) {

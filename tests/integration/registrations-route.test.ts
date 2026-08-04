@@ -5,6 +5,7 @@ const createAuthClient = vi.fn()
 const checkRoleForApi = vi.fn()
 const getServerUser = vi.fn()
 const sendRegistrationEmail = vi.fn()
+const sendEventWaitlistJoinedEmail = vi.fn()
 const enforcePublicRateLimits = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/lib/getServerUser', () => ({
 
 vi.mock('@/lib/email', () => ({
   sendRegistrationEmail,
+  sendEventWaitlistJoinedEmail,
 }))
 
 vi.mock('@/lib/publicRateLimit', () => ({
@@ -32,6 +34,7 @@ describe('POST /api/registrations', () => {
     vi.clearAllMocks()
     getServerUser.mockResolvedValue({ user: null, role: null })
     sendRegistrationEmail.mockResolvedValue(undefined)
+    sendEventWaitlistJoinedEmail.mockResolvedValue(true)
     enforcePublicRateLimits.mockResolvedValue({ allowed: true })
   })
 
@@ -267,5 +270,66 @@ describe('POST /api/registrations', () => {
     expect(sendRegistrationEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'jan.kowalski@example.com' })
     )
+  })
+
+  it('adds a dog to the waitlist when the event is full', async () => {
+    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'events') {
+          return { select: () => ({ eq: () => ({ single: async () => ({ data: {
+            id: 'event-1', slug: 'spacer', created_by: 'organizer-1', status: 'upcoming',
+            auto_confirm: true, max_participants: 1, title: 'Spacer', start_at: future,
+            end_at: null, location: 'Park', form_fields: [], registration_opens_at: null,
+            registration_deadline: null, pricing_mode: 'free', entry_fee: null,
+            date_prices: {}, currency: 'PLN',
+          } }) }) }) }
+        }
+        if (table === 'registrations') {
+          return {
+            select: () => ({ eq: () => ({ in: async () => ({ count: 1 }) }) }),
+          }
+        }
+        if (table === 'participants') {
+          return {
+            select: () => ({ ilike: () => ({ ilike: async () => ({ data: [] }) }) }),
+            insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'participant-1' }, error: null }) }) }),
+            delete: () => ({ eq: async () => ({ error: null }) }),
+          }
+        }
+        if (table === 'event_waitlist_entries') {
+          return {
+            select: (_columns?: string, options?: { count?: string }) => ({
+              eq: () => ({
+                eq: () => ({ gt: async () => ({ count: 0 }) }),
+                in: () => ({ lte: async () => ({ count: 1 }) }),
+              }),
+              ...(options?.count ? {} : {}),
+            }),
+            insert: () => ({ select: () => ({ single: async () => ({
+              data: { id: 'waitlist-1', status: 'waiting', created_at: new Date().toISOString() },
+              error: null,
+            }) }) }),
+          }
+        }
+        throw new Error(`Unexpected table ${table}`)
+      }),
+    })
+
+    const { POST } = await import('@/app/api/registrations/route')
+    const response = await POST(new Request('http://localhost/api/registrations', {
+      method: 'POST',
+      body: JSON.stringify({
+        eventId: 'event-1', ownerName: 'Jan Kowalski', ownerEmail: 'jan@example.com',
+        dogName: 'Burek', joinWaitlist: true,
+      }),
+    }))
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toMatchObject({ status: 'waitlisted', waitlistPosition: 1 })
+    expect(sendEventWaitlistJoinedEmail).toHaveBeenCalledWith(expect.objectContaining({
+      to: 'jan@example.com', dogName: 'Burek', eventTitle: 'Spacer', position: 1,
+    }))
+    expect(sendRegistrationEmail).not.toHaveBeenCalled()
   })
 })

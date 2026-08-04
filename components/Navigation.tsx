@@ -1,5 +1,6 @@
  'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { useState, useEffect, Suspense } from 'react'
 import AuthModal from './AuthModal'
@@ -84,11 +85,15 @@ export default function Navigation() {
       <aside className="hidden md:flex fixed top-0 left-0 h-full w-[260px] flex-col z-40 bg-[#1E3932] text-white shadow-xl">
         {/* Brand */}
         <div className="px-6 py-7 border-b border-white/10">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shrink-0">
-              <PawPrint className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-heading font-bold text-xl tracking-tight">Dogdex</span>
+          <Link href="/" aria-label="Dogdex — strona główna" className="inline-flex items-center">
+            <Image
+              src="/brand/dogdex-logo-inverse.svg"
+              alt="Dogdex"
+              width={160}
+              height={40}
+              priority
+              className="h-10 w-40"
+            />
           </Link>
         </div>
 
@@ -128,9 +133,15 @@ export default function Navigation() {
 
       {/* ── Mobile Top Bar ─────────────────────────────────── */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#1E3932] text-white px-4 py-3 flex items-center justify-between shadow-md">
-        <Link href="/" className="flex items-center gap-2 font-heading font-bold text-lg">
-          <PawPrint className="w-5 h-5 text-accent" />
-          Dogdex
+        <Link href="/" aria-label="Dogdex — strona główna" className="inline-flex items-center">
+          <Image
+              src="/brand/dogdex-logo-inverse.svg"
+              alt="Dogdex"
+              width={112}
+              height={28}
+              priority
+              className="h-7 w-28"
+          />
         </Link>
         <div className="flex items-center gap-2">
           <button

@@ -6,6 +6,7 @@ import { createServerClient } from '@/lib/supabaseServer'
 import { effectiveEventStatus } from '@/lib/eventStatus'
 import { isOrganizerRole } from '@/lib/roles'
 import type { DogEvent, EventReview, OrganizerProfile } from '@/types'
+import ReviewSafetyActions from '@/components/ReviewSafetyActions'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -61,8 +62,9 @@ export default async function OrganizerPublicProfilePage({ params }: Props) {
       .limit(12),
     supabase
       .from('event_reviews')
-      .select('id, event_id, organizer_id, user_id, author_name, rating, comment, created_at, updated_at, events(id, slug, title)')
+      .select('id, event_id, organizer_id, user_id, author_name, rating, comment, is_verified, moderation_status, response_text, response_at, created_at, updated_at, events(id, slug, title)')
       .eq('organizer_id', profile.organizer_id)
+      .eq('moderation_status', 'published')
       .order('created_at', { ascending: false })
       .limit(100),
   ])
@@ -146,6 +148,15 @@ export default async function OrganizerPublicProfilePage({ params }: Props) {
                   </div>
                   {review.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{review.comment}</p>}
                   <p className="mt-3 text-xs text-muted-foreground">{new Date(review.created_at).toLocaleDateString('pl-PL')}</p>
+                  <ReviewSafetyActions
+                    reviewId={review.id}
+                    reviewType="event"
+                    ownerId={profile.organizer_id}
+                    authorUserId={review.user_id}
+                    isVerified={review.is_verified}
+                    initialResponse={review.response_text}
+                    initialResponseAt={review.response_at}
+                  />
                 </article>
               )
             })}

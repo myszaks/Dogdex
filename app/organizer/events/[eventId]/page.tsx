@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { CalendarDays, Clock3, ListChecks, MapPin, Settings2, Users } from 'lucide-react'
+import { CalendarDays, Clock3, ListChecks, ListOrdered, MapPin, Settings2, Users } from 'lucide-react'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { effectiveStatus, formatDate } from '@/lib/utils'
+import EventAnnouncementsPanel from '@/components/EventAnnouncementsPanel'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -33,7 +34,7 @@ export default async function EventWorkspaceOverview({ params }: Props) {
 
   if (!event) notFound()
 
-  const [registrations, pendingRegistrations, cancellationRequests, timeSlots] = await Promise.all([
+  const [registrations, pendingRegistrations, cancellationRequests, timeSlots, waitlist, announcements] = await Promise.all([
     supabase
       .from('registrations')
       .select('id', { count: 'exact', head: true })
@@ -53,6 +54,17 @@ export default async function EventWorkspaceOverview({ params }: Props) {
       .from('time_slots')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', event.id),
+    supabase
+      .from('event_waitlist_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', event.id)
+      .in('status', ['waiting', 'offered']),
+    supabase
+      .from('event_announcements')
+      .select('*')
+      .eq('event_id', event.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ])
 
   const status = effectiveStatus(event)
@@ -83,11 +95,12 @@ export default async function EventWorkspaceOverview({ params }: Props) {
         </span>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard label="Aktywne zapisy" value={registrations.count ?? 0} Icon={Users} />
         <SummaryCard label="Do akceptacji" value={pendingRegistrations.count ?? 0} Icon={ListChecks} />
         <SummaryCard label="Rezygnacje do obsługi" value={cancellationRequests.count ?? 0} Icon={Clock3} attention={(cancellationRequests.count ?? 0) > 0} />
         <SummaryCard label="Pozycje w grafiku" value={timeSlots.count ?? 0} Icon={CalendarDays} />
+        <SummaryCard label="Lista rezerwowa" value={waitlist.count ?? 0} Icon={ListOrdered} attention={(waitlist.count ?? 0) > 0} />
       </div>
 
       <div className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -106,6 +119,11 @@ export default async function EventWorkspaceOverview({ params }: Props) {
           {status === 'draft' ? 'Otwórz ustawienia' : 'Otwórz zapisy'}
         </Link>
       </div>
+
+      <EventAnnouncementsPanel
+        eventId={event.id}
+        initialAnnouncements={announcements.data ?? []}
+      />
     </div>
   )
 }

@@ -16,6 +16,7 @@ interface Props {
   datePrices?: EventDatePrices
   currency?: string
   autoConfirm?: boolean
+  waitlistMode?: boolean
   onSuccess?: () => void
 }
 
@@ -125,7 +126,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 }
 
 
-export default function RegisterForm({ eventId, formFields = [], pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, onSuccess }: Props) {
+export default function RegisterForm({ eventId, formFields = [], pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, waitlistMode = false, onSuccess }: Props) {
   const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
@@ -134,7 +135,8 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
   const [dynamic, setDynamic] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const submittingRef = useRef(false)
-  const [success, setSuccess] = useState<'confirmed' | 'pending' | null>(null)
+  const [success, setSuccess] = useState<'confirmed' | 'pending' | 'waitlisted' | null>(null)
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -267,6 +269,7 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
           dogBreed: base.dogBreed,
           dogId: selectedDogId || null,
           extraFields: processedExtra,
+          joinWaitlist: waitlistMode,
         }),
       })
 
@@ -287,7 +290,12 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
         return
       }
 
-      const registrationStatus = json.status === 'confirmed' ? 'confirmed' : 'pending'
+      const registrationStatus = json.status === 'waitlisted'
+        ? 'waitlisted'
+        : json.status === 'confirmed' ? 'confirmed' : 'pending'
+      if (registrationStatus === 'waitlisted' && typeof json.waitlistPosition === 'number') {
+        setWaitlistPosition(json.waitlistPosition)
+      }
       setSuccess(registrationStatus)
       onSuccess?.()
     } catch (err: unknown) {
@@ -303,10 +311,14 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
       <div className="card text-center py-14">
         <p className="text-5xl mb-4">🎉</p>
         <p className="text-xl font-semibold text-green-700">
-          {success === 'confirmed' ? 'Zapis potwierdzony!' : 'Zgłoszenie wysłane!'}
+          {success === 'confirmed'
+            ? 'Zapis potwierdzony!'
+            : success === 'waitlisted' ? 'Jesteś na liście rezerwowej!' : 'Zgłoszenie wysłane!'}
         </p>
         <p className="text-slate-500 mt-2 text-sm max-w-xs mx-auto">
-          {success === 'confirmed'
+          {success === 'waitlisted'
+            ? `Gdy zwolni się miejsce, otrzymasz e-mail z możliwością potwierdzenia udziału.${waitlistPosition ? ` Twoja obecna pozycja: ${waitlistPosition}.` : ''}`
+            : success === 'confirmed'
             ? pricingMode === 'free'
               ? 'Masz już potwierdzone miejsce na wydarzeniu.'
               : 'Płatność nie jest wymagana lub została już obsłużona.'
@@ -333,6 +345,12 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
         autoConfirm={autoConfirm}
         formFields={formFields}
       />
+
+      {waitlistMode && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Wydarzenie jest pełne. Wypełnij formularz, aby dołączyć z psem do listy rezerwowej. Na tym etapie nie pobieramy płatności.
+        </div>
+      )}
 
       {/* ── Zalogowany: info o użytkowniku + picker psa ── */}
       {isLoggedIn ? (

@@ -6,6 +6,7 @@ import { isOrganizerRole } from '@/lib/roles'
 import { buildEventPriceItems } from '@/lib/eventPricing'
 import { cancelPendingEventCheckouts, createEventCheckout } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
+import { tryProcessEventWaitlist } from '@/lib/eventWaitlist'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -364,6 +365,7 @@ export async function PATCH(req: Request, { params }: Params) {
       .from('schedule_assignments')
       .delete()
       .eq('registration_id', id)
+    await tryProcessEventWaitlist(reg.event_id)
   }
 
   // Send email when organizer confirms a registration

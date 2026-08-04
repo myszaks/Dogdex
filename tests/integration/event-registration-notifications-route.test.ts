@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   hasServiceRoleKey: vi.fn(),
   sendRegistrationOpenedEmail: vi.fn(),
+  processAllEventWaitlists: vi.fn(),
+  processPendingAnnouncementDeliveries: vi.fn(),
 }))
 
 vi.mock('@/lib/supabaseServer', () => ({
@@ -12,6 +14,12 @@ vi.mock('@/lib/supabaseServer', () => ({
 }))
 vi.mock('@/lib/email', () => ({
   sendRegistrationOpenedEmail: mocks.sendRegistrationOpenedEmail,
+}))
+vi.mock('@/lib/eventWaitlist', () => ({
+  processAllEventWaitlists: mocks.processAllEventWaitlists,
+}))
+vi.mock('@/lib/eventAnnouncements', () => ({
+  processPendingAnnouncementDeliveries: mocks.processPendingAnnouncementDeliveries,
 }))
 
 const originalCronSecret = process.env.CRON_SECRET
@@ -27,6 +35,13 @@ describe('POST /api/event-registration-notifications', () => {
     vi.clearAllMocks()
     process.env.CRON_SECRET = 'cron-test'
     mocks.hasServiceRoleKey.mockReturnValue(true)
+    mocks.processAllEventWaitlists.mockResolvedValue({ offered: 0, errors: [] })
+    mocks.processPendingAnnouncementDeliveries.mockResolvedValue({
+      processed: 0,
+      delivered: 0,
+      failed: 0,
+      errors: [],
+    })
   })
 
   it('rejects a Supabase Cron request without the shared secret', async () => {
@@ -59,7 +74,11 @@ describe('POST /api/event-registration-notifications', () => {
     ))
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ sent: 0, skipped: 0 })
+    expect(await response.json()).toEqual({
+      registrationOpening: { sent: 0, skipped: 0 },
+      waitlist: { offered: 0 },
+      announcements: { processed: 0, delivered: 0, failed: 0 },
+    })
     expect(from).toHaveBeenCalledWith('events')
   })
 })

@@ -40,8 +40,9 @@ export async function GET(req: Request, { params }: Params) {
         .eq('is_active', true),
       supabase
         .from('training_reviews')
-        .select('id, booking_id, trainer_id, author_name, rating, comment, created_at, updated_at')
+        .select('id, booking_id, trainer_id, user_id, author_name, rating, comment, is_verified, moderation_status, response_text, response_at, created_at, updated_at')
         .eq('trainer_id', trainer.trainer_id)
+        .eq('moderation_status', 'published')
         .order('created_at', { ascending: false })
         .limit(100),
     ])

@@ -7,6 +7,7 @@ import { formatDate, formatDateShort, effectiveStatus } from '@/lib/utils'
 import type { DogEvent, FormField, CancellationRequest } from '@/types'
 import { Dog, CalendarDays, CheckCircle2, Clock, XCircle, AlertTriangle, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import GoogleCalendarPopupLink from './GoogleCalendarPopupLink'
 
 const regStatusConfig: Record<string, { label: string; className: string; Icon: React.ElementType }> = {
   pending:              { label: 'Oczekuje',              className: 'bg-amber-100 text-amber-700',   Icon: Clock },
@@ -172,10 +173,17 @@ export default function RegistrationEventCard({ event, registration, participant
             </div>
           )}
 
-          <div className="flex w-full gap-2">
+          <div className="flex w-full flex-wrap gap-2">
             <Link href={detailHref} className="btn btn-secondary btn-sm flex-1">
               Szczegóły
             </Link>
+            {registration.status !== 'cancelled' && (
+              <GoogleCalendarPopupLink
+                href={`/api/calendar/google/registrations/${registration.id}`}
+                label="Google Calendar"
+                className="btn btn-secondary btn-sm"
+              />
+            )}
             {canCancel && (
               <button
                 onClick={() => { setCancelOpen(true); setSelectedDates([]); setError(null) }}

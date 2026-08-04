@@ -120,7 +120,7 @@ export async function hydrateTrainingBookings(
 
   const { data: reviewData, error: reviewsError } = await reviewsClient
     .from('training_reviews')
-    .select('id, booking_id, trainer_id, user_id, author_name, rating, comment, created_at, updated_at')
+    .select('id, booking_id, trainer_id, user_id, author_name, rating, comment, is_verified, moderation_status, response_text, response_at, created_at, updated_at')
     .in('booking_id', bookings.map(booking => booking.id))
 
   if (reviewsError) {

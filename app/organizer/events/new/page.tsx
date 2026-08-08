@@ -188,8 +188,14 @@ export default function NewEventPage() {
               <DateTimePicker value={startAt} onChange={setStartAt} required placeholder="Wybierz datę startu" />
             </div>
             <div>
-              <label className="form-label">Data zakończenia</label>
-              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
+              <label className="form-label">Data zakończenia *</label>
+              <DateTimePicker
+                value={endAt}
+                onChange={setEndAt}
+                required
+                placeholder="Wybierz datę zakończenia"
+                minDate={startAt ? new Date(startAt) : undefined}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

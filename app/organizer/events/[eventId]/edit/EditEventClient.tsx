@@ -66,6 +66,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [organizerName, setOrganizerName] = useState<string>(initialData.organizer_name ?? '')
   const [startAt, setStartAt] = useState<string | null>(initialData.start_at ?? null)
   const [endAt, setEndAt] = useState<string | null>(initialData.end_at ?? null)
+  const [status, setStatus] = useState(initialData.status)
   const [registrationOpensAt, setRegistrationOpensAt] = useState<string | null>(initialData.registration_opens_at ?? null)
   const [registrationDeadline, setRegistrationDeadline] = useState<string | null>(initialData.registration_deadline ?? null)
   const [lat, setLat] = useState<number | null>(initialData.lat ?? null)
@@ -120,7 +121,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
       end_at: endAt || null,
       registration_opens_at: registrationOpensAt || null,
       registration_deadline: registrationDeadline || null,
-      status: form.get('status'),
+      status,
       event_type_id: eventTypeId || null,
       form_fields: formFields,
       has_results: hasResults,
@@ -212,12 +213,29 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           {/* Dates */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Data rozpoczęcia</label>
-              <DateTimePicker value={startAt} onChange={setStartAt} placeholder="Wybierz datę startu" />
+              <label className="form-label">
+                Data rozpoczęcia {status !== 'finished' && status !== 'cancelled' ? '*' : ''}
+              </label>
+              <DateTimePicker
+                value={startAt}
+                onChange={setStartAt}
+                required={status !== 'finished' && status !== 'cancelled'}
+                placeholder="Wybierz datę startu"
+              />
             </div>
             <div>
-              <label className="form-label">Data zakończenia</label>
-              <DateTimePicker value={endAt} onChange={setEndAt} placeholder="Opcjonalnie" />
+              <label className="form-label">
+                Data zakończenia {status !== 'finished' && status !== 'cancelled' ? '*' : ''}
+              </label>
+              <DateTimePicker
+                value={endAt}
+                onChange={setEndAt}
+                required={status !== 'finished' && status !== 'cancelled'}
+                placeholder={status !== 'finished' && status !== 'cancelled'
+                  ? 'Wybierz datę zakończenia'
+                  : 'Opcjonalnie'}
+                minDate={startAt ? new Date(startAt) : undefined}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -330,7 +348,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
           </div>
           <div>
             <label className="form-label">Status</label>
-            <select className="form-input" name="status" defaultValue={initialData.status}>
+            <select className="form-input" name="status" value={status} onChange={e => setStatus(e.target.value)}>
               <option value="upcoming">Nadchodzące</option>
               <option value="ongoing">W trakcie</option>
               <option value="finished">Zakończone</option>

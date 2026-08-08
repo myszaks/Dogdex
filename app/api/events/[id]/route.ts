@@ -7,7 +7,7 @@ import {
   syncMultidateFormData,
   syncMultidateFormFields,
 } from '@/lib/eventDateSync'
-import { registrationWindowValidationError } from '@/lib/eventStatus'
+import { eventScheduleValidationError, registrationWindowValidationError } from '@/lib/eventStatus'
 import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 
 interface Params {
@@ -68,6 +68,15 @@ export async function PATCH(req: Request, { params }: Params) {
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+
+  const eventScheduleError = eventScheduleValidationError({
+    status: 'status' in body ? body.status : existingEvent.status,
+    start_at: 'start_at' in body ? body.start_at : existingEvent.start_at,
+    end_at: 'end_at' in body ? body.end_at : existingEvent.end_at,
+  })
+  if (eventScheduleError) {
+    return NextResponse.json({ error: eventScheduleError }, { status: 400 })
   }
 
   const registrationWindowError = registrationWindowValidationError({

@@ -12,11 +12,12 @@ export type EventRegistrationPhase = 'not_started' | 'open' | 'closed'
 
 export function effectiveEventStatus(event: EventStatusLike, now = new Date()): string {
   if (event.status === 'cancelled') return 'cancelled'
+  if (event.status === 'finished') return 'finished'
 
   const start = event.start_at ? new Date(event.start_at) : null
   const end = event.end_at ? new Date(event.end_at) : null
 
-  if (end && now > end) return 'finished'
+  if (end && now >= end) return 'finished'
   if (start && now >= start) return 'ongoing'
   return 'upcoming'
 }
@@ -48,12 +49,39 @@ type RegistrationWindowLike = {
   registration_deadline?: unknown
 }
 
+type EventScheduleLike = {
+  status?: unknown
+  start_at?: unknown
+  end_at?: unknown
+}
+
 function parseOptionalDate(value: unknown): Date | null | 'invalid' {
   if (value == null || value === '') return null
   if (typeof value !== 'string') return 'invalid'
 
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? 'invalid' : date
+}
+
+export function eventScheduleValidationError(event: EventScheduleLike): string | null {
+  const start = parseOptionalDate(event.start_at)
+  const end = parseOptionalDate(event.end_at)
+  const status = typeof event.status === 'string' ? event.status : 'upcoming'
+  const terminal = status === 'finished' || status === 'cancelled'
+
+  if (start === 'invalid') return 'Nieprawidłowa data rozpoczęcia wydarzenia'
+  if (end === 'invalid') return 'Nieprawidłowa data zakończenia wydarzenia'
+
+  // Legacy terminal events may not have complete schedule data. Active events
+  // need both dates so their effective status can always close automatically.
+  if (!terminal && !start) return 'Data rozpoczęcia wydarzenia jest wymagana'
+  if (!terminal && !end) return 'Data zakończenia wydarzenia jest wymagana'
+
+  if (start && end && end <= start) {
+    return 'Data zakończenia wydarzenia musi przypadać po dacie rozpoczęcia'
+  }
+
+  return null
 }
 
 export function registrationWindowValidationError(

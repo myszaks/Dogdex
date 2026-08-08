@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
-import { registrationWindowValidationError } from '@/lib/eventStatus'
+import { eventScheduleValidationError, registrationWindowValidationError } from '@/lib/eventStatus'
 import { ensureSpeedwayClassificationFields } from '@/lib/speedway'
 
 export async function GET() {
@@ -34,6 +34,15 @@ export async function POST(req: Request) {
 
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
+  }
+
+  const eventScheduleError = eventScheduleValidationError({
+    status: status ?? 'upcoming',
+    start_at,
+    end_at,
+  })
+  if (eventScheduleError) {
+    return NextResponse.json({ error: eventScheduleError }, { status: 400 })
   }
 
   const registrationWindowError = registrationWindowValidationError({

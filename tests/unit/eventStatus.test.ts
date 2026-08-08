@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   effectiveEventStatus,
+  eventScheduleValidationError,
   getEventRegistrationPhase,
   isEventRegistrationOpen,
   registrationWindowValidationError,
@@ -23,6 +24,46 @@ describe('eventStatus', () => {
       end_at: '2026-06-01T12:00:00.000Z',
       registration_deadline: null,
     }, new Date('2026-06-01T12:00:01.000Z'))).toBe('finished')
+  })
+
+  it('returns finished for an explicitly finished event before its end date', () => {
+    expect(effectiveEventStatus({
+      status: 'finished',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: '2026-07-01T18:00:00.000Z',
+    }, new Date('2026-07-01T12:00:00.000Z'))).toBe('finished')
+  })
+
+  it('returns finished exactly at the configured end date', () => {
+    expect(effectiveEventStatus({
+      status: 'ongoing',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: '2026-07-01T12:00:00.000Z',
+    }, new Date('2026-07-01T12:00:00.000Z'))).toBe('finished')
+  })
+
+  it('requires complete schedule dates for active events', () => {
+    expect(eventScheduleValidationError({
+      status: 'upcoming',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: null,
+    })).toBe('Data zakończenia wydarzenia jest wymagana')
+  })
+
+  it('allows legacy terminal events without an end date', () => {
+    expect(eventScheduleValidationError({
+      status: 'finished',
+      start_at: '2026-07-01T10:00:00.000Z',
+      end_at: null,
+    })).toBeNull()
+  })
+
+  it('requires the end date to be later than the start date', () => {
+    expect(eventScheduleValidationError({
+      status: 'upcoming',
+      start_at: '2026-07-01T12:00:00.000Z',
+      end_at: '2026-07-01T12:00:00.000Z',
+    })).toBe('Data zakończenia wydarzenia musi przypadać po dacie rozpoczęcia')
   })
 
   it('closes registration after deadline even if status was not updated', () => {

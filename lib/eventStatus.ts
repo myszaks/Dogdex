@@ -18,7 +18,7 @@ export function effectiveEventStatus(event: EventStatusLike, now = new Date()): 
   const start = event.start_at ? new Date(event.start_at) : null
   const end = event.end_at ? new Date(event.end_at) : null
 
-  if (end && now > end) return 'finished'
+  if (end && now >= end) return 'finished'
   if (start && now >= start) return 'ongoing'
   return 'upcoming'
 }

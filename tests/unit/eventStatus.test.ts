@@ -45,6 +45,15 @@ describe('eventStatus', () => {
     }, new Date('2026-06-01T12:00:01.000Z'))).toBe('finished')
   })
 
+  it('returns finished exactly at the configured end time', () => {
+    expect(effectiveEventStatus({
+      status: 'ongoing',
+      start_at: '2026-06-01T10:00:00.000Z',
+      end_at: '2026-06-01T12:00:00.000Z',
+      registration_deadline: null,
+    }, new Date('2026-06-01T12:00:00.000Z'))).toBe('finished')
+  })
+
   it('closes registration after deadline even if status was not updated', () => {
     expect(isEventRegistrationOpen({
       status: 'upcoming',

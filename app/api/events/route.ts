@@ -10,6 +10,7 @@ import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
 import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
+import { validateEventSchedule } from '@/lib/eventSchedule'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -57,6 +58,14 @@ export async function POST(req: Request) {
 
   if (!normalizedTitle) {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
+  }
+  const scheduleError = validateEventSchedule({
+    status: nextStatus,
+    startAt: typeof start_at === 'string' && start_at ? start_at : null,
+    endAt: typeof end_at === 'string' && end_at ? end_at : null,
+  })
+  if (scheduleError) {
+    return NextResponse.json({ error: scheduleError }, { status: 400 })
   }
   const registrationWindowError = validateEventRegistrationWindow({
     eventStartsAt: typeof start_at === 'string' && start_at ? start_at : null,

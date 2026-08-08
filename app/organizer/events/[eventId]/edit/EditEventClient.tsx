@@ -263,8 +263,13 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
         setDateErrorFieldId('edit-event-start-at')
         return false
       }
-      if (startAt && endAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
-        setError('Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.')
+      if (!endAt) {
+        setError('Wybierz datę zakończenia wydarzenia.')
+        setDateErrorFieldId('edit-event-end-at')
+        return false
+      }
+      if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) {
+        setError('Data zakończenia musi przypadać po dacie rozpoczęcia.')
         setDateErrorFieldId('edit-event-end-at')
         return false
       }
@@ -512,7 +517,7 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
               <Panel Icon={CalendarDays} title="Harmonogram">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="edit-event-start-at" className="form-label">Data rozpoczęcia</label>
+                    <label htmlFor="edit-event-start-at" className="form-label">Data rozpoczęcia *</label>
                     <DateTimePicker
                       id="edit-event-start-at"
                       value={startAt}
@@ -520,34 +525,36 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
                         setStartAt(value)
                         if (
                           value
-                          && (!endAt || new Date(endAt).getTime() >= new Date(value).getTime())
+                          && (!endAt || new Date(endAt).getTime() > new Date(value).getTime())
                           && dateErrorFieldId
                         ) {
                           setError(null)
                           setDateErrorFieldId(null)
                         }
                       }}
+                      required
                       placeholder="Wybierz datę startu"
                       invalid={dateErrorFieldId === 'edit-event-start-at'}
                       describedBy={dateErrorFieldId === 'edit-event-start-at' ? 'edit-event-validation-error' : undefined}
                     />
                   </div>
                   <div>
-                    <label htmlFor="edit-event-end-at" className="form-label">Data zakończenia</label>
+                    <label htmlFor="edit-event-end-at" className="form-label">Data zakończenia *</label>
                     <DateTimePicker
                       id="edit-event-end-at"
                       value={endAt}
                       onChange={value => {
                         setEndAt(value)
                         if (
-                          (!value || !startAt || new Date(value).getTime() >= new Date(startAt).getTime())
+                          (!value || !startAt || new Date(value).getTime() > new Date(startAt).getTime())
                           && dateErrorFieldId === 'edit-event-end-at'
                         ) {
                           setError(null)
                           setDateErrorFieldId(null)
                         }
                       }}
-                      placeholder="Opcjonalnie"
+                      required
+                      placeholder="Wybierz datę zakończenia"
                       invalid={dateErrorFieldId === 'edit-event-end-at'}
                       describedBy={dateErrorFieldId === 'edit-event-end-at' ? 'edit-event-validation-error' : undefined}
                     />

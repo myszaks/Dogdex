@@ -22,6 +22,7 @@ import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
 import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDependencies'
 import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
 import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
+import { validateEventSchedule } from '@/lib/eventSchedule'
 import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
 
@@ -95,6 +96,16 @@ export async function PATCH(req: Request, { params }: Params) {
     update.registration_opens_at = new Date().toISOString()
   }
 
+  const nextEventStatus = typeof body.status === 'string' ? body.status : existingEvent.status
+  const scheduleError = validateEventSchedule({
+    status: nextEventStatus,
+    startAt: ('start_at' in update ? update.start_at : existingEvent.start_at) as string | null,
+    endAt: ('end_at' in update ? update.end_at : existingEvent.end_at) as string | null,
+  })
+  if (scheduleError) {
+    return NextResponse.json({ error: scheduleError }, { status: 400 })
+  }
+
   const registrationWindowError = validateEventRegistrationWindow({
     eventStartsAt: ('start_at' in update ? update.start_at : existingEvent.start_at) as string | null,
     registrationDeadline: ('registration_deadline' in update
@@ -117,8 +128,6 @@ export async function PATCH(req: Request, { params }: Params) {
 
   let nextCompetitionConfig = existingEvent.competition_config
   let nextCompetitionFormatId = existingEvent.competition_format_id
-  const nextEventStatus = typeof body.status === 'string' ? body.status : existingEvent.status
-
   if ('competition_format_id' in body) {
     if (body.competition_format_id === null || body.competition_format_id === '') {
       nextCompetitionFormatId = null

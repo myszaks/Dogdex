@@ -357,9 +357,13 @@ export default function NewEventPage() {
         showCreatorError('Wybierz datę rozpoczęcia wydarzenia.', 'event-start-at')
         return false
       }
-      if (startAt && endAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
+      if (!endAt) {
+        showCreatorError('Wybierz datę zakończenia wydarzenia.', 'event-end-at')
+        return false
+      }
+      if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) {
         showCreatorError(
-          'Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.',
+          'Data zakończenia musi przypadać po dacie rozpoczęcia.',
           'event-end-at',
         )
         return false
@@ -672,7 +676,7 @@ export default function NewEventPage() {
                 setStartAt(value)
                 if (
                   value
-                  && (!endAt || new Date(endAt).getTime() >= new Date(value).getTime())
+                  && (!endAt || new Date(endAt).getTime() > new Date(value).getTime())
                   && (errorFieldId === 'event-start-at' || errorFieldId === 'event-end-at')
                 ) clearCreatorError()
               }}
@@ -681,7 +685,7 @@ export default function NewEventPage() {
                 if (
                   !value
                   || !startAt
-                  || new Date(value).getTime() >= new Date(startAt).getTime()
+                  || new Date(value).getTime() > new Date(startAt).getTime()
                 ) clearCreatorError('event-end-at')
               }}
             />
@@ -1173,7 +1177,7 @@ function StepLocationTime({
           Icon={CalendarDays}
           eyebrow="Harmonogram"
           title="Data i czas"
-          description="Start jest wymagany. Zakończenie zostaw puste, jeśli wydarzenie nie ma osobnej godziny końca."
+          description="Podaj planowaną datę rozpoczęcia i zakończenia wydarzenia."
           compact
         />
 
@@ -1191,12 +1195,13 @@ function StepLocationTime({
             />
           </div>
           <div>
-            <label htmlFor="event-end-at" className="form-label">Data zakończenia</label>
+            <label htmlFor="event-end-at" className="form-label">Data zakończenia *</label>
             <DateTimePicker
               id="event-end-at"
               value={endAt}
               onChange={onEndAtChange}
-              placeholder="Opcjonalnie"
+              required
+              placeholder="Wybierz datę zakończenia"
               invalid={errorFieldId === 'event-end-at'}
               describedBy={errorFieldId === 'event-end-at' ? errorMessageId : undefined}
             />

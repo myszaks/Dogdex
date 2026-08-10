@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, Clock, AlertCircle, PlusCircle } from 'lucide-react'
 import { format, addDays, startOfDay } from 'date-fns'
 import { pl } from 'date-fns/locale'
-import type { Dog, TrainingType } from '@/types'
+import type { Dog, TrainingPass, TrainingType } from '@/types'
 import DogForm from '@/components/DogForm'
 import Modal from '@/components/Modal'
 import AuthModal from '@/components/AuthModal'
@@ -53,6 +53,8 @@ export default function BookTrainingPage({ params }: Props) {
   const [dogsLoading, setDogsLoading] = useState(true)
   const [canManageDogs, setCanManageDogs] = useState(true)
   const [selectedDogId, setSelectedDogId] = useState<string>('')
+  const [passes, setPasses] = useState<TrainingPass[]>([])
+  const [selectedPassId, setSelectedPassId] = useState('')
   const [dogModalOpen, setDogModalOpen] = useState(false)
   const [notes, setNotes] = useState<string>('')
   const [authOpen, setAuthOpen] = useState(false)
@@ -114,6 +116,14 @@ export default function BookTrainingPage({ params }: Props) {
         setDogs([])
       })
       .finally(() => setDogsLoading(false))
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    fetch('/api/training-passes?mine=1')
+      .then(response => response.ok ? response.json() : { passes: [] })
+      .then(data => setPasses(Array.isArray(data?.passes) ? data.passes : []))
+      .catch(() => setPasses([]))
   }, [user])
 
   // Generate full-hour slots based on date availability.
@@ -190,6 +200,7 @@ export default function BookTrainingPage({ params }: Props) {
           scheduled_at: scheduledAt.toISOString(),
           duration_min: trainingType?.duration_min || 60,
           notes_user: notes || null,
+          pass_id: selectedPassId || null,
         }),
       })
 
@@ -225,6 +236,16 @@ export default function BookTrainingPage({ params }: Props) {
   const formattedTrainingPrice = trainingPrice > 0
     ? trainingPrice.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })
     : 'Bezpłatnie'
+
+  const availablePasses = passes.filter(pass => {
+    const product = pass.training_pass_products
+    if (!product) return false
+    return pass.status === 'active'
+      && pass.entries_remaining > 0
+      && pass.dog_id === selectedDogId
+      && product?.trainer_id === trainingType?.trainer_id
+      && (!product.training_type_id || product.training_type_id === trainingType?.id)
+  })
 
   const handleAddDog = async (data: Partial<Dog>) => {
     const response = await fetch('/api/dogs', {
@@ -373,7 +394,7 @@ export default function BookTrainingPage({ params }: Props) {
             <div className="space-y-2">
               <Select
                 value={selectedDogId}
-                onValueChange={value => setSelectedDogId(value ?? '')}
+                onValueChange={value => { setSelectedDogId(value ?? ''); setSelectedPassId('') }}
               >
                 <SelectTrigger aria-labelledby="booking-dog-label" className="form-input h-12 w-full rounded-2xl px-4 py-0">
                   <SelectValue placeholder="Wybierz psa">
@@ -431,6 +452,16 @@ export default function BookTrainingPage({ params }: Props) {
           )}
         </div>
 
+        {availablePasses.length > 0 && (
+          <div className="mb-6">
+            <label htmlFor="booking-pass" className="block text-sm font-semibold mb-3">Sposób rozliczenia</label>
+            <select id="booking-pass" className="form-input" value={selectedPassId} onChange={event => setSelectedPassId(event.target.value)}>
+              <option value="">Płatność online — {formattedTrainingPrice}</option>
+              {availablePasses.map(pass => <option key={pass.id} value={pass.id}>{pass.training_pass_products?.name ?? 'Karnet'} — pozostało {pass.entries_remaining} wejść</option>)}
+            </select>
+          </div>
+        )}
+
         {/* Notes */}
         <div className="mb-6">
           <label htmlFor="booking-notes" className="block text-sm font-semibold mb-3">Notatki (opcjonalnie)</label>
@@ -466,7 +497,7 @@ export default function BookTrainingPage({ params }: Props) {
               <p><strong>Data:</strong> {format(selectedDate, 'd MMMM yyyy', { locale: pl })}</p>
               <p><strong>Godzina:</strong> {selectedTime}</p>
               <p><strong>Czas trwania:</strong> {trainingType?.duration_min || 60} minut</p>
-              <p><strong>Do zapłaty:</strong> {formattedTrainingPrice}</p>
+              <p><strong>Rozliczenie:</strong> {selectedPassId ? '1 wejście z karnetu' : formattedTrainingPrice}</p>
             </div>
           </div>
         )}
@@ -480,9 +511,11 @@ export default function BookTrainingPage({ params }: Props) {
           {booking
             ? 'Rezerwowanie…'
             : user
-              ? trainingPrice > 0
-                ? `Przejdź do płatności — ${formattedTrainingPrice}`
-                : 'Zarezerwuj bezpłatny trening'
+              ? selectedPassId
+                ? 'Zarezerwuj i wykorzystaj wejście'
+                : trainingPrice > 0
+                  ? `Przejdź do płatności — ${formattedTrainingPrice}`
+                  : 'Zarezerwuj bezpłatny trening'
               : 'Zaloguj się, aby zarezerwować'}
         </button>
       </div>

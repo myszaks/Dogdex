@@ -7,6 +7,14 @@ import useUser from '@/hooks/useUser'
 import { getSupabaseBrowserClient } from '@/lib/supabaseClient'
 import { getSizeClass, type SizeClass } from '@/lib/speedway'
 import EventRegistrationTerms from '@/components/EventRegistrationTerms'
+import Link from 'next/link'
+import {
+  hasEventEntryRequirements,
+  normalizeEventEntryRequirements,
+  validateDogEligibility,
+  type DogDocument,
+  type EventEntryRequirements,
+} from '@/lib/dogDocuments'
 
 interface Props {
   eventId: string
@@ -16,6 +24,9 @@ interface Props {
   datePrices?: EventDatePrices
   currency?: string
   autoConfirm?: boolean
+  entryRequirements?: EventEntryRequirements
+  eventStartsAt?: string | null
+  eventEndsAt?: string | null
   waitlistMode?: boolean
   onSuccess?: () => void
 }
@@ -126,7 +137,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 }
 
 
-export default function RegisterForm({ eventId, formFields = [], pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, waitlistMode = false, onSuccess }: Props) {
+export default function RegisterForm({ eventId, formFields = [], pricingMode = 'free', entryFee = null, datePrices = {}, currency = 'PLN', autoConfirm = false, entryRequirements, eventStartsAt = null, eventEndsAt = null, waitlistMode = false, onSuccess }: Props) {
   const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
@@ -145,7 +156,24 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
   const [userDogs, setUserDogs] = useState<Dog[]>([])
   const [selectedDogId, setSelectedDogId] = useState<string>('')
   const [profileName, setProfileName] = useState<string>('')
+  const [dogDocuments, setDogDocuments] = useState<DogDocument[]>([])
+  const [documentsDogId, setDocumentsDogId] = useState<string | null>(null)
   const currentUserId = user?.id
+  const normalizedEntryRequirements = normalizeEventEntryRequirements(entryRequirements)
+  const hasEntryRequirements = hasEventEntryRequirements(normalizedEntryRequirements)
+  const selectedDog = userDogs.find(dog => dog.id === selectedDogId) ?? null
+  const documentsLoading = Boolean(
+    selectedDogId && hasEntryRequirements && documentsDogId !== selectedDogId,
+  )
+  const eligibilityIssues = selectedDog
+    ? validateDogEligibility({
+        dog: selectedDog,
+        documents: dogDocuments,
+        requirements: normalizedEntryRequirements,
+        eventStartsAt,
+        eventEndsAt,
+      })
+    : []
   const paymentTotal = pricingMode === 'flat'
     ? Number(entryFee ?? 0)
     : pricingMode === 'per_date'
@@ -189,7 +217,30 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
       .catch(() => {})
   }, [isLoggedIn, currentUserId, supabase, formFields])
 
+  useEffect(() => {
+    if (!selectedDogId || !hasEntryRequirements) return
+    const controller = new AbortController()
+    fetch(`/api/dogs/${selectedDogId}/documents`, { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Nie udało się pobrać dokumentów psa')
+        if (!controller.signal.aborted) {
+          setDogDocuments(Array.isArray(data) ? data : [])
+          setDocumentsDogId(selectedDogId)
+        }
+      })
+      .catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setDogDocuments([])
+          setDocumentsDogId(selectedDogId)
+        }
+      })
+    return () => controller.abort()
+  }, [selectedDogId, hasEntryRequirements])
+
   function handleDogSelect(dogId: string) {
+    setDogDocuments([])
+    setDocumentsDogId(null)
     setSelectedDogId(dogId)
     const dog = userDogs.find(d => d.id === dogId)
     if (dog) {
@@ -228,6 +279,21 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
     setLoading(true)
     setError(null)
     setInvalidFieldId(null)
+
+    if (hasEntryRequirements && (!isLoggedIn || !selectedDogId || !selectedDog)) {
+      setError('To wydarzenie wymaga wyboru psa z profilu, aby sprawdzić warunki udziału.')
+      setLoading(false)
+      submittingRef.current = false
+      return
+    }
+    if (hasEntryRequirements && (documentsLoading || eligibilityIssues.length > 0)) {
+      setError(documentsLoading
+        ? 'Poczekaj na sprawdzenie dokumentów psa.'
+        : eligibilityIssues[0].message)
+      setLoading(false)
+      submittingRef.current = false
+      return
+    }
 
     // Validate required dynamic fields
     for (const field of formFields) {
@@ -349,6 +415,30 @@ export default function RegisterForm({ eventId, formFields = [], pricingMode = '
       {waitlistMode && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Wydarzenie jest pełne. Wypełnij formularz, aby dołączyć z psem do listy rezerwowej. Na tym etapie nie pobieramy płatności.
+        </div>
+      )}
+
+      {hasEntryRequirements && (
+        <div className="rounded-xl border border-sage-200 bg-sage-50 px-4 py-4 text-sm">
+          <p className="font-semibold text-primary">Sprawdzenie warunków udziału</p>
+          {!isLoggedIn ? (
+            <p className="mt-2 text-amber-800">Zaloguj się i wybierz psa z profilu. Wymagania nie mogą zostać zweryfikowane dla zapisu anonimowego.</p>
+          ) : !selectedDog ? (
+            <p className="mt-2 text-amber-800">Wybierz psa z profilu, aby sprawdzić jego dane i dokumenty.</p>
+          ) : documentsLoading ? (
+            <p className="mt-2 text-muted-foreground">Sprawdzamy profil i dokumenty…</p>
+          ) : eligibilityIssues.length === 0 ? (
+            <p className="mt-2 text-emerald-700">✓ {selectedDog.name} spełnia ustawione warunki.</p>
+          ) : (
+            <div className="mt-2">
+              <ul className="space-y-1 text-red-700">
+                {eligibilityIssues.map((issue, index) => <li key={`${issue.code}-${issue.documentType ?? index}`}>• {issue.message}</li>)}
+              </ul>
+              <Link href={`/moje-psy/${selectedDog.id}`} className="mt-3 inline-flex font-semibold text-primary underline underline-offset-2">
+                Uzupełnij profil lub dokumenty psa
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

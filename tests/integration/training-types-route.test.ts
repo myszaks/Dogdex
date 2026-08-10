@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createAuthClient = vi.fn()
+const createServerClient = vi.fn()
 const getServerUser = vi.fn()
+const requireBusinessProfileAccessForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
   createAuthClient,
+  createServerClient,
 }))
+
+vi.mock('@/lib/businessAccess', () => ({ requireBusinessProfileAccessForApi }))
 
 vi.mock('@/lib/getServerUser', () => ({
   getServerUser,
@@ -24,6 +29,9 @@ describe('training type routes', () => {
       user: { id: 'trainer-1' },
       role: 'trainer',
     })
+    requireBusinessProfileAccessForApi.mockResolvedValue({
+      access: { profile: { id: 'business-1', owner_id: 'trainer-1' }, can: () => true },
+    })
   })
 
   it('lists only active offers owned by the signed-in trainer', async () => {
@@ -36,7 +44,7 @@ describe('training type routes', () => {
     }
     query.select.mockReturnValue(query)
     eq.mockReturnValue(query)
-    createAuthClient.mockResolvedValue({
+    createServerClient.mockReturnValue({
       from: vi.fn().mockReturnValue(query),
     })
 
@@ -44,7 +52,7 @@ describe('training type routes', () => {
     const response = await GET()
 
     expect(response.status).toBe(200)
-    expect(eq).toHaveBeenCalledWith('trainer_id', 'trainer-1')
+    expect(eq).toHaveBeenCalledWith('business_profile_id', 'business-1')
     expect(eq).toHaveBeenCalledWith('is_active', true)
   })
 
@@ -52,11 +60,11 @@ describe('training type routes', () => {
     const update = vi.fn()
     const updateEq = vi.fn().mockResolvedValue({ error: null })
     const selectSingle = vi.fn().mockResolvedValue({
-      data: { trainer_id: 'trainer-1' },
+      data: { trainer_id: 'trainer-1', business_profile_id: 'business-1' },
       error: null,
     })
 
-    createAuthClient.mockResolvedValue({
+    createServerClient.mockReturnValue({
       from: vi.fn().mockReturnValue({
         select: () => ({
           eq: () => ({
@@ -82,17 +90,20 @@ describe('training type routes', () => {
   })
 
   it('rejects updates to another trainer offer', async () => {
-    createAuthClient.mockResolvedValue({
+    createServerClient.mockReturnValue({
       from: vi.fn().mockReturnValue({
         select: () => ({
           eq: () => ({
             maybeSingle: async () => ({
-              data: { trainer_id: 'trainer-2' },
+              data: { trainer_id: 'trainer-2', business_profile_id: 'business-2' },
               error: null,
             }),
           }),
         }),
       }),
+    })
+    requireBusinessProfileAccessForApi.mockResolvedValueOnce({
+      error: Response.json({ error: 'Brak uprawnień' }, { status: 403 }),
     })
 
     const { PATCH } = await import('@/app/api/training-types/[id]/route')

@@ -15,6 +15,10 @@
     {
       "path": "/api/event-payments/reconcile",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/training-commerce/reconcile",
+      "schedule": "45 2 * * *"
     }
   ]
 }

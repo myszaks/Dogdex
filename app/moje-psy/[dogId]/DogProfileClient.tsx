@@ -2,21 +2,26 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { Dog } from '@/types'
+import type { DogDocument } from '@/lib/dogDocuments'
 import { AGILITY_LEVELS, GENDER_LABELS } from '@/components/DogForm'
 import DogForm from '@/components/DogForm'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Pencil, CalendarDays, Trophy,
-  Weight, Ruler, Syringe, PawPrint, Medal, Clock, X,
+  Weight, Ruler, Syringe, PawPrint, Medal, Clock, X, BadgeCheck, FileCheck2,
 } from 'lucide-react'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import DogDocumentsManager from '@/components/DogDocumentsManager'
+import { buildSportDisciplineSummaries, buildSportPassportBadges } from '@/lib/dogSportPassport'
+import { EVENT_TYPES } from '@/lib/eventTypes'
 
 interface HistoryEntry {
   regId: string
   eventSlug: string
   eventTitle: string
   eventDate: string | null
+  eventTypeId: string | null
   eventStatus: string | null
   status: string
   rank: number | null
@@ -30,6 +35,7 @@ interface HistoryEntry {
 interface Props {
   dog: Dog
   history: HistoryEntry[]
+  documents: DogDocument[]
   isEditMode: boolean
 }
 
@@ -64,9 +70,9 @@ function placementContext(h: HistoryEntry) {
   return null
 }
 
-type Tab = 'history' | 'trophy'
+type Tab = 'history' | 'trophy' | 'documents'
 
-export default function DogProfileClient({ dog, history, isEditMode }: Props) {
+export default function DogProfileClient({ dog, history, documents, isEditMode }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('history')
   const [editing, setEditing] = useState(isEditMode)
@@ -76,6 +82,8 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
   const finishedResults = history.filter(h => h.status === 'confirmed' && h.hasResult && h.eventStatus === 'finished')
   const podium = finishedResults.filter(h => h.rank !== null && h.rank! >= 1 && h.rank! <= 3)
   const firstPlaces = podium.filter(h => h.rank === 1).length
+  const disciplineSummaries = buildSportDisciplineSummaries(history)
+  const passportBadges = buildSportPassportBadges(history)
   const gender = dog.gender ? GENDER_LABELS[dog.gender] : null
   const agility = AGILITY_LEVELS.find(l => l.value === dog.agility_level)?.label
   const vaccineExpiry = dog.rabies_vaccine_expiry ? new Date(dog.rabies_vaccine_expiry) : null
@@ -92,6 +100,7 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
     { label: 'Umaszczenie',   value: dog.coat_color },
     { label: 'Rodowód / chip', value: dog.pedigree_or_chip },
     { label: 'Poziom agility', value: agility },
+    { label: 'Data urodzenia', value: dog.birth_date ? new Date(dog.birth_date).toLocaleDateString('pl-PL') : null },
   ].filter(r => r.value)
 
   async function handleSave(data: Partial<Dog>) {
@@ -268,11 +277,52 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
 
           </div>
 
+          <section className="bg-card rounded-3xl p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent"><BadgeCheck className="h-5 w-5" /></span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-accent">Sportowy paszport</p>
+                <h2 className="mt-1 font-heading text-xl font-bold">Kariera {dog.name}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Automatyczne podsumowanie potwierdzonych startów i wyników.</p>
+              </div>
+            </div>
+
+            {disciplineSummaries.length > 0 ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {disciplineSummaries.map(summary => (
+                  <div key={summary.eventTypeId} className="rounded-2xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold">{eventTypeLabel(summary.eventTypeId)}</p>
+                      {summary.bestRank !== null && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Najlepiej: {summary.bestRank}.</span>}
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
+                      <div><strong className="block text-lg text-foreground">{summary.starts}</strong>starty</div>
+                      <div><strong className="block text-lg text-foreground">{summary.podiums}</strong>podia</div>
+                      <div><strong className="block text-lg text-foreground">{summary.wins}</strong>wygrane</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-5 rounded-2xl bg-secondary/50 px-4 py-5 text-center text-sm text-muted-foreground">Pierwsza dyscyplina pojawi się po ukończonym wydarzeniu.</p>}
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {passportBadges.map(badge => (
+                <span key={badge.key} title={badge.description} className={cn(
+                  'rounded-full border px-3 py-1.5 text-xs font-semibold',
+                  badge.earned ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-border bg-secondary/40 text-muted-foreground opacity-60',
+                )}>
+                  {badge.earned ? '✓ ' : ''}{badge.label}
+                </span>
+              ))}
+            </div>
+          </section>
+
           {/* Tabs */}
           <div className="flex gap-1 p-1 bg-secondary rounded-2xl">
             {([
               { key: 'history' as Tab, label: 'Historia', icon: CalendarDays, count: history.length },
               { key: 'trophy'  as Tab, label: 'Gablota',  icon: Trophy,       count: podium.length },
+              { key: 'documents' as Tab, label: 'Dokumenty', icon: FileCheck2, count: documents.length },
             ]).map(t => {
               const Icon = t.icon
               return (
@@ -436,6 +486,10 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
               </div>
             )
           )}
+
+          {tab === 'documents' && (
+            <DogDocumentsManager dogId={dog.id} initialDocuments={documents} />
+          )}
           </div>
 
         </div>
@@ -463,4 +517,9 @@ export default function DogProfileClient({ dog, history, isEditMode }: Props) {
       )}
     </div>
   )
+}
+
+function eventTypeLabel(eventTypeId: string) {
+  if (eventTypeId === 'other') return 'Inne wydarzenia'
+  return EVENT_TYPES.find(type => type.id === eventTypeId)?.name ?? eventTypeId
 }

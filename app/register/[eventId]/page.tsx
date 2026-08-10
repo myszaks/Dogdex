@@ -6,6 +6,7 @@ import RegisterForm from '@/components/RegisterForm'
 import { getEventType } from '@/lib/eventTypes'
 import type { Metadata } from 'next'
 import type { FormField } from '@/types'
+import { normalizeEventEntryRequirements } from '@/lib/dogDocuments'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -99,6 +100,9 @@ export default async function RegisterPage({ params }: Props) {
         datePrices={event.date_prices ?? {}}
         currency={event.currency ?? 'PLN'}
         autoConfirm={event.auto_confirm}
+        entryRequirements={normalizeEventEntryRequirements(event.entry_requirements)}
+        eventStartsAt={event.start_at}
+        eventEndsAt={event.end_at}
       />
     </div>
   )

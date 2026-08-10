@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   sendTrainingBookingToTrainer: vi.fn(),
   sendRegistrationEmail: vi.fn(),
   applyStripeRefundStatus: vi.fn(),
+  applyTrainingCommerceRefundStatus: vi.fn(),
+  notifyTrainingCommercePaymentCompleted: vi.fn(),
 }))
 
 vi.mock('stripe', () => ({
@@ -31,6 +33,14 @@ vi.mock('@/lib/email', () => ({
 
 vi.mock('@/lib/eventRefund', () => ({
   applyStripeRefundStatus: mocks.applyStripeRefundStatus,
+}))
+
+vi.mock('@/lib/trainingCommerceRefund', () => ({
+  applyTrainingCommerceRefundStatus: mocks.applyTrainingCommerceRefundStatus,
+}))
+
+vi.mock('@/lib/trainingCommerceNotifications', () => ({
+  notifyTrainingCommercePaymentCompleted: mocks.notifyTrainingCommercePaymentCompleted,
 }))
 
 const originalStripeSecret = process.env.STRIPE_SECRET_KEY
@@ -166,6 +176,91 @@ describe('POST /api/webhooks/stripe', () => {
       target_session_id: 'cs_test',
       target_payment_intent_id: 'pi_test',
     })
+  })
+
+  it('verifies and completes a course payment through the commerce RPC', async () => {
+    mocks.constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      account: 'acct_trainer',
+      data: { object: {
+        id: 'cs_course', payment_intent: 'pi_course', payment_status: 'paid',
+        amount_total: 45000, currency: 'pln',
+        metadata: { payment_kind: 'training_course', training_commerce_payment_id: 'commerce-1' },
+      } },
+    })
+    const rpc = vi.fn().mockResolvedValue({ data: true, error: null })
+    mocks.createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table !== 'training_commerce_payments') throw new Error(`Unexpected table ${table}`)
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({
+          data: { id: 'commerce-1', amount: 450, currency: 'PLN', stripe_session_id: 'cs_course', stripe_account_id: 'acct_trainer', status: 'pending' },
+          error: null,
+        }) }) }) }
+      }),
+      rpc,
+    })
+
+    const { POST } = await import('@/app/api/webhooks/stripe/route')
+    const response = await POST(new Request('https://dogdex.example/api/webhooks/stripe', {
+      method: 'POST', headers: { 'stripe-signature': 'valid-signature' }, body: '{}',
+    }))
+
+    expect(response.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith('complete_training_commerce_checkout', {
+      target_payment_id: 'commerce-1',
+      target_session_id: 'cs_course',
+      target_payment_intent_id: 'pi_course',
+    })
+    expect(mocks.notifyTrainingCommercePaymentCompleted).toHaveBeenCalledWith('commerce-1')
+  })
+
+  it('routes a connected-account course refund to the commerce refund state machine', async () => {
+    const stripeRefund = { id: 're_course', status: 'succeeded', failure_reason: null, metadata: { payment_kind: 'training_commerce_refund', training_commerce_refund_id: 'refund-course-1' } }
+    mocks.constructEvent.mockReturnValue({ type: 'refund.updated', account: 'acct_trainer', data: { object: stripeRefund } })
+    mocks.applyTrainingCommerceRefundStatus.mockResolvedValue('succeeded')
+    mocks.createServerClient.mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table !== 'training_commerce_refunds') throw new Error(`Unexpected table ${table}`)
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({
+          data: { id: 'refund-course-1', training_commerce_payments: { stripe_account_id: 'acct_trainer' } }, error: null,
+        }) }) }) }
+      }),
+    })
+
+    const { POST } = await import('@/app/api/webhooks/stripe/route')
+    const response = await POST(new Request('https://dogdex.example/api/webhooks/stripe', {
+      method: 'POST', headers: { 'stripe-signature': 'valid-signature' }, body: '{}',
+    }))
+    expect(response.status).toBe(200)
+    expect(mocks.applyTrainingCommerceRefundStatus).toHaveBeenCalledWith('refund-course-1', stripeRefund)
+  })
+
+  it('rejects a pass payment received on a different connected account', async () => {
+    mocks.constructEvent.mockReturnValue({
+      type: 'checkout.session.completed',
+      account: 'acct_wrong',
+      data: { object: {
+        id: 'cs_pass', payment_intent: 'pi_pass', payment_status: 'paid',
+        amount_total: 20000, currency: 'pln',
+        metadata: { payment_kind: 'training_pass', training_commerce_payment_id: 'commerce-2' },
+      } },
+    })
+    const rpc = vi.fn()
+    mocks.createServerClient.mockReturnValue({
+      from: vi.fn(() => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({
+        data: { id: 'commerce-2', amount: 200, currency: 'PLN', stripe_session_id: 'cs_pass', stripe_account_id: 'acct_trainer', status: 'pending' },
+        error: null,
+      }) }) }) })),
+      rpc,
+    })
+
+    const { POST } = await import('@/app/api/webhooks/stripe/route')
+    const response = await POST(new Request('https://dogdex.example/api/webhooks/stripe', {
+      method: 'POST', headers: { 'stripe-signature': 'valid-signature' }, body: '{}',
+    }))
+
+    expect(response.status).toBe(400)
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('verifies and completes an event registration payment on the connected account', async () => {

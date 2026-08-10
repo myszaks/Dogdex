@@ -18,9 +18,10 @@ interface EventWorkspaceShellProps {
   }
   permissions: EventTeamPermission[]
   canManageTeam: boolean
+  canEditEvent: boolean
 }
 
-export default function EventWorkspaceShell({ children, event, permissions, canManageTeam }: EventWorkspaceShellProps) {
+export default function EventWorkspaceShell({ children, event, permissions, canManageTeam, canEditEvent }: EventWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const baseHref = `/organizer/events/${event.slug}`
   const can = (permission: EventTeamPermission) => permissions.includes(permission)
@@ -28,13 +29,11 @@ export default function EventWorkspaceShell({ children, event, permissions, canM
     { href: baseHref, label: 'Podsumowanie', Icon: LayoutDashboard, active: pathname === baseHref },
     ...(can('registrations') ? [{ href: `${baseHref}/registrations`, label: 'Zapisy', Icon: ListChecks, active: pathname.startsWith(`${baseHref}/registrations`) }] : []),
     ...(event.hasSchedule && (can('registrations') || can('results')) ? [{ href: `${baseHref}/schedule`, label: 'Grafik', Icon: CalendarClock, active: pathname.startsWith(`${baseHref}/schedule`) }] : []),
-    ...(event.eventTypeId === 'speedway' && can('checkin') ? [{ href: `${baseHref}/checkin`, label: 'Check-in', Icon: ClipboardCheck, active: pathname.startsWith(`${baseHref}/checkin`) }] : []),
+    ...(can('checkin') ? [{ href: `${baseHref}/checkin`, label: 'Check-in', Icon: ClipboardCheck, active: pathname.startsWith(`${baseHref}/checkin`) }] : []),
     ...(event.hasResults && can('results') ? [{ href: `${baseHref}/results`, label: 'Wyniki', Icon: Trophy, active: pathname.startsWith(`${baseHref}/results`) || pathname.startsWith(`${baseHref}/live-entry`) }] : []),
     ...(can('finance') ? [{ href: `${baseHref}/finances`, label: 'Finanse', Icon: WalletCards, active: pathname.startsWith(`${baseHref}/finances`) }] : []),
-    ...(canManageTeam ? [
-      { href: `${baseHref}/team`, label: 'Zespół', Icon: UsersRound, active: pathname.startsWith(`${baseHref}/team`) },
-      { href: `${baseHref}/edit`, label: 'Ustawienia', Icon: Settings2, active: pathname.startsWith(`${baseHref}/edit`) },
-    ] : []),
+    ...(canManageTeam ? [{ href: `${baseHref}/team`, label: 'Zespół', Icon: UsersRound, active: pathname.startsWith(`${baseHref}/team`) }] : []),
+    ...(canEditEvent ? [{ href: `${baseHref}/edit`, label: 'Ustawienia', Icon: Settings2, active: pathname.startsWith(`${baseHref}/edit`) }] : []),
   ]
 
   return (

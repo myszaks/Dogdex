@@ -17,12 +17,18 @@ export async function GET(req: Request) {
   }
 
   const supabase = createServerClient()
-  const { data, error } = await supabase.rpc('reconcile_training_booking_states')
+  const [{ data, error }, { data: commerceExpired, error: commerceError }] = await Promise.all([
+    supabase.rpc('reconcile_training_booking_states'),
+    supabase.rpc('reconcile_training_commerce_states'),
+  ])
 
-  if (error) {
-    console.error('[training-reconcile] Failed:', error)
+  if (error || commerceError) {
+    console.error('[training-reconcile] Failed:', error ?? commerceError)
     return NextResponse.json({ error: 'Nie udało się uzgodnić stanów rezerwacji' }, { status: 500 })
   }
 
-  return NextResponse.json(data ?? { expired: 0, completed: 0 })
+  return NextResponse.json({
+    ...(data ?? { expired: 0, completed: 0 }),
+    ...(typeof commerceExpired === 'number' ? { commerceExpired } : {}),
+  })
 }

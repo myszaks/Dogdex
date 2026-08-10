@@ -5,6 +5,8 @@ import type { Dog } from '@/types'
 import DogProfileClient from './DogProfileClient'
 import PersonalWorkspaceShell from '@/components/PersonalWorkspaceShell'
 import { effectiveEventStatus } from '@/lib/eventStatus'
+import { primaryCompetitionRank, primaryCompetitionTime } from '@/lib/dogSportPassport'
+import type { DogDocument } from '@/lib/dogDocuments'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,14 +87,24 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
       .in('participant_id', allParticipantIds)
 
     // Krok 4: wyniki – dopasowanie po konkretnym starcie (event_id + participant_id)
-    const { data: results } = await supabase
-      .from('results')
-      .select('participant_id, rank, time_ms, notes, event_id, class_rank, best_ms, size_class')
-      .in('participant_id', allParticipantIds)
+    const [{ data: results }, { data: calculatedResults }] = await Promise.all([
+      supabase
+        .from('results')
+        .select('participant_id, rank, time_ms, notes, event_id, class_rank, best_ms, size_class')
+        .in('participant_id', allParticipantIds),
+      supabase
+        .from('competition_calculated_results')
+        .select('participant_id, event_id, computed, groups, ranks')
+        .in('participant_id', allParticipantIds),
+    ])
 
     const resultsMap = new Map<string, any>()
     for (const res of results ?? []) {
       resultsMap.set(`${res.event_id}:${res.participant_id}`, res)
+    }
+    const calculatedMap = new Map<string, any>()
+    for (const result of calculatedResults ?? []) {
+      calculatedMap.set(`${result.event_id}:${result.participant_id}`, result)
     }
 
     history = (regs ?? []).map((r: any) => {
@@ -100,16 +112,20 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
       const result = event?.id
         ? resultsMap.get(`${event.id}:${r.participant_id}`) ?? null
         : null
-      const rank = typeof result?.rank === 'number'
-        ? result.rank
-        : typeof result?.class_rank === 'number'
-          ? result.class_rank
-          : null
-      const rankSource = typeof result?.rank === 'number'
+      const calculated = event?.id
+        ? calculatedMap.get(`${event.id}:${r.participant_id}`) ?? null
+        : null
+      const calculatedRank = primaryCompetitionRank(calculated?.ranks)
+      const rank = calculatedRank
+        ?? (typeof result?.rank === 'number'
+          ? result.rank
+          : typeof result?.class_rank === 'number' ? result.class_rank : null)
+      const rankSource = calculatedRank !== null || typeof result?.rank === 'number'
         ? 'overall'
-        : typeof result?.class_rank === 'number'
-          ? 'class'
-          : null
+        : typeof result?.class_rank === 'number' ? 'class' : null
+      const calculatedGroup = calculated?.groups && typeof calculated.groups === 'object'
+        ? Object.values(calculated.groups).find(value => typeof value === 'string')
+        : null
       const eventStatus = event
         ? effectiveEventStatus({
           status: event.status,
@@ -122,23 +138,32 @@ export default async function DogProfilePage({ params, searchParams }: Props) {
         eventSlug: (event?.slug as string) || '',
         eventTitle: event?.title ?? 'Wydarzenie',
         eventDate: event?.start_at ?? null,
+        eventTypeId: event?.event_type_id ?? null,
         eventStatus,
         status: r.status,
         rank,
         rankSource,
-        sizeClass: result?.size_class ?? null,
-        hasResult: result !== null,
-        time_ms: result?.time_ms ?? result?.best_ms ?? null,
+        sizeClass: result?.size_class ?? calculatedGroup ?? null,
+        hasResult: result !== null || calculated !== null,
+        time_ms: primaryCompetitionTime(calculated?.computed) ?? result?.time_ms ?? result?.best_ms ?? null,
         notes: result?.notes ?? null,
       }
     }).sort((a: any, b: any) => (b.eventDate ?? '').localeCompare(a.eventDate ?? ''))
   }
+
+  const { data: documentRows } = await supabase
+    .from('dog_documents')
+    .select('id, dog_id, owner_id, type, label, document_number, issuer, issued_at, expires_at, storage_path, file_name, file_type, file_size, created_at, updated_at')
+    .eq('dog_id', dog.id)
+    .eq('owner_id', user.id)
+    .order('expires_at', { ascending: true, nullsFirst: false })
 
   return (
     <PersonalWorkspaceShell>
       <DogProfileClient
         dog={dog}
         history={history}
+        documents={(documentRows ?? []) as DogDocument[]}
         isEditMode={edit === '1'}
       />
     </PersonalWorkspaceShell>

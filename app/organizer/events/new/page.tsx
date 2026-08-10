@@ -39,6 +39,7 @@ import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import EventPricingEditor from '@/components/EventPricingEditor'
+import EventEntryRequirementsEditor from '@/components/EventEntryRequirementsEditor'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
@@ -60,6 +61,12 @@ import {
 import type { FormField } from '@/types'
 import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
 import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
+import {
+  EMPTY_EVENT_ENTRY_REQUIREMENTS,
+  normalizeEventEntryRequirements,
+  validateEventEntryRequirements,
+  type EventEntryRequirements,
+} from '@/lib/dogDocuments'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -222,6 +229,11 @@ export default function NewEventPage() {
   const [location, setLocation] = useState<string>('')
   const [venueName, setVenueName] = useState('')
   const [groupingField, setGroupingField] = useState<string>('')
+  const [entryRequirements, setEntryRequirements] = useState<EventEntryRequirements>(() => ({
+    ...EMPTY_EVENT_ENTRY_REQUIREMENTS,
+    allowedGenders: [],
+    documents: [],
+  }))
 
   useEffect(() => {
     const formatId = new URLSearchParams(window.location.search).get('competitionFormatId')
@@ -371,6 +383,11 @@ export default function NewEventPage() {
     }
 
     if (step === 2) {
+      const requirementsError = validateEventEntryRequirements(entryRequirements)
+      if (requirementsError) {
+        showCreatorError(requirementsError, 'event-entry-requirements')
+        return false
+      }
       const registrationWindowError = validateEventRegistrationWindow({
         eventStartsAt: startAt,
         registrationDeadline,
@@ -505,6 +522,7 @@ export default function NewEventPage() {
       lng,
       gallery_images: galleryImages,
       grouping_field: groupingField || null,
+      entry_requirements: normalizeEventEntryRequirements(entryRequirements),
       form_template_id: selectedTemplateId,
       competition_format_id: competitionFormatId,
       competition_config: competitionFormatId ? undefined : competitionDefinition,
@@ -707,6 +725,7 @@ export default function NewEventPage() {
               groupingField={groupingField}
               formFieldsCount={formFields.length}
               formFields={formFields}
+              entryRequirements={entryRequirements}
               errorFieldId={errorFieldId}
               errorMessageId={CREATOR_ERROR_ID}
               onMaxParticipantsChange={setMaxParticipants}
@@ -733,6 +752,7 @@ export default function NewEventPage() {
                 ) setGroupingField('')
               }}
               onGroupingFieldChange={setGroupingField}
+              onEntryRequirementsChange={setEntryRequirements}
             />
           )}
 
@@ -1249,6 +1269,7 @@ function StepRegistration({
   groupingField,
   formFieldsCount,
   formFields,
+  entryRequirements,
   errorFieldId,
   errorMessageId,
   onMaxParticipantsChange,
@@ -1262,6 +1283,7 @@ function StepRegistration({
   onTemplateSelect,
   onFormFieldsChange,
   onGroupingFieldChange,
+  onEntryRequirementsChange,
 }: {
   maxParticipants: string
   registrationOpensAt: string | null
@@ -1277,6 +1299,7 @@ function StepRegistration({
   groupingField: string
   formFieldsCount: number
   formFields: FormField[]
+  entryRequirements: EventEntryRequirements
   errorFieldId: string | null
   errorMessageId: string
   onMaxParticipantsChange: (value: string) => void
@@ -1290,6 +1313,7 @@ function StepRegistration({
   onTemplateSelect: (templateId: string | null, fields: FormField[]) => void
   onFormFieldsChange: (fields: FormField[]) => void
   onGroupingFieldChange: (value: string) => void
+  onEntryRequirementsChange: (value: EventEntryRequirements) => void
 }) {
   const speedwayDependencyReady = eventTypeId !== 'speedway'
     || (
@@ -1396,6 +1420,13 @@ function StepRegistration({
           />
         </div>
       </Panel>
+
+      <div id="event-entry-requirements" tabIndex={-1}>
+        <EventEntryRequirementsEditor
+          value={entryRequirements}
+          onChange={onEntryRequirementsChange}
+        />
+      </div>
 
       <div>
         <SectionHeader

@@ -31,8 +31,11 @@ const EMPTY: Partial<Dog> = {
   weight_kg: undefined,
   height_cm: undefined,
   agility_level: undefined,
+  birth_date: undefined,
   rabies_vaccine_expiry: undefined,
 }
+
+const TODAY_ISO_DATE = new Date().toISOString().slice(0, 10)
 
 export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
   const [form, setForm] = useState<Partial<Dog>>({ ...EMPTY, ...initial })
@@ -83,6 +86,10 @@ export default function DogForm({ initial = EMPTY, onSave, onCancel }: Props) {
             <option value="male">Pies (♂)</option>
             <option value="female">Suka (♀)</option>
           </select>
+        </div>
+        <div>
+          <label htmlFor="dog-birth-date" className="form-label">Data urodzenia</label>
+          <input id="dog-birth-date" className="form-input" type="date" max={TODAY_ISO_DATE} value={form.birth_date ?? ''} onChange={e => set('birth_date', e.target.value || null)} />
         </div>
         <div>
           <label htmlFor="dog-agility-level" className="form-label">Poziom agility</label>

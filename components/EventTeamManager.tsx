@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
-import { Loader2, Mail, ShieldCheck, Trash2, UserRoundPlus } from 'lucide-react'
+import { Loader2, Mail, ShieldCheck, Trash2, UserRoundPlus, UsersRound } from 'lucide-react'
 import {
   EVENT_TEAM_PERMISSIONS,
   EVENT_TEAM_PERMISSION_LABELS,
@@ -17,20 +18,35 @@ interface TeamMember {
   status: 'pending' | 'active'
 }
 
+interface OrganizerTeamMember {
+  id: string
+  email: string
+  user_id: string | null
+  fullName?: string | null
+  default_permissions: EventTeamPermission[]
+}
+
 export default function EventTeamManager({
   eventSlug,
   owner,
   initialMembers,
+  organizerMembers,
+  showOrganizerTeamLink,
 }: {
   eventSlug: string
   owner: { email: string; fullName: string | null }
   initialMembers: TeamMember[]
+  organizerMembers: OrganizerTeamMember[]
+  showOrganizerTeamLink: boolean
 }) {
   const [members, setMembers] = useState(initialMembers)
   const [email, setEmail] = useState('')
   const [permissions, setPermissions] = useState<EventTeamPermission[]>(['registrations'])
   const [saving, setSaving] = useState(false)
+  const [addingOrganizerMemberId, setAddingOrganizerMemberId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const assignedEmails = new Set(members.map(member => member.email.toLowerCase()))
+  const availableOrganizerMembers = organizerMembers.filter(member => !assignedEmails.has(member.email.toLowerCase()))
 
   function toggle(permission: EventTeamPermission) {
     setPermissions(current => current.includes(permission)
@@ -38,28 +54,44 @@ export default function EventTeamManager({
       : [...current, permission])
   }
 
+  async function saveMember(memberEmail: string, memberPermissions: EventTeamPermission[]) {
+    setMessage(null)
+    const response = await fetch(`/api/events/${encodeURIComponent(eventSlug)}/team`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: memberEmail, permissions: memberPermissions }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error ?? 'Nie udało się zapisać dostępu')
+    setMembers(current => {
+      const next = current.filter(member => member.id !== data.id && member.email !== data.email)
+      return [...next, data].sort((a, b) => a.email.localeCompare(b.email))
+    })
+  }
+
   async function invite(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
-    setMessage(null)
     try {
-      const response = await fetch(`/api/events/${encodeURIComponent(eventSlug)}/team`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, permissions }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error ?? 'Nie udało się zapisać dostępu')
-      setMembers(current => {
-        const next = current.filter(member => member.id !== data.id && member.email !== data.email)
-        return [...next, data].sort((a, b) => a.email.localeCompare(b.email))
-      })
+      await saveMember(email, permissions)
       setEmail('')
       setMessage({ type: 'success', text: 'Dostęp został zapisany, a zaproszenie wysłane e-mailem.' })
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Nie udało się zapisać dostępu' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function addOrganizerMember(member: OrganizerTeamMember) {
+    setAddingOrganizerMemberId(member.id)
+    try {
+      await saveMember(member.email, member.default_permissions)
+      setMessage({ type: 'success', text: `${member.fullName || member.email} został dodany do wydarzenia.` })
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Nie udało się dodać osoby' })
+    } finally {
+      setAddingOrganizerMemberId(null)
     }
   }
 
@@ -107,6 +139,46 @@ export default function EventTeamManager({
           </div>
         </div>
       </section>
+
+      {organizerMembers.length > 0 && (
+        <section className="card p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <UsersRound className="h-5 w-5 text-accent" />
+                <h2 className="font-heading text-lg font-semibold">Stały zespół organizatora</h2>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Dodaj osobę z profilu organizatora z jej domyślnym zakresem. Uprawnienia poniżej możesz potem zmienić tylko dla tego wydarzenia.
+              </p>
+            </div>
+            {showOrganizerTeamLink && <Link href="/organizer/team" className="btn btn-ghost btn-sm shrink-0">Zarządzaj zespołem</Link>}
+          </div>
+          {availableOrganizerMembers.length === 0 ? (
+            <p className="mt-4 rounded-2xl bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">Cały stały zespół jest już przypisany do tego wydarzenia.</p>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {availableOrganizerMembers.map(member => (
+                <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border p-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{member.fullName || member.email}</p>
+                    {member.fullName && <p className="truncate text-xs text-muted-foreground">{member.email}</p>}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm shrink-0"
+                    disabled={addingOrganizerMemberId !== null || member.default_permissions.length === 0}
+                    onClick={() => addOrganizerMember(member)}
+                  >
+                    {addingOrganizerMemberId === member.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Dodaj
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <form onSubmit={invite} className="card p-6">
         <div className="flex items-center gap-2">

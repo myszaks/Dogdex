@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, RefreshCw } from 'lucide-react'
 
-export default function PaymentsActions() {
+export default function PaymentsActions({ canReconcile = true }: { canReconcile?: boolean }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -33,10 +33,10 @@ export default function PaymentsActions() {
       <a href="/api/event-payments/export" className="btn btn-secondary text-sm">
         <Download className="h-4 w-4" /> Eksport CSV
       </a>
-      <button type="button" onClick={() => void reconcile()} disabled={loading} className="btn btn-secondary text-sm">
+      {canReconcile && <button type="button" onClick={() => void reconcile()} disabled={loading} className="btn btn-secondary text-sm">
         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         {loading ? 'Uzgadnianie…' : 'Uzgodnij ze Stripe'}
-      </button>
+      </button>}
       {message && (
         <p
           role="status"

@@ -5,6 +5,7 @@ const createServerClient = vi.fn()
 
 vi.mock('@/lib/getServerUser', () => ({ getServerUser }))
 vi.mock('@/lib/supabaseServer', () => ({ createServerClient }))
+vi.mock('@/lib/businessAccess', () => ({ getBusinessProfileAccess: vi.fn().mockResolvedValue(null) }))
 
 describe('GET /api/event-payments/export', () => {
   beforeEach(() => {

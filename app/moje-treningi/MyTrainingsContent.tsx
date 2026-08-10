@@ -10,6 +10,8 @@ import type { TrainingReview } from '@/types'
 import TrainingReviewForm from '@/components/TrainingReviewForm'
 import { fetchWithAuthRetry } from '@/lib/authFetch'
 import GoogleCalendarPopupLink from '@/components/GoogleCalendarPopupLink'
+import MyTrainingPasses from '@/components/MyTrainingPasses'
+import MyTrainingCourses from '@/components/MyTrainingCourses'
 
 interface MyTrainingsContentProps {
   embedded?: boolean
@@ -322,6 +324,9 @@ export default function MyTrainingsContent({
           </div>
         </>
       )}
+
+      <MyTrainingPasses />
+      <MyTrainingCourses />
 
       {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">

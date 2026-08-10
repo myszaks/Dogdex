@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { requireBusinessProfileAccessForApi } from '@/lib/businessAccess'
 import { toSlug } from '@/lib/utils'
 import {
   validateCompetitionFieldValues,
@@ -11,6 +11,7 @@ import { validateEventCompetitionDependencies } from '@/lib/eventCompetitionDepe
 import { normalizeEventDatePrices, validateEventPricing } from '@/lib/eventPricing'
 import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 import { validateEventSchedule } from '@/lib/eventSchedule'
+import { normalizeEventEntryRequirements, validateEventEntryRequirements } from '@/lib/dogDocuments'
 
 export async function GET() {
   // Public read — auth client works for both authed and anon users
@@ -26,10 +27,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-
-  const supabase = await createAuthClient()
+  const accessResult = await requireBusinessProfileAccessForApi(null, 'events.create')
+  if ('error' in accessResult) return accessResult.error
+  const { access } = accessResult
+  const supabase = createServerClient()
 
   let body: Record<string, unknown>
   try {
@@ -38,7 +39,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 })
   }
 
-  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_opens_at, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, pricing_mode, date_prices, currency, image_url, organizer_name, lat, lng, gallery_images, grouping_field, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
+  const { title, description, location, start_at, end_at, status, event_type_id, form_fields, form_template_id, registration_opens_at, registration_deadline, has_results, results_public, has_schedule, auto_confirm, max_participants, entry_fee, pricing_mode, date_prices, currency, image_url, organizer_name, lat, lng, gallery_images, grouping_field, entry_requirements, competition_format_id, competition_config, competition_values } = body as Record<string, unknown>
+
+  const normalizedEntryRequirements = normalizeEventEntryRequirements(entry_requirements)
+  const entryRequirementsError = validateEventEntryRequirements(normalizedEntryRequirements)
+  if (entryRequirementsError) {
+    return NextResponse.json({ error: entryRequirementsError }, { status: 400 })
+  }
 
   const normalizedPricingMode = typeof pricing_mode === 'string' ? pricing_mode : 'free'
   if (!['free', 'flat', 'per_date'].includes(normalizedPricingMode)) {
@@ -58,6 +65,9 @@ export async function POST(req: Request) {
 
   if (!normalizedTitle) {
     return NextResponse.json({ error: 'Tytuł jest wymagany' }, { status: 400 })
+  }
+  if (normalizedPricingMode !== 'free' && !access.can('events.finance')) {
+    return NextResponse.json({ error: 'Utworzenie płatnego wydarzenia wymaga uprawnienia do finansów' }, { status: 403 })
   }
   const scheduleError = validateEventSchedule({
     status: nextStatus,
@@ -100,7 +110,7 @@ export async function POST(req: Request) {
       const { data: payoutProfile } = await supabase
         .from('profiles')
         .select('stripe_account_id, stripe_onboarded')
-        .eq('id', authResult.user.id)
+        .eq('id', access.profile.owner_id)
         .maybeSingle()
       if (!payoutProfile?.stripe_onboarded || !payoutProfile.stripe_account_id) {
         return NextResponse.json(
@@ -152,8 +162,8 @@ export async function POST(req: Request) {
     }
     if (
       format.status === 'draft'
-      && authResult.role !== 'admin'
-      && format.created_by !== authResult.user.id
+      && !access.isAdmin
+      && format.created_by !== access.profile.owner_id
     ) {
       return NextResponse.json({ error: 'Brak dostępu do roboczego formatu zawodów.' }, { status: 403 })
     }
@@ -236,11 +246,13 @@ export async function POST(req: Request) {
       currency: normalizedCurrency,
       image_url: (image_url as string | null) ?? null,
       organizer_name: (organizer_name as string | null) ?? null,
-      created_by: authResult.user.id,
+      created_by: access.profile.owner_id,
+      business_profile_id: access.profile.id,
       lat: typeof lat === 'number' ? lat : null,
       lng: typeof lng === 'number' ? lng : null,
       gallery_images: Array.isArray(gallery_images) ? gallery_images : [],
       grouping_field: (grouping_field as string | null) ?? null,
+      entry_requirements: normalizedEntryRequirements,
       form_template_id: (form_template_id as string | null) ?? null,
       competition_format_id: competitionFormatId,
       competition_config: competitionConfig,
@@ -251,5 +263,13 @@ export async function POST(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await supabase.from('business_profile_audit_log').insert({
+    business_profile_id: access.profile.id,
+    actor_id: access.user.id,
+    action: 'event.created',
+    target_type: 'event',
+    target_id: data.id,
+    metadata: { title: data.title },
+  })
   return NextResponse.json(data, { status: 201 })
 }

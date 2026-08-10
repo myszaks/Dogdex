@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!existing) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
 
   const body = await req.json()
-  const allowed = ['name', 'breed', 'gender', 'pedigree_or_chip', 'coat_color', 'weight_kg', 'height_cm', 'agility_level', 'photo_url', 'rabies_vaccine_expiry']
+  const allowed = ['name', 'breed', 'gender', 'pedigree_or_chip', 'coat_color', 'weight_kg', 'height_cm', 'agility_level', 'photo_url', 'rabies_vaccine_expiry', 'birth_date']
   const update: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) update[key] = body[key] === '' ? null : body[key]

@@ -15,7 +15,16 @@ export default async function EventTeamPage({ params }: { params: Promise<{ even
     .select('id, email, user_id, permissions, status')
     .eq('event_id', access.event.id)
     .order('email')
-  const userIds = [...new Set((members ?? []).map(member => member.user_id).filter(Boolean))] as string[]
+  const { data: organizerMembers } = await supabase
+    .from('organizer_team_members')
+    .select('id, email, user_id, default_permissions, status')
+    .eq('organizer_id', access.event.created_by)
+    .in('status', ['pending', 'active'])
+    .order('email')
+  const userIds = [...new Set([
+    ...(members ?? []).map(member => member.user_id),
+    ...(organizerMembers ?? []).map(member => member.user_id),
+  ].filter(Boolean))] as string[]
   const { data: profiles } = userIds.length
     ? await supabase.from('profiles').select('id, full_name').in('id', userIds)
     : { data: [] as Array<{ id: string; full_name: string | null }> }
@@ -33,6 +42,16 @@ export default async function EventTeamPage({ params }: { params: Promise<{ even
         permissions: Array.isArray(member.permissions) ? member.permissions.filter(isEventTeamPermission) : [],
         status: member.status === 'active' ? 'active' as const : 'pending' as const,
       }))}
+      organizerMembers={(organizerMembers ?? []).map(member => ({
+        id: member.id,
+        email: member.email,
+        user_id: member.user_id,
+        fullName: member.user_id ? names.get(member.user_id) ?? null : null,
+        default_permissions: Array.isArray(member.default_permissions)
+          ? member.default_permissions.filter(isEventTeamPermission)
+          : [],
+      }))}
+      showOrganizerTeamLink={access.isOwner}
     />
   )
 }

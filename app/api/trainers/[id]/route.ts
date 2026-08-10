@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nie znaleziono trenera' }, { status: 404 })
   }
 
-  const [{ data: trainingTypes, error: typesError }, { data: reviews, error: reviewsError }] =
+  const [{ data: trainingTypes, error: typesError }, { data: reviews, error: reviewsError }, { data: courses }, { data: passProducts }] =
     await Promise.all([
       supabase
         .from('training_types')
@@ -45,6 +45,18 @@ export async function GET(req: Request, { params }: Params) {
         .eq('moderation_status', 'published')
         .order('created_at', { ascending: false })
         .limit(100),
+      supabase
+        .from('training_courses')
+        .select('*, training_course_sessions(*)')
+        .eq('trainer_id', trainer.trainer_id)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('training_pass_products')
+        .select('*')
+        .eq('trainer_id', trainer.trainer_id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false }),
     ])
 
   if (typesError || reviewsError) {
@@ -55,6 +67,8 @@ export async function GET(req: Request, { params }: Params) {
   return NextResponse.json({
     ...trainer,
     training_types: trainingTypes,
+    training_courses: courses ?? [],
+    training_pass_products: passProducts ?? [],
     reviews: reviews ?? [],
     rating: ratings.length > 0
       ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10

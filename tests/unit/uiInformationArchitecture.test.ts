@@ -39,12 +39,12 @@ describe('UI information architecture', () => {
     expect(managePage).toContain('isOrganizerRole(role)')
     expect(managePage).toContain('isTrainerRole(role)')
     expect(managePage).toContain('href="/organizer"')
-    expect(managePage).toContain('href="/trainer"')
+    expect(managePage).toContain("trainer ? '/trainer' : '/trainer/groups'")
     expect(managePage).toContain('href="/payments"')
     expect(managePage).not.toContain("redirect('/organizer')")
     expect(managePage).not.toContain("redirect('/trainer')")
 
-    for (const label of ['Przegląd', 'Wydarzenia', 'Treningi', 'Płatności']) {
+    for (const label of ['Przegląd', 'Zespół', 'Wydarzenia', 'Treningi', 'Płatności']) {
       expect(workspace).toContain(`label: '${label}'`)
     }
     for (const label of ['Pulpit', 'Rezerwacje', 'Oferta', 'Dostępność', 'Analityka', 'Profil trenera']) {

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const body = await req.json()
-  const { name, breed, gender, pedigree_or_chip, coat_color, weight_kg, height_cm, agility_level, photo_url, rabies_vaccine_expiry } = body
+  const { name, breed, gender, pedigree_or_chip, coat_color, weight_kg, height_cm, agility_level, photo_url, rabies_vaccine_expiry, birth_date } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'Imię psa jest wymagane' }, { status: 400 })
 
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       agility_level: agility_level || null,
       photo_url: photo_url || null,
       rabies_vaccine_expiry: rabies_vaccine_expiry || null,
+      birth_date: birth_date || null,
     })
     .select()
     .single()

@@ -12,6 +12,7 @@ import { extractSizeClassFromRegistration } from '@/lib/speedway'
 import { effectiveStatus } from '@/lib/utils'
 import type { CompetitionFormatDefinition } from '@/types/competition'
 import { getEventAccess } from '@/lib/eventAccess'
+import TimingImportPanel from '@/components/TimingImportPanel'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -164,6 +165,7 @@ export default async function ResultsPage({ params }: Props) {
       </div>
 
       <PublishResultsButton eventId={eventId} resultsPublic={!!event.results_public} />
+      <TimingImportPanel eventId={eventId} />
 
       {competitionDefinition ? (
         <CompetitionResultEntry

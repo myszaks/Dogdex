@@ -8,6 +8,7 @@ import type { DogEvent, FormField, CancellationRequest } from '@/types'
 import { Dog, CalendarDays, CheckCircle2, Clock, XCircle, AlertTriangle, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import GoogleCalendarPopupLink from './GoogleCalendarPopupLink'
+import EventCheckInCode from './EventCheckInCode'
 
 const regStatusConfig: Record<string, { label: string; className: string; Icon: React.ElementType }> = {
   pending:              { label: 'Oczekuje',              className: 'bg-amber-100 text-amber-700',   Icon: Clock },
@@ -39,6 +40,7 @@ interface Props {
     status: string
     created_at: string
     form_data?: Record<string, unknown> | null
+    checkin_token?: string | null
   }
   participant: {
     dog_name?: string | null
@@ -183,6 +185,9 @@ export default function RegistrationEventCard({ event, registration, participant
                 label="Google Calendar"
                 className="btn btn-secondary btn-sm"
               />
+            )}
+            {registration.status === 'confirmed' && registration.checkin_token && dispStatus === 'upcoming' && (
+              <EventCheckInCode token={registration.checkin_token} dogName={participant?.dog_name ?? 'pies'} />
             )}
             {canCancel && (
               <button

@@ -25,6 +25,7 @@ export default async function EventLayout({
       }}
       permissions={access.permissions}
       canManageTeam={access.canManageTeam}
+      canEditEvent={access.canEditEvent}
     >
       {children}
     </EventWorkspaceShell>

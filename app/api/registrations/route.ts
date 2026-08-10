@@ -8,6 +8,11 @@ import { enforcePublicRateLimits, getRequestIp } from '@/lib/publicRateLimit'
 import { validateRegistrationFormData } from '@/lib/registrationFormValidation'
 import { buildEventPriceItems } from '@/lib/eventPricing'
 import { createEventCheckout, prepareEventRegistrationItems } from '@/lib/eventCheckout'
+import {
+  hasEventEntryRequirements,
+  normalizeEventEntryRequirements,
+  validateDogEligibility,
+} from '@/lib/dogDocuments'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_FORM_DATA_BYTES = 50_000
@@ -114,7 +119,7 @@ export async function POST(req: Request) {
   // Verify event exists and is open
   const { data: event } = await supabase
     .from('events')
-    .select('id, slug, created_by, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, registration_opens_at, registration_deadline, pricing_mode, entry_fee, date_prices, currency')
+    .select('id, slug, created_by, status, auto_confirm, max_participants, title, start_at, end_at, location, form_fields, entry_requirements, registration_opens_at, registration_deadline, pricing_mode, entry_fee, date_prices, currency')
     .eq('id', eventId)
     .single()
 
@@ -178,6 +183,14 @@ export async function POST(req: Request) {
   // Prevent duplicate registration: same owner_email + dog_name for the same event
   const dogIdNorm = typeof dogId === 'string' && dogId.trim() ? dogId.trim() : null
   const { user } = await getServerUser()
+  const entryRequirements = normalizeEventEntryRequirements(event.entry_requirements)
+
+  if (hasEventEntryRequirements(entryRequirements) && !dogIdNorm) {
+    return NextResponse.json(
+      { error: 'To wydarzenie wymaga wyboru psa z profilu.' },
+      { status: 422 },
+    )
+  }
 
   if (dogIdNorm) {
     if (!user) {
@@ -187,7 +200,7 @@ export async function POST(req: Request) {
     const authSupabase = await createAuthClient()
     const { data: ownedDog, error: dogError } = await authSupabase
       .from('dogs')
-      .select('id')
+      .select('id, birth_date, height_cm, gender, rabies_vaccine_expiry')
       .eq('id', dogIdNorm)
       .eq('user_id', user.id)
       .maybeSingle()
@@ -200,6 +213,38 @@ export async function POST(req: Request) {
     }
     if (!ownedDog) {
       return NextResponse.json({ error: 'Nieprawidłowy pies dla tego użytkownika' }, { status: 403 })
+    }
+
+    if (hasEventEntryRequirements(entryRequirements)) {
+      const { data: dogDocuments, error: documentsError } = await supabase
+        .from('dog_documents')
+        .select('type, expires_at')
+        .eq('dog_id', ownedDog.id)
+        .eq('owner_id', user.id)
+      if (documentsError) {
+        return NextResponse.json(
+          { error: 'Nie udało się sprawdzić dokumentów psa. Spróbuj ponownie.' },
+          { status: 500 },
+        )
+      }
+      const eligibilityIssues = validateDogEligibility({
+        dog: {
+          birth_date: ownedDog.birth_date,
+          height_cm: ownedDog.height_cm,
+          gender: ownedDog.gender === 'male' || ownedDog.gender === 'female' ? ownedDog.gender : null,
+          rabies_vaccine_expiry: ownedDog.rabies_vaccine_expiry,
+        },
+        documents: (dogDocuments ?? []) as Array<{ type: import('@/lib/dogDocuments').DogDocumentType; expires_at: string | null }>,
+        requirements: entryRequirements,
+        eventStartsAt: event.start_at,
+        eventEndsAt: event.end_at,
+      })
+      if (eligibilityIssues.length > 0) {
+        return NextResponse.json(
+          { error: eligibilityIssues[0].message, issues: eligibilityIssues },
+          { status: 422 },
+        )
+      }
     }
   }
 

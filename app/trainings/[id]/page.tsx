@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Clock, MapPin, ShieldCheck, Star } from 'lucide-react'
-import type { TrainerProfileWithStats, TrainingReview } from '@/types'
+import type { TrainerProfileWithStats, TrainingReview, TrainingCourse, TrainingPassProduct } from '@/types'
 import ReviewSafetyActions from '@/components/ReviewSafetyActions'
+import TrainingGroupOffers from '@/components/TrainingGroupOffers'
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-type TrainerDetails = TrainerProfileWithStats & { reviews?: TrainingReview[] }
+type TrainerDetails = TrainerProfileWithStats & { reviews?: TrainingReview[]; training_courses?: TrainingCourse[]; training_pass_products?: TrainingPassProduct[] }
 
 export default function TrainerDetailPage({ params }: Props) {
   const [trainer, setTrainer] = useState<TrainerDetails | null>(null)
@@ -119,6 +120,8 @@ export default function TrainerDetailPage({ params }: Props) {
       ) : (
         <div className="text-center py-12 text-slate-500">Ten trener nie ma obecnie aktywnych treningów.</div>
       )}
+
+      <TrainingGroupOffers trainerSlug={trainer.slug} courses={trainer.training_courses ?? []} passProducts={trainer.training_pass_products ?? []} />
 
       <section>
         <h2 className="font-heading font-semibold text-2xl mb-6">Opinie klientów</h2>

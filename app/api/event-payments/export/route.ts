@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
 import { createServerClient } from '@/lib/supabaseServer'
 import { isPayoutRole } from '@/lib/roles'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 
 function csv(value: unknown): string {
   const raw = value == null ? '' : String(value)
@@ -11,12 +12,18 @@ function csv(value: unknown): string {
 
 export async function GET() {
   const { user, role } = await getServerUser()
-  if (!user || !isPayoutRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
+  const businessAccess = await getBusinessProfileAccess()
+  const hasBusinessPayments = Boolean(businessAccess?.can('payments.view'))
+  if (!isPayoutRole(role) && !hasBusinessPayments) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   const db = createServerClient()
   const rows: string[][] = []
-  const { data: eventPayments } = await db.from('event_payments')
+  let eventPaymentsQuery = db.from('event_payments')
     .select('id, payer_email, amount, refunded_amount, currency, status, created_at, stripe_payment_intent_id, reconciliation_status, reconciliation_error, registrations(participants(owner_name, dog_name), events(title)), event_payment_items(event_registration_items(label))')
-    .eq('payee_user_id', user.id).order('created_at', { ascending: false }).limit(1000)
+  eventPaymentsQuery = hasBusinessPayments
+    ? eventPaymentsQuery.eq('business_profile_id', businessAccess!.profile.id)
+    : eventPaymentsQuery.eq('payee_user_id', user.id)
+  const { data: eventPayments } = await eventPaymentsQuery.order('created_at', { ascending: false }).limit(1000)
   for (const payment of eventPayments ?? []) {
     const registration = Array.isArray(payment.registrations) ? payment.registrations[0] : payment.registrations
     const participant = Array.isArray(registration?.participants) ? registration.participants[0] : registration?.participants
@@ -28,7 +35,11 @@ export async function GET() {
     rows.push(['Wydarzenie', payment.created_at, event?.title ?? '', labels, participant?.owner_name ?? '', participant?.dog_name ?? '', payment.payer_email, String(payment.amount), String(payment.refunded_amount ?? 0), String(Number(payment.amount) - Number(payment.refunded_amount ?? 0)), payment.currency, payment.status, payment.stripe_payment_intent_id ?? '', payment.reconciliation_status, payment.reconciliation_error ?? ''])
   }
 
-  const { data: types } = await db.from('training_types').select('id, name').eq('trainer_id', user.id)
+  let typesQuery = db.from('training_types').select('id, name')
+  typesQuery = hasBusinessPayments
+    ? typesQuery.eq('business_profile_id', businessAccess!.profile.id)
+    : typesQuery.eq('trainer_id', user.id)
+  const { data: types } = await typesQuery
   const typeMap = new Map((types ?? []).map(type => [type.id, type.name]))
   if (typeMap.size) {
     const { data: bookings } = await db.from('training_bookings')

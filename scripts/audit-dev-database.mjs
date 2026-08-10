@@ -34,7 +34,10 @@ try {
       'event_waitlist_entries',
       'event_announcements',
       'event_announcement_deliveries',
-      'review_reports'
+      'review_reports',
+      'business_profiles',
+      'business_profile_members',
+      'business_profile_audit_log'
     ]) expected(name)
   `)
   const columns = await rows(`
@@ -53,6 +56,12 @@ try {
         ))
         or
         (table_name = 'event_announcement_deliveries' and column_name = 'claimed_at')
+        or
+        (column_name = 'business_profile_id' and table_name in (
+          'events', 'organizer_profiles', 'trainer_profiles', 'training_types',
+          'training_courses', 'training_pass_products', 'training_commerce_payments',
+          'trainer_date_availability', 'training_bookings', 'training_payments', 'event_payments'
+        ))
       )
     order by table_name, column_name
   `)
@@ -65,7 +74,10 @@ try {
         'claim_next_event_waitlist_offer',
         'accept_event_waitlist_offer',
         'claim_event_announcement_deliveries',
-        'validate_review_report_target'
+        'validate_review_report_target',
+        'business_profile_has_permission',
+        'assign_event_business_profile',
+        'ensure_default_business_profile'
       )
     order by routine_name
   `)
@@ -76,7 +88,12 @@ try {
       and tablename in (
         'event_waitlist_entries', 'event_announcements',
         'event_announcement_deliveries', 'event_reviews',
-        'training_reviews', 'review_reports'
+        'training_reviews', 'review_reports',
+        'business_profiles', 'business_profile_members', 'business_profile_audit_log',
+        'training_courses', 'training_course_sessions', 'training_course_enrollments',
+        'training_course_attendance', 'training_pass_products', 'training_passes',
+        'training_pass_usages', 'training_commerce_payments', 'training_pass_requests',
+        'trainer_date_availability', 'training_bookings', 'training_payments', 'event_payments'
       )
     order by tablename, policyname
   `)

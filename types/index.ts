@@ -11,6 +11,7 @@ export interface DogEvent {
   status: string
   created_at: string
   created_by: string | null
+  business_profile_id?: string | null
   metadata: Record<string, unknown>
   image_url: string | null
   gallery_images: string[]
@@ -40,6 +41,7 @@ export interface DogEvent {
   competition_values: Record<string, import('./competition').CompetitionScalar>
   competition_config_revision: number
   competition_config_locked_at: string | null
+  entry_requirements: import('@/lib/dogDocuments').EventEntryRequirements
 }
 
 export interface Participant {
@@ -212,9 +214,17 @@ export interface Dog {
   agility_level: AgilityLevel | null
   photo_url: string | null
   rabies_vaccine_expiry: string | null
+  birth_date: string | null
   created_at: string
   updated_at: string
 }
+
+export type {
+  DogDocument,
+  DogDocumentType,
+  EventDocumentRequirement,
+  EventEntryRequirements,
+} from '@/lib/dogDocuments'
 
 // ============================================================
 // Treningi indywidualne (Individual Trainings)
@@ -240,6 +250,7 @@ export interface TrainingType {
   id: string
   slug: string
   trainer_id: string
+  business_profile_id?: string | null
   name: string
   description: string | null
   price_per_hour: number | null
@@ -263,6 +274,7 @@ export interface TrainingAvailability {
 export interface TrainingBooking {
   id: string
   training_type_id: string
+  business_profile_id?: string | null
   user_id: string
   dog_id: string | null
   scheduled_at: string
@@ -308,6 +320,7 @@ export interface EventRegistrationItem {
 export interface EventPayment {
   id: string
   registration_id: string
+  business_profile_id?: string | null
   payee_user_id: string
   payer_user_id: string | null
   payer_email: string
@@ -359,6 +372,7 @@ export interface EventRefund {
 export interface TrainingPayment {
   id: string
   booking_id: string
+  business_profile_id?: string | null
   amount: number
   currency: string
   stripe_session_id: string | null
@@ -383,6 +397,144 @@ export interface TrainingReview {
   moderation_reason?: string | null
   response_text: string | null
   response_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingCourse {
+  id: string
+  trainer_id: string
+  business_profile_id?: string | null
+  training_type_id: string | null
+  slug: string
+  name: string
+  description: string | null
+  location: string | null
+  capacity: number
+  price: number
+  currency: string
+  enrollment_mode: 'open' | 'approval'
+  status: 'draft' | 'published' | 'archived' | 'cancelled'
+  make_up_limit: number
+  cancellation_policy?: string | null
+  participant_message?: string | null
+  cancellation_reason?: string | null
+  cancelled_at?: string | null
+  policy_accepted_at?: string | null
+  policy_snapshot?: string | null
+  created_at: string
+  updated_at: string
+  training_course_sessions?: TrainingCourseSession[]
+  training_course_enrollments?: TrainingCourseEnrollment[]
+}
+
+export interface TrainingCourseSession {
+  id: string
+  course_id: string
+  starts_at: string
+  duration_min: number
+  capacity: number | null
+  status: 'scheduled' | 'cancelled' | 'completed'
+  notes: string | null
+  cancellation_reason?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingCourseEnrollment {
+  id: string
+  course_id: string
+  user_id: string
+  dog_id: string | null
+  status: 'pending' | 'confirmed' | 'waitlisted' | 'cancelled' | 'completed'
+  waitlist_position: number | null
+  payment_status: 'unpaid' | 'pending' | 'paid' | 'refunded' | 'manual'
+  approved_at: string | null
+  expires_at: string | null
+  cancellation_reason?: string | null
+  cancelled_at?: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  dogs?: { id: string; name: string } | null
+  training_commerce_payments?: TrainingCommercePayment[]
+}
+
+export interface TrainingPassProduct {
+  id: string
+  trainer_id: string
+  business_profile_id?: string | null
+  training_type_id: string | null
+  name: string
+  description: string | null
+  cancellation_policy?: string | null
+  freeze_policy?: string | null
+  entries: number
+  validity_days: number
+  price: number
+  currency: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingPass {
+  id: string
+  product_id: string
+  user_id: string
+  dog_id: string | null
+  entries_total: number
+  entries_remaining: number
+  status: 'pending' | 'active' | 'frozen' | 'used' | 'expired' | 'cancelled'
+  payment_status: 'unpaid' | 'pending' | 'paid' | 'refunded' | 'manual'
+  valid_from: string | null
+  expires_at: string | null
+  payment_expires_at: string | null
+  frozen_at?: string | null
+  policy_accepted_at?: string | null
+  policy_snapshot?: string | null
+  purchased_at: string
+  dogs?: { id: string; name: string } | null
+  training_pass_products?: TrainingPassProduct
+  training_commerce_payments?: TrainingCommercePayment[]
+  training_pass_adjustments?: Array<{ id: string; action: string; entries_delta: number; previous_expires_at?: string | null; next_expires_at?: string | null; note: string | null; created_at: string }>
+  training_pass_usages?: Array<{ id: string; entries_used: number; source: string; status: string; note?: string | null; created_at: string; training_bookings?: { scheduled_at: string; training_types?: { name: string } | null } | null; training_course_sessions?: { starts_at: string; training_courses?: { name: string } | null } | null }>
+  training_pass_requests?: TrainingPassRequest[]
+}
+
+export interface TrainingCommercePayment {
+  id: string
+  business_profile_id?: string | null
+  status: 'pending' | 'completed' | 'failed' | 'partially_refunded' | 'refunded'
+  amount: number
+  currency: string
+  refunded_amount?: number
+  receipt_url?: string | null
+  completed_at?: string | null
+  created_at?: string
+  training_commerce_refunds?: TrainingCommerceRefund[]
+}
+
+export interface TrainingCommerceRefund {
+  id: string
+  status: 'pending' | 'requires_action' | 'succeeded' | 'failed' | 'canceled'
+  amount: number
+  reason: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingPassRequest {
+  id: string
+  pass_id: string
+  user_id: string
+  request_type: 'freeze' | 'extend'
+  requested_days: number | null
+  reason: string
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  response_note: string | null
+  reviewed_at: string | null
   created_at: string
   updated_at: string
 }

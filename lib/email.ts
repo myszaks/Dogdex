@@ -834,3 +834,87 @@ export async function sendEventTeamInvitationEmail(payload: EventTeamInvitationE
     html,
   })
 }
+
+interface OrganizerTeamInvitationEmailPayload {
+  to: string
+  organizerName: string
+  permissions: string[]
+}
+
+export async function sendOrganizerTeamInvitationEmail(payload: OrganizerTeamInvitationEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `Zaproszenie do stałego zespołu organizatora ${payload.organizerName}`,
+    eyebrow: 'Zespół organizatora',
+    title: 'Dołączasz do stałego zespołu',
+    body: [
+      greeting(),
+      paragraph(`Organizator <strong>${escapeEmailHtml(payload.organizerName)}</strong> zaprasza Cię do swojego zespołu w Dogdex.`),
+      emailDetails([
+        { label: 'Organizator', value: payload.organizerName },
+        { label: 'Domyślny zakres pracy', value: payload.permissions.join(', ') },
+      ]),
+      emailNotice('Dostęp do konkretnych wydarzeń jest nadawany osobno. Zakres uprawnień może być inny dla każdego wydarzenia.', 'neutral'),
+      emailButton('Przejdź do Dogdex', appUrl()),
+    ].join(''),
+  })
+
+  return deliverEmail({
+    to: payload.to,
+    subject: `Zaproszenie do zespołu organizatora — ${payload.organizerName}`,
+    html,
+  })
+}
+
+interface EventStartApproachingEmailPayload {
+  to: string
+  ownerName: string
+  dogName: string
+  eventTitle: string
+  eventSlug: string
+  startsBefore: number
+}
+
+export async function sendEventStartApproachingEmail(payload: EventStartApproachingEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: `${payload.dogName} zbliża się do startu`,
+    eyebrow: 'Event Day',
+    title: 'Przygotuj się do startu',
+    body: [
+      paragraph(`Cześć${payload.ownerName ? ` ${escapeEmailHtml(payload.ownerName)}` : ''}!`),
+      paragraph(`<strong>${escapeEmailHtml(payload.dogName)}</strong> ma przed sobą około ${payload.startsBefore} ${payload.startsBefore === 1 ? 'start' : 'starty'} w wydarzeniu <strong>${escapeEmailHtml(payload.eventTitle)}</strong>.`),
+      emailNotice('Podejdź do strefy przygotowawczej i śledź bieżącą kolejkę.', 'neutral'),
+      emailButton('Otwórz widok wydarzenia', `${appUrl()}/events/${encodeURIComponent(payload.eventSlug)}`),
+    ].join(''),
+  })
+  return deliverEmail({
+    to: payload.to,
+    subject: `Zbliża się start ${payload.dogName} — ${payload.eventTitle}`,
+    html,
+  })
+}
+
+interface TrainingCommerceStatusEmailPayload {
+  to: string
+  title: string
+  message: string
+  actionLabel?: string
+  actionUrl?: string
+}
+
+export async function sendTrainingCommerceStatusEmail(payload: TrainingCommerceStatusEmailPayload): Promise<boolean> {
+  const html = renderEmail({
+    preheader: payload.title,
+    eyebrow: 'Kursy i karnety',
+    title: payload.title,
+    body: [
+      greeting(),
+      paragraph(escapeEmailHtml(payload.message)),
+      payload.actionUrl ? emailButton(payload.actionLabel ?? 'Otwórz moje treningi', payload.actionUrl) : '',
+    ].join(''),
+  })
+  return deliverEmail({
+    to: payload.to,
+    subject: `${payload.title} — Dogdex`,
+    html,
+  })
+}

@@ -1,20 +1,21 @@
 import { NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/getServerUser'
 import { createServerClient } from '@/lib/supabaseServer'
-import { isPayoutRole } from '@/lib/roles'
 import { retryEventRefund } from '@/lib/eventRefund'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 
 interface Params { params: Promise<{ id: string }> }
 
 export async function POST(_req: Request, { params }: Params) {
   const { id } = await params
   const { user, role } = await getServerUser()
-  if (!user || !isPayoutRole(role)) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
   const db = createServerClient()
   const { data: refund } = await db.from('event_refunds')
-    .select('id, event_payments(payee_user_id)').eq('id', id).maybeSingle()
+    .select('id, event_payments(payee_user_id, business_profile_id)').eq('id', id).maybeSingle()
   const payment = Array.isArray(refund?.event_payments) ? refund.event_payments[0] : refund?.event_payments
-  if (!refund || (role !== 'admin' && payment?.payee_user_id !== user.id)) {
+  const businessAccess = payment?.business_profile_id ? await getBusinessProfileAccess(payment.business_profile_id) : null
+  if (!refund || (role !== 'admin' && payment?.payee_user_id !== user.id && !businessAccess?.can('refunds.manage'))) {
     return NextResponse.json({ error: 'Nie znaleziono zwrotu' }, { status: 404 })
   }
   try {

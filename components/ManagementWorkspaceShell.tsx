@@ -16,16 +16,25 @@ import {
   SlidersHorizontal,
   Flag,
   Users,
+  UsersRound,
   UserCog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isOrganizerRole, isTrainerRole } from '@/lib/roles'
 import PageHeader from '@/components/layout/PageHeader'
+import BusinessProfileSwitcher from '@/components/BusinessProfileSwitcher'
+import type { BusinessPermission } from '@/lib/businessPermissions'
 
 interface ManagementWorkspaceShellProps {
   children: React.ReactNode
   role: string | null
   sharedEventAccess?: boolean
+  businessProfileAccess?: boolean
+  businessTrainingAccess?: boolean
+  businessPaymentsAccess?: boolean
+  businessProfiles?: Array<{ id: string; name: string }>
+  activeBusinessProfileId?: string | null
+  businessPermissions?: BusinessPermission[]
 }
 
 interface WorkspaceTab {
@@ -49,6 +58,12 @@ const organizerTabs: WorkspaceTab[] = [
     active: pathname => pathname.startsWith('/organizer/formats'),
   },
   {
+    href: '/manage/team',
+    label: 'Zespół',
+    Icon: UsersRound,
+    active: pathname => pathname.startsWith('/manage/team'),
+  },
+  {
     href: '/organizer/profile',
     label: 'Profil publiczny',
     Icon: Settings2,
@@ -60,6 +75,7 @@ const trainerTabs: WorkspaceTab[] = [
   { href: '/trainer', label: 'Pulpit', Icon: LayoutDashboard, active: pathname => pathname === '/trainer' },
   { href: '/trainer/bookings', label: 'Rezerwacje', Icon: ListChecks, active: pathname => pathname.startsWith('/trainer/bookings') },
   { href: '/trainer/types', label: 'Oferta', Icon: Dumbbell, active: pathname => pathname.startsWith('/trainer/types') },
+  { href: '/trainer/groups', label: 'Grupy i karnety', Icon: UsersRound, active: pathname => pathname.startsWith('/trainer/groups') },
   { href: '/trainer/availability', label: 'Dostępność', Icon: CalendarClock, active: pathname => pathname.startsWith('/trainer/availability') },
   { href: '/trainer/analytics', label: 'Analityka', Icon: BarChart3, active: pathname => pathname.startsWith('/trainer/analytics') },
   { href: '/trainer/profile', label: 'Profil trenera', Icon: Settings2, active: pathname => pathname.startsWith('/trainer/profile') },
@@ -71,7 +87,7 @@ const adminTabs: WorkspaceTab[] = [
   { href: '/admin/reviews', label: 'Zgłoszone opinie', Icon: Flag, active: pathname => pathname.startsWith('/admin/reviews') },
 ]
 
-export default function ManagementWorkspaceShell({ children, role, sharedEventAccess = false }: ManagementWorkspaceShellProps) {
+export default function ManagementWorkspaceShell({ children, role, sharedEventAccess = false, businessProfileAccess = false, businessTrainingAccess = false, businessPaymentsAccess = false, businessProfiles = [], activeBusinessProfileId = null, businessPermissions = [] }: ManagementWorkspaceShellProps) {
   const pathname = usePathname() ?? ''
   const organizer = isOrganizerRole(role)
   const trainer = isTrainerRole(role)
@@ -79,9 +95,10 @@ export default function ManagementWorkspaceShell({ children, role, sharedEventAc
 
   const primaryTabs: WorkspaceTab[] = [
     { href: '/manage', label: 'Przegląd', Icon: LayoutDashboard, active: path => path === '/manage' },
+    ...(businessProfileAccess ? [{ href: '/manage/team', label: 'Zespół', Icon: UsersRound, active: (path: string) => path.startsWith('/manage/team') }] : []),
     ...(organizer || sharedEventAccess ? [{ href: '/organizer', label: 'Wydarzenia', Icon: CalendarCog, active: (path: string) => path.startsWith('/organizer') }] : []),
-    ...(trainer ? [{ href: '/trainer', label: 'Treningi', Icon: Dumbbell, active: (path: string) => path.startsWith('/trainer') }] : []),
-    ...(organizer || trainer ? [{ href: '/payments', label: 'Płatności', Icon: CreditCard, active: (path: string) => path.startsWith('/payments') }] : []),
+    ...(trainer || businessTrainingAccess ? [{ href: businessTrainingAccess && !trainer ? '/trainer/groups' : '/trainer', label: 'Treningi', Icon: Dumbbell, active: (path: string) => path.startsWith('/trainer') }] : []),
+    ...(organizer || trainer || businessPaymentsAccess ? [{ href: '/payments', label: 'Płatności', Icon: CreditCard, active: (path: string) => path.startsWith('/payments') }] : []),
     ...(role === 'admin' ? [{ href: '/admin/users', label: 'Administracja', Icon: Shield, active: (path: string) => path.startsWith('/admin') }] : []),
   ]
 
@@ -89,7 +106,13 @@ export default function ManagementWorkspaceShell({ children, role, sharedEventAc
     && !eventWorkspace
     ? organizer ? organizerTabs : organizerTabs.slice(0, 1)
     : pathname.startsWith('/trainer')
-      ? trainerTabs
+      ? trainer ? trainerTabs : trainerTabs.filter(tab => {
+        if (tab.href === '/trainer/bookings') return businessPermissions.includes('trainings.bookings') || businessPermissions.includes('customers.view')
+        if (tab.href === '/trainer/types') return businessPermissions.includes('trainings.offer')
+        if (tab.href === '/trainer/availability') return businessPermissions.includes('trainings.schedule')
+        if (tab.href === '/trainer/groups') return businessPermissions.some(permission => ['trainings.offer', 'trainings.schedule', 'trainings.attendance', 'customers.view', 'passes.manage'].includes(permission))
+        return false
+      })
       : pathname.startsWith('/admin')
         ? adminTabs
         : []
@@ -117,6 +140,12 @@ export default function ManagementWorkspaceShell({ children, role, sharedEventAc
           />
         )}
       </header>
+
+      {!eventWorkspace && (
+        <div className="flex justify-end">
+          <BusinessProfileSwitcher profiles={businessProfiles} activeProfileId={activeBusinessProfileId} />
+        </div>
+      )}
 
       {children}
     </div>

@@ -33,6 +33,7 @@ import ImageCropUploader from '@/components/ImageCropUploader'
 import DateTimePicker from '@/components/DateTimePicker'
 import GalleryUploader from '@/components/GalleryUploader'
 import EventPricingEditor from '@/components/EventPricingEditor'
+import EventEntryRequirementsEditor from '@/components/EventEntryRequirementsEditor'
 import { EVENT_TYPES } from '@/lib/eventTypes'
 import { validateCompetitionFieldValues } from '@/lib/competitionEngine'
 import { validateFormFieldDefinitions } from '@/lib/registrationFormValidation'
@@ -49,6 +50,11 @@ import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 import type { FormField } from '@/types'
 import { validateEventPricing, type EventDatePrices, type EventPricingMode } from '@/lib/eventPricing'
 import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
+import {
+  normalizeEventEntryRequirements,
+  validateEventEntryRequirements,
+  type EventEntryRequirements,
+} from '@/lib/dogDocuments'
 import type { CompetitionFormatDefinition, CompetitionScalar } from '@/types/competition'
 
 const MapPicker = dynamic(() => import('@/components/MapPicker'), {
@@ -100,6 +106,7 @@ interface Props {
     competition_config: CompetitionFormatDefinition | null
     competition_values: Record<string, CompetitionScalar>
     competition_config_locked_at: string | null
+    entry_requirements: EventEntryRequirements
   }
 }
 
@@ -189,6 +196,9 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
   const [lng, setLng] = useState<number | null>(initialData.lng ?? null)
   const [location, setLocation] = useState(initialData.location ?? '')
   const [groupingField, setGroupingField] = useState(initialData.grouping_field ?? '')
+  const [entryRequirements, setEntryRequirements] = useState<EventEntryRequirements>(() =>
+    normalizeEventEntryRequirements(initialData.entry_requirements)
+  )
 
   const selectedType = EVENT_TYPES.find(type => type.id === eventTypeId)
   const selectedVisual = eventTypeVisual(eventTypeId)
@@ -276,6 +286,11 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
     }
 
     if (step === 2) {
+      const requirementsError = validateEventEntryRequirements(entryRequirements)
+      if (requirementsError) {
+        setError(requirementsError)
+        return false
+      }
       const registrationWindowError = validateEventRegistrationWindow({
         eventStartsAt: startAt,
         registrationDeadline,
@@ -399,6 +414,7 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
       lng,
       gallery_images: galleryImages,
       grouping_field: groupingField || null,
+      entry_requirements: normalizeEventEntryRequirements(entryRequirements),
       ...(initialData.competition_config_locked_at ? {} : {
         competition_format_id: competitionFormatId,
         competition_config: competitionFormatId ? undefined : competitionDefinition,
@@ -648,6 +664,12 @@ export default function EditEventClient({ eventId, eventSlug, initialData }: Pro
                   </p>
                 </div>
               </Panel>
+
+              <EventEntryRequirementsEditor
+                value={entryRequirements}
+                onChange={setEntryRequirements}
+                idPrefix="edit-event-entry"
+              />
 
               <div className="grid items-start gap-6 lg:grid-cols-2">
                 <Panel Icon={Users} title="Limity uczestników">

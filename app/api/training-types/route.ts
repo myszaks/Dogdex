@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
 import { toSlug } from '@/lib/utils'
-import { isTrainerRole } from '@/lib/roles'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { requireBusinessProfileAccessForApi } from '@/lib/businessAccess'
 
 async function generateTrainingTypeSlug(
   supabase: SupabaseClient,
-  trainerId: string,
+  businessProfileId: string,
   name: string,
 ): Promise<string> {
   const base = toSlug(name) || 'trening'
@@ -18,7 +18,7 @@ async function generateTrainingTypeSlug(
     const { data } = await supabase
       .from('training_types')
       .select('id')
-      .eq('trainer_id', trainerId)
+      .eq('business_profile_id', businessProfileId)
       .eq('slug', slug)
       .maybeSingle()
 
@@ -27,18 +27,17 @@ async function generateTrainingTypeSlug(
   }
 }
 
-export async function GET() {
-  const { user, role } = await getServerUser()
+export async function GET(req?: Request) {
+  const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
-  if (!isTrainerRole(role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const result = await requireBusinessProfileAccessForApi(req ? new URL(req.url).searchParams.get('profileId') : null, 'trainings.offer')
+  if ('error' in result) return result.error
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
   const { data, error } = await supabase
     .from('training_types')
     .select('*')
-    .eq('trainer_id', user.id)
+    .eq('business_profile_id', result.access.profile.id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
@@ -47,12 +46,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { user, role } = await getServerUser()
+  const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
-
-  if (!isTrainerRole(role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
 
   let body: Record<string, unknown>
   try {
@@ -62,6 +57,8 @@ export async function POST(req: Request) {
   }
 
   const { name, description, price_per_hour, duration_min, is_active } = body
+  const result = await requireBusinessProfileAccessForApi(typeof body.businessProfileId === 'string' ? body.businessProfileId : null, 'trainings.offer')
+  if ('error' in result) return result.error
 
   if (!name || typeof name !== 'string' || !name.trim() || name.trim().length > 120) {
     return NextResponse.json({ error: 'Nazwa typu treningu jest wymagana' }, { status: 400 })
@@ -92,13 +89,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Czas treningu musi wynosić od 15 do 480 minut' }, { status: 400 })
   }
 
-  const supabase = await createAuthClient()
-  const slug = await generateTrainingTypeSlug(supabase, user.id, name.trim())
+  const supabase = createServerClient()
+  const slug = await generateTrainingTypeSlug(supabase, result.access.profile.id, name.trim())
 
   const { data, error } = await supabase
     .from('training_types')
     .insert([{
-      trainer_id: user.id,
+      trainer_id: result.access.profile.owner_id,
+      business_profile_id: result.access.profile.id,
       slug,
       name: (name as string).trim(),
       description: typeof description === 'string' ? description.trim() || null : null,

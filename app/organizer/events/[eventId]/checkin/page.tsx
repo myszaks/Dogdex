@@ -43,7 +43,7 @@ export default async function CheckInPage({ params }: Props) {
 
   const { data: registrations } = await supabase
     .from('registrations')
-    .select('id, checked_in, form_data, participants(id, dog_name, owner_name, dogs(height_cm))')
+    .select('id, checkin_token, checked_in, form_data, participants(id, dog_name, owner_name, dogs(height_cm))')
     .eq('event_id', eventId)
     .eq('status', 'confirmed')
     .order('order_index', { ascending: true, nullsFirst: false })
@@ -95,6 +95,7 @@ export default async function CheckInPage({ params }: Props) {
       ownerName: (participant.owner_name ?? '') as string,
       sizeClass,
       checkedIn: Boolean(r.checked_in),
+      checkinToken: r.checkin_token as string,
     }
   })
 
@@ -107,6 +108,7 @@ export default async function CheckInPage({ params }: Props) {
 
       <CheckInClient
         initialParticipants={participants}
+        eventId={eventId}
         classOptions={classOptions}
         eventClosed={event.status === 'finished' || event.status === 'cancelled'}
       />

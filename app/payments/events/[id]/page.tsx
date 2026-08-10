@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { requireRole } from '@/lib/getServerUser'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 import RefundRetryButton from '@/components/RefundRetryButton'
 
 interface Props { params: Promise<{ id: string }> }
@@ -13,15 +14,19 @@ const refundLabels: Record<string, string> = { pending: 'Oczekuje', requires_act
 
 export default async function EventPaymentDetailsPage({ params }: Props) {
   const { id } = await params
-  const { user, role } = await requireRole(['organizer', 'trainer', 'admin'])
-  const db = await createAuthClient()
+  const { user, role } = await getServerUser()
+  if (!user) notFound()
+  const db = createServerClient()
   const { data: payment } = await db.from('event_payments').select(`
     *, registrations(form_data, participants(owner_name, owner_email, dog_name), events(title)),
     event_payment_items(id, amount, refunded_amount, event_registration_items(label, occurrence_date)),
     event_refunds(id, amount, currency, status, requested_dates, error_message, created_at,
       event_refund_attempts(attempt_number, stripe_refund_id, status, error_message, created_at))
   `).eq('id', id).maybeSingle()
-  if (!payment || (role !== 'admin' && payment.payee_user_id !== user.id)) notFound()
+  if (!payment) notFound()
+  const businessAccess = payment.business_profile_id ? await getBusinessProfileAccess(payment.business_profile_id) : null
+  if (role !== 'admin' && payment.payee_user_id !== user.id && !businessAccess?.can('payments.view')) notFound()
+  const canRetryRefund = role === 'admin' || payment.payee_user_id === user.id || Boolean(businessAccess?.can('refunds.manage'))
   const registration = Array.isArray(payment.registrations) ? payment.registrations[0] : payment.registrations
   const participant = Array.isArray(registration?.participants) ? registration.participants[0] : registration?.participants
   const event = Array.isArray(registration?.events) ? registration.events[0] : registration?.events
@@ -37,7 +42,7 @@ export default async function EventPaymentDetailsPage({ params }: Props) {
 
     <section className="mt-6 rounded-3xl border border-border bg-white p-6"><h2 className="text-lg font-semibold">Pozycje transakcji</h2><div className="mt-4 divide-y divide-border">{paymentItems.map(item => { const detail = Array.isArray(item.event_registration_items) ? item.event_registration_items[0] : item.event_registration_items; return <div key={item.id} className="flex items-center justify-between gap-4 py-3"><div><p className="font-medium">{detail?.label}</p>{detail?.occurrence_date && <p className="text-xs text-muted-foreground">Termin: {detail.occurrence_date}</p>}</div><div className="text-right"><p>{money(item.amount)}</p>{Number(item.refunded_amount) > 0 && <p className="text-xs text-red-600">zwrócono {money(item.refunded_amount)}</p>}</div></div> })}</div></section>
 
-    <section className="mt-6 rounded-3xl border border-border bg-white p-6"><h2 className="text-lg font-semibold">Zwroty i próby</h2><div className="mt-4 space-y-4">{refunds.map(refund => <div key={refund.id} className="rounded-2xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{money(refund.amount)} · {refundLabels[refund.status] ?? refund.status}</p><p className="text-xs text-muted-foreground">{new Date(refund.created_at).toLocaleString('pl-PL')} {Array.isArray(refund.requested_dates) && refund.requested_dates.length ? `· ${refund.requested_dates.join(', ')}` : '· cały zapis'}</p>{refund.error_message && <p className="mt-1 text-sm text-red-600">{refund.error_message}</p>}</div>{['failed', 'canceled', 'requires_action'].includes(refund.status) && <RefundRetryButton refundId={refund.id} />}</div><div className="mt-3 space-y-1 text-xs text-muted-foreground">{(refund.event_refund_attempts ?? []).sort((a, b) => a.attempt_number - b.attempt_number).map(attempt => <p key={attempt.attempt_number}>Próba {attempt.attempt_number}: {attempt.status}{attempt.stripe_refund_id ? ` · ${attempt.stripe_refund_id}` : ''}{attempt.error_message ? ` · ${attempt.error_message}` : ''}</p>)}</div></div>)}{refunds.length === 0 && <p className="text-muted-foreground">Brak zwrotów.</p>}</div></section>
+    <section className="mt-6 rounded-3xl border border-border bg-white p-6"><h2 className="text-lg font-semibold">Zwroty i próby</h2><div className="mt-4 space-y-4">{refunds.map(refund => <div key={refund.id} className="rounded-2xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{money(refund.amount)} · {refundLabels[refund.status] ?? refund.status}</p><p className="text-xs text-muted-foreground">{new Date(refund.created_at).toLocaleString('pl-PL')} {Array.isArray(refund.requested_dates) && refund.requested_dates.length ? `· ${refund.requested_dates.join(', ')}` : '· cały zapis'}</p>{refund.error_message && <p className="mt-1 text-sm text-red-600">{refund.error_message}</p>}</div>{canRetryRefund && ['failed', 'canceled', 'requires_action'].includes(refund.status) && <RefundRetryButton refundId={refund.id} />}</div><div className="mt-3 space-y-1 text-xs text-muted-foreground">{(refund.event_refund_attempts ?? []).sort((a, b) => a.attempt_number - b.attempt_number).map(attempt => <p key={attempt.attempt_number}>Próba {attempt.attempt_number}: {attempt.status}{attempt.stripe_refund_id ? ` · ${attempt.stripe_refund_id}` : ''}{attempt.error_message ? ` · ${attempt.error_message}` : ''}</p>)}</div></div>)}{refunds.length === 0 && <p className="text-muted-foreground">Brak zwrotów.</p>}</div></section>
 
     <section className="mt-6 grid gap-3 rounded-3xl border border-border bg-white p-6 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">PaymentIntent:</span><br />{payment.stripe_payment_intent_id ?? '—'}</p><p><span className="text-muted-foreground">Charge:</span><br />{payment.stripe_charge_id ?? '—'}</p><p><span className="text-muted-foreground">Konto Stripe:</span><br />{payment.stripe_account_id}</p><p><span className="text-muted-foreground">Ostatnie uzgodnienie:</span><br />{payment.last_reconciled_at ? new Date(payment.last_reconciled_at).toLocaleString('pl-PL') : 'Jeszcze nie uzgadniano'}</p>{payment.receipt_url && <a href={payment.receipt_url} target="_blank" rel="noreferrer" className="text-accent underline">Otwórz potwierdzenie Stripe</a>}</section>
   </div>

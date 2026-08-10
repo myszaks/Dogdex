@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
+import { getEventAccess } from '@/lib/eventAccess'
 import { sendEventChangeEmail } from '@/lib/email'
 import {
   buildEventDateReplacements,
@@ -25,6 +26,7 @@ import { validateEventRegistrationWindow } from '@/lib/eventRegistrationWindow'
 import { validateEventSchedule } from '@/lib/eventSchedule'
 import { cancelPendingEventCheckouts } from '@/lib/eventCheckout'
 import { createEventRefund } from '@/lib/eventRefund'
+import { normalizeEventEntryRequirements, validateEventEntryRequirements } from '@/lib/dogDocuments'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -46,25 +48,21 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const { id } = await params
 
-  // Require organizer or admin role
-  const authResult = await checkRoleForApi(['organizer', 'admin'])
-  if ('error' in authResult) return authResult.error
-
-  const supabase = await createAuthClient()
+  const eventAccess = await getEventAccess(id)
+  if (!eventAccess?.canEditEvent) {
+    return NextResponse.json({ error: 'Nie masz uprawnień do edycji tego wydarzenia' }, { status: eventAccess ? 403 : 404 })
+  }
+  const authResult = { user: eventAccess.user, role: eventAccess.role }
+  const supabase = createServerClient()
 
   // Fetch existing event (for ownership check + change detection)
   const { data: existingEvent } = await supabase
     .from('events')
-    .select('created_by, start_at, end_at, registration_opens_at, registration_deadline, location, title, status, results_public, form_fields, entry_fee, pricing_mode, date_prices, currency, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
+    .select('created_by, start_at, end_at, registration_opens_at, registration_deadline, location, title, status, results_public, form_fields, entry_requirements, entry_fee, pricing_mode, date_prices, currency, track_distance_m, slug, competition_format_id, competition_config, competition_values, competition_config_revision, competition_config_locked_at')
     .eq('id', id)
     .single()
 
   if (!existingEvent) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
-
-  // Only the event creator or admin can edit
-  if (authResult.role !== 'admin' && existingEvent.created_by !== authResult.user.id) {
-    return NextResponse.json({ error: 'Nie masz uprawnień do edycji tego wydarzenia' }, { status: 403 })
-  }
 
   let body: Record<string, unknown>
   try {
@@ -79,11 +77,28 @@ export async function PATCH(req: Request, { params }: Params) {
     'image_url', 'metadata', 'event_type_id', 'form_fields', 'registration_opens_at', 'registration_deadline',
     'has_results', 'results_public', 'has_schedule', 'auto_confirm', 'max_participants', 'entry_fee', 'pricing_mode', 'date_prices', 'currency', 'organizer_name', 'slug',
     'lat', 'lng', 'gallery_images', 'grouping_field', 'current_start_index', 'track_distance_m',
-    'live_phase', 'form_template_id', 'competition_values',
+    'live_phase', 'form_template_id', 'competition_values', 'entry_requirements',
   ]
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
+  }
+  const financeFields = ['entry_fee', 'pricing_mode', 'date_prices', 'currency']
+  if (financeFields.some(field => field in body) && !eventAccess.can('finance')) {
+    return NextResponse.json({ error: 'Zmiana cen wymaga uprawnienia do finansów wydarzenia' }, { status: 403 })
+  }
+  if ('entry_requirements' in update) {
+    update.entry_requirements = normalizeEventEntryRequirements(update.entry_requirements)
+  }
+  const entryRequirementsError = validateEventEntryRequirements(
+    normalizeEventEntryRequirements(
+      'entry_requirements' in update
+        ? update.entry_requirements
+        : existingEvent.entry_requirements,
+    ),
+  )
+  if (entryRequirementsError) {
+    return NextResponse.json({ error: entryRequirementsError }, { status: 400 })
   }
   if (
     'registration_opens_at' in update
@@ -158,7 +173,7 @@ export async function PATCH(req: Request, { params }: Params) {
       if (
         format.status === 'draft'
         && authResult.role !== 'admin'
-        && format.created_by !== authResult.user.id
+        && format.created_by !== existingEvent.created_by
       ) {
         return NextResponse.json({ error: 'Brak dostępu do roboczego formatu zawodów.' }, { status: 403 })
       }
@@ -315,6 +330,9 @@ export async function PATCH(req: Request, { params }: Params) {
         .select('id, status, registration_id')
         .in('registration_id', registrationIds)
         .in('status', ['pending', 'completed', 'partially_refunded'])
+      if ((activePayments ?? []).some(payment => payment.status !== 'pending') && !eventAccess.canManageRefunds) {
+        return NextResponse.json({ error: 'Anulowanie opłaconego wydarzenia wymaga uprawnienia do zwrotów' }, { status: 403 })
+      }
       if ((activePayments ?? []).some(payment => payment.status === 'pending')) {
         try {
           await cancelPendingEventCheckouts(registrationIds)
@@ -424,6 +442,16 @@ export async function PATCH(req: Request, { params }: Params) {
     }
   }
 
+  if (eventAccess.event.business_profile_id) {
+    await supabase.from('business_profile_audit_log').insert({
+      business_profile_id: eventAccess.event.business_profile_id,
+      actor_id: eventAccess.user.id,
+      action: 'event.updated',
+      target_type: 'event',
+      target_id: id,
+      metadata: { fields: Object.keys(update) },
+    })
+  }
   return NextResponse.json(data)
 }
 

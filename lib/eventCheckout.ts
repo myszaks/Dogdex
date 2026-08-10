@@ -16,6 +16,7 @@ interface EventCheckoutInput {
     id: string
     slug: string
     created_by: string
+    business_profile_id?: string | null
     auto_confirm: boolean
   }
   participant: {
@@ -57,6 +58,11 @@ export async function createEventCheckout(
   const db = createServerClient()
   const items = await prepareEventRegistrationItems({ ...input, pendingApproval: false })
   if (items.length === 0) throw new Error('To wydarzenie nie wymaga płatności')
+  let businessProfileId = input.event.business_profile_id ?? null
+  if (!businessProfileId) {
+    const { data: eventProfile } = await db.from('events').select('business_profile_id').eq('id', input.event.id).maybeSingle()
+    businessProfileId = eventProfile?.business_profile_id ?? null
+  }
 
   const { data: payoutProfile, error: payoutError } = await db
     .from('profiles')
@@ -81,6 +87,7 @@ export async function createEventCheckout(
     .from('event_payments')
     .insert({
       registration_id: input.registration.id,
+      business_profile_id: businessProfileId,
       payee_user_id: input.event.created_by,
       payer_user_id: input.participant.user_id || null,
       payer_email: input.participant.owner_email,

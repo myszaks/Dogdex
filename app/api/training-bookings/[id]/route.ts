@@ -5,6 +5,7 @@ import { getServerUser } from '@/lib/getServerUser'
 import { sendTrainingBookingConfirmation, sendTrainingCancellationEmail } from '@/lib/email'
 import { formatEmailDateTime } from '@/lib/emailDate'
 import { isTrainerRole } from '@/lib/roles'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 import {
   validateBookingTransition,
   type BookingStatus,
@@ -75,7 +76,7 @@ export async function PATCH(req: Request, { params }: Params) {
   // Get booking and verify permissions
   const { data: booking } = await supabase
     .from('training_bookings')
-    .select('*, training_types(trainer_id, name)')
+    .select('*, training_types(trainer_id, name, business_profile_id)')
     .eq('id', id)
     .single()
 
@@ -85,7 +86,11 @@ export async function PATCH(req: Request, { params }: Params) {
 
   // User must be either the booking owner or the trainer
   const isOwner = booking.user_id === user.id
-  const isTrainer = booking.training_types?.trainer_id === user.id && isTrainerRole(role)
+  const businessAccess = booking.training_types?.business_profile_id
+    ? await getBusinessProfileAccess(booking.training_types.business_profile_id)
+    : null
+  const isTrainer = (booking.training_types?.trainer_id === user.id && isTrainerRole(role))
+    || Boolean(businessAccess?.can('trainings.bookings'))
 
   if (!isOwner && !isTrainer) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
@@ -245,11 +250,23 @@ export async function PATCH(req: Request, { params }: Params) {
 
   if (error) return NextResponse.json({ error: 'Nie udało się zaktualizować rezerwacji' }, { status: 500 })
 
+  if (status === 'cancelled') {
+    const { error: passReverseError } = await supabase.rpc('reverse_training_pass_booking_usage', { target_booking_id: id })
+    if (passReverseError) console.error('[training-bookings] Failed to restore pass entry:', passReverseError)
+  }
+
+  if (!isOwner && status === 'cancelled' && businessAccess && !businessAccess.can('refunds.manage')) {
+    const { data: paidPayment } = await supabase.from('training_payments').select('status').eq('booking_id', id).maybeSingle()
+    if (paidPayment?.status === 'completed') {
+      return NextResponse.json({ error: 'Zwrot płatności wymaga uprawnienia do zwrotów' }, { status: 403 })
+    }
+  }
+
   // Send emails based on status change
   if (status === 'confirmed' && isTrainer) {
     // Send confirmation email to user
     const userEmail = (await supabase.auth.admin.getUserById(booking.user_id)).data.user?.email || ''
-    const trainerProfile = (await supabase.from('trainer_profiles').select('*').eq('trainer_id', user.id).single()).data
+    const trainerProfile = (await supabase.from('trainer_profiles').select('*').eq('trainer_id', booking.training_types?.trainer_id).single()).data
 
     if (userEmail && trainerProfile) {
       const formattedDate = formatEmailDateTime(booking.scheduled_at)
@@ -272,7 +289,7 @@ export async function PATCH(req: Request, { params }: Params) {
     // Email to user (if cancelled by trainer)
     if (isTrainer) {
       const userEmail = (await supabase.auth.admin.getUserById(booking.user_id)).data.user?.email || ''
-      const trainerProfile = (await supabase.from('trainer_profiles').select('*').eq('trainer_id', user.id).single()).data
+      const trainerProfile = (await supabase.from('trainer_profiles').select('*').eq('trainer_id', booking.training_types?.trainer_id).single()).data
 
       if (userEmail && trainerProfile) {
         await sendTrainingCancellationEmail({

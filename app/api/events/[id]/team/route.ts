@@ -67,12 +67,20 @@ export async function POST(request: Request, { params }: Params) {
   }
   const { data: existing } = await supabase
     .from('event_team_members')
-    .select('id, user_id')
+    .select('id, user_id, organizer_team_member_id')
     .eq('event_id', auth.access.event.id)
     .eq('email', email)
     .maybeSingle()
 
-  let matchingUserId: string | null = existing?.user_id ?? null
+  const { data: organizerMember } = await supabase
+    .from('organizer_team_members')
+    .select('id, user_id')
+    .eq('organizer_id', auth.access.event.created_by)
+    .eq('email', email)
+    .in('status', ['pending', 'active'])
+    .maybeSingle()
+
+  let matchingUserId: string | null = existing?.user_id ?? organizerMember?.user_id ?? null
   if (!matchingUserId) {
     const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
     matchingUserId = users.users.find(user => user.email?.trim().toLowerCase() === email)?.id ?? null
@@ -85,6 +93,7 @@ export async function POST(request: Request, { params }: Params) {
     permissions,
     status: matchingUserId ? 'active' : 'pending',
     invited_by: auth.access.user.id,
+    organizer_team_member_id: organizerMember?.id ?? existing?.organizer_team_member_id ?? null,
   }
   const query = existing
     ? supabase.from('event_team_members').update(payload).eq('id', existing.id)

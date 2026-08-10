@@ -34,14 +34,15 @@ async function notifyConfirmedPayment(paymentId: string, registrationId: string)
   })
 }
 
-export async function reconcileEventPayments(payeeUserId?: string) {
+export async function reconcileEventPayments(payeeUserId?: string, businessProfileId?: string) {
   if (!stripe) throw new Error('Stripe nie jest skonfigurowany')
   const db = createServerClient()
   let paymentQuery = db.from('event_payments')
     .select('id, registration_id, status, amount, refunded_amount, stripe_session_id, stripe_payment_intent_id, stripe_account_id')
     .in('status', ['pending', 'completed', 'partially_refunded', 'refunded'])
     .order('last_reconciled_at', { ascending: true, nullsFirst: true }).limit(200)
-  if (payeeUserId) paymentQuery = paymentQuery.eq('payee_user_id', payeeUserId)
+  if (businessProfileId) paymentQuery = paymentQuery.eq('business_profile_id', businessProfileId)
+  else if (payeeUserId) paymentQuery = paymentQuery.eq('payee_user_id', payeeUserId)
   const { data: payments, error } = await paymentQuery
   if (error) throw error
 
@@ -123,9 +124,10 @@ export async function reconcileEventPayments(payeeUserId?: string) {
   }
 
   let refundQuery = db.from('event_refunds')
-    .select('id, event_payments!inner(payee_user_id)')
+    .select('id, event_payments!inner(payee_user_id, business_profile_id)')
     .in('status', ['pending', 'requires_action']).limit(100)
-  if (payeeUserId) refundQuery = refundQuery.eq('event_payments.payee_user_id', payeeUserId)
+  if (businessProfileId) refundQuery = refundQuery.eq('event_payments.business_profile_id', businessProfileId)
+  else if (payeeUserId) refundQuery = refundQuery.eq('event_payments.payee_user_id', payeeUserId)
   const { data: refunds } = await refundQuery
   for (const refund of refunds ?? []) {
     try {

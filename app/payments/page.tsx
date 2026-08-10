@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { CreditCard, ExternalLink } from 'lucide-react'
-import { requireRole } from '@/lib/getServerUser'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
+import { isPayoutRole } from '@/lib/roles'
+import { redirect } from 'next/navigation'
 import PaymentsActions from '@/components/PaymentsActions'
 import { formatPaymentDateTime } from '@/lib/paymentFormatting'
 
@@ -18,7 +21,7 @@ const statusLabels: Record<string, string> = {
 
 interface LedgerRow {
   id: string
-  source: 'Trening' | 'Wydarzenie'
+  source: 'Trening' | 'Kurs' | 'Karnet' | 'Wydarzenie'
   description: string
   detail: string
   amount: number
@@ -28,18 +31,26 @@ interface LedgerRow {
   hasPaymentIntent: boolean
   refundedAmount: number
   reconciliationStatus?: string
+  href?: string
 }
 
 export default async function PaymentsPage() {
-  const { user } = await requireRole(['organizer', 'trainer', 'admin'])
-  const supabase = await createAuthClient()
+  const [{ user, role }, businessAccess] = await Promise.all([getServerUser(), getBusinessProfileAccess()])
+  if (!user) redirect('/')
+  const hasBusinessPayments = Boolean(businessAccess?.can('payments.view'))
+  if (!isPayoutRole(role) && !hasBusinessPayments) redirect('/manage')
+  const payeeUserId = hasBusinessPayments ? businessAccess!.profile.owner_id : user.id
+  const supabase = createServerClient()
   const { data: profile } = await supabase.from('profiles')
-    .select('stripe_onboarded, stripe_account_id').eq('id', user.id).maybeSingle()
+    .select('stripe_onboarded, stripe_account_id').eq('id', payeeUserId).maybeSingle()
   const rows: LedgerRow[] = []
 
-  const { data: eventPayments } = await supabase.from('event_payments')
+  let eventPaymentsQuery = supabase.from('event_payments')
     .select('id, amount, refunded_amount, currency, status, created_at, stripe_payment_intent_id, reconciliation_status, registrations(participants(owner_name, dog_name), events(title)), event_payment_items(event_registration_items(label))')
-    .eq('payee_user_id', user.id).order('created_at', { ascending: false }).limit(200)
+  eventPaymentsQuery = hasBusinessPayments
+    ? eventPaymentsQuery.eq('business_profile_id', businessAccess!.profile.id)
+    : eventPaymentsQuery.eq('payee_user_id', payeeUserId)
+  const { data: eventPayments } = await eventPaymentsQuery.order('created_at', { ascending: false }).limit(200)
   for (const payment of eventPayments ?? []) {
     const registration = Array.isArray(payment.registrations) ? payment.registrations[0] : payment.registrations
     const event = Array.isArray(registration?.events) ? registration?.events[0] : registration?.events
@@ -59,7 +70,11 @@ export default async function PaymentsPage() {
     })
   }
 
-  const { data: trainingTypes } = await supabase.from('training_types').select('id, name').eq('trainer_id', user.id)
+  let trainingTypesQuery = supabase.from('training_types').select('id, name')
+  trainingTypesQuery = hasBusinessPayments
+    ? trainingTypesQuery.eq('business_profile_id', businessAccess!.profile.id)
+    : trainingTypesQuery.eq('trainer_id', user.id)
+  const { data: trainingTypes } = await trainingTypesQuery
   const typeNames = new Map((trainingTypes ?? []).map(type => [type.id, type.name]))
   if (typeNames.size > 0) {
     const { data: bookings } = await supabase.from('training_bookings')
@@ -83,6 +98,35 @@ export default async function PaymentsPage() {
       }
     }
   }
+  let groupPaymentsQuery = supabase.from('training_commerce_payments').select(`
+    id, amount, refunded_amount, currency, status, created_at, stripe_payment_intent_id,
+    training_commerce_refunds(status),
+    training_course_enrollments(dogs(name), training_courses(name)),
+    training_passes(dogs(name), training_pass_products(name))
+  `)
+  groupPaymentsQuery = hasBusinessPayments
+    ? groupPaymentsQuery.eq('business_profile_id', businessAccess!.profile.id)
+    : groupPaymentsQuery.eq('trainer_id', user.id)
+  const { data: groupPayments } = await groupPaymentsQuery.order('created_at', { ascending: false }).limit(200)
+  for (const payment of groupPayments ?? []) {
+    const enrollment = Array.isArray(payment.training_course_enrollments) ? payment.training_course_enrollments[0] : payment.training_course_enrollments
+    const pass = Array.isArray(payment.training_passes) ? payment.training_passes[0] : payment.training_passes
+    const course = Array.isArray(enrollment?.training_courses) ? enrollment.training_courses[0] : enrollment?.training_courses
+    const product = Array.isArray(pass?.training_pass_products) ? pass.training_pass_products[0] : pass?.training_pass_products
+    const dog = Array.isArray(enrollment?.dogs) ? enrollment.dogs[0] : enrollment?.dogs
+    const passDog = Array.isArray(pass?.dogs) ? pass.dogs[0] : pass?.dogs
+    const refund = Array.isArray(payment.training_commerce_refunds) ? payment.training_commerce_refunds[0] : payment.training_commerce_refunds
+    rows.push({
+      id: payment.id, source: course ? 'Kurs' : 'Karnet',
+      description: course?.name ?? product?.name ?? 'Sprzedaż grupowa',
+      detail: dog?.name ?? passDog?.name ?? 'Uczestnik',
+      amount: Number(payment.amount), currency: payment.currency, status: payment.status,
+      createdAt: payment.created_at, hasPaymentIntent: Boolean(payment.stripe_payment_intent_id),
+      refundedAmount: Number(payment.refunded_amount ?? 0),
+      reconciliationStatus: refund && ['failed', 'requires_action'].includes(refund.status) ? 'attention' : undefined,
+      href: `/payments/training/${payment.id}`,
+    })
+  }
   rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   const gross = rows.filter(row => row.status !== 'failed' && row.status !== 'pending').reduce((sum, row) => sum + row.amount, 0)
   const refunded = rows.reduce((sum, row) => sum + row.refundedAmount, 0)
@@ -92,8 +136,10 @@ export default async function PaymentsPage() {
     <div className="w-full">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="page-title">Płatności</h1><p className="mt-2 text-muted-foreground">Treningi i wydarzenia na jednym koncie Stripe.</p></div>
-        <div className="space-y-2"><PaymentsActions />{profile?.stripe_onboarded ? (
+        <div className="space-y-2"><PaymentsActions canReconcile={!businessAccess || businessAccess.isOwner || role === 'admin' || businessAccess.can('refunds.manage')} />{profile?.stripe_onboarded ? (
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700"><CreditCard className="h-4 w-4" /> Stripe połączony</span>
+        ) : businessAccess && !businessAccess.isOwner && role !== 'admin' ? (
+          <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700"><CreditCard className="h-4 w-4" /> Stripe niepołączony przez właściciela</span>
         ) : (
           <Link href="/api/stripe/connect" className="btn btn-primary">Połącz konto Stripe <ExternalLink className="h-4 w-4" /></Link>
         )}</div>
@@ -106,7 +152,7 @@ export default async function PaymentsPage() {
             {rows.map(row => <tr key={`${row.source}-${row.id}`} className="border-t border-border">
               <td className="p-4 whitespace-nowrap">{formatPaymentDateTime(row.createdAt)}</td>
               <td className="p-4"><span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold">{row.source}</span></td>
-              <td className="p-4"><p className="font-semibold">{row.source === 'Wydarzenie' ? <Link href={`/payments/events/${row.id}`} className="hover:text-accent hover:underline">{row.description}</Link> : row.description}</p><p className="text-xs text-muted-foreground">{row.detail}</p>{row.refundedAmount > 0 && <p className="text-xs text-red-600">Zwrócono: {money(row.refundedAmount, row.currency)}</p>}</td>
+              <td className="p-4"><p className="font-semibold">{row.source === 'Wydarzenie' || row.href ? <Link href={row.href ?? `/payments/events/${row.id}`} className="hover:text-accent hover:underline">{row.description}</Link> : row.description}</p><p className="text-xs text-muted-foreground">{row.detail}</p>{row.refundedAmount > 0 && <p className="text-xs text-red-600">Zwrócono: {money(row.refundedAmount, row.currency)}</p>}</td>
               <td className="p-4 font-semibold whitespace-nowrap">{money(row.amount, row.currency)}</td>
               <td className="p-4">{statusLabels[row.status] ?? row.status}</td><td className="p-4">{row.hasPaymentIntent ? 'PaymentIntent zapisany' : '—'}</td>
             </tr>)}

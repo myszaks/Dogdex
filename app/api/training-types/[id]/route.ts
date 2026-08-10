@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/lib/supabaseServer'
-import { getServerUser, canManageTrainerResource } from '@/lib/getServerUser'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { requireBusinessProfileAccessForApi } from '@/lib/businessAccess'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -39,7 +40,7 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const { user, role } = await getServerUser()
+  const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   let body: Record<string, unknown>
@@ -50,10 +51,10 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   const { id } = await params
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
   const { data: type, error: typeError } = await supabase
     .from('training_types')
-    .select('trainer_id')
+    .select('trainer_id, business_profile_id')
     .eq('id', id)
     .maybeSingle()
 
@@ -61,9 +62,8 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: 'Nie udało się sprawdzić typu treningu' }, { status: 500 })
   }
   if (!type) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
-  if (!canManageTrainerResource(user.id, type.trainer_id, role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  const result = await requireBusinessProfileAccessForApi(type.business_profile_id, 'trainings.offer')
+  if ('error' in result) return result.error
 
   const updates: Record<string, unknown> = {}
 
@@ -132,22 +132,22 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const { user, role } = await getServerUser()
+  const { user } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
   const { id } = await params
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
 
   // Verify ownership or admin
   const { data: type } = await supabase
     .from('training_types')
-    .select('trainer_id')
+    .select('trainer_id, business_profile_id')
     .eq('id', id)
     .single()
 
-  if (!type || !canManageTrainerResource(user.id, type.trainer_id, role)) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
-  }
+  if (!type) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  const result = await requireBusinessProfileAccessForApi(type.business_profile_id, 'trainings.offer')
+  if ('error' in result) return result.error
 
   const { error } = await supabase
     .from('training_types')

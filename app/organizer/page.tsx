@@ -8,6 +8,7 @@ import type { DogEvent } from '@/types'
 import type { Metadata } from 'next'
 import { Plus, Calendar } from 'lucide-react'
 import { isOrganizerRole } from '@/lib/roles'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 
 export const metadata: Metadata = { title: 'Panel organizatora' }
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,7 @@ export default async function OrganizerPage() {
   const { user, role } = await getServerUser()
   if (!user) redirect('/')
   const supabase = createServerClient()
+  const businessAccess = await getBusinessProfileAccess()
 
   const normalizedEmail = user.email?.trim().toLowerCase() ?? ''
   const { data: userMemberships } = role === 'admin'
@@ -34,7 +36,9 @@ export default async function OrganizerPage() {
         .in('status', ['pending', 'active'])
   const sharedEventIds = [...new Set([...(userMemberships ?? []), ...(emailMemberships ?? [])].map(member => member.event_id as string))]
   const organizer = isOrganizerRole(role)
-  if (!organizer && sharedEventIds.length === 0) redirect('/profile/role-request')
+  const canCreate = organizer || Boolean(businessAccess?.can('events.create'))
+  const editableBusinessProfileId = businessAccess?.can('events.edit') ? businessAccess.profile.id : null
+  if (!organizer && sharedEventIds.length === 0 && !canCreate && !editableBusinessProfileId) redirect('/profile/role-request')
 
   const query = supabase
     .from('events')
@@ -44,9 +48,11 @@ export default async function OrganizerPage() {
 
   const { data: events } = role === 'admin'
     ? await query
-    : sharedEventIds.length > 0
-      ? await query.or(`created_by.eq.${user.id},id.in.(${sharedEventIds.join(',')})`)
-      : await query.eq('created_by', user.id)
+    : await query.or([
+      `created_by.eq.${user.id}`,
+      ...(sharedEventIds.length > 0 ? [`id.in.(${sharedEventIds.join(',')})`] : []),
+      ...(editableBusinessProfileId ? [`business_profile_id.eq.${editableBusinessProfileId}`] : []),
+    ].join(','))
 
   const eventIds = (events ?? []).map(event => event.id)
   const registrationCountMap: Record<string, number> = {}
@@ -67,7 +73,7 @@ export default async function OrganizerPage() {
   const eventList = (events ?? []) as DogEvent[]
   const ownedEventIds = role === 'admin'
     ? eventList.map(event => event.id)
-    : eventList.filter(event => event.created_by === user.id).map(event => event.id)
+    : eventList.filter(event => event.created_by === user.id || (editableBusinessProfileId && event.business_profile_id === editableBusinessProfileId)).map(event => event.id)
 
   return (
     <div className="w-full">
@@ -77,7 +83,7 @@ export default async function OrganizerPage() {
           <p className="mt-1 text-sm text-muted-foreground">Zarządzaj swoimi wydarzeniami i zapisami.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {organizer && (
+          {canCreate && (
             <Link href="/organizer/events/new" className="btn btn-primary">
               <Plus className="w-4 h-4" />
               Nowe wydarzenie
@@ -95,7 +101,7 @@ export default async function OrganizerPage() {
               </div>
               <p className="font-heading font-semibold text-foreground text-lg">Brak wydarzeń</p>
               <p className="text-muted-foreground text-sm mt-1 mb-6">Utwórz swoje pierwsze wydarzenie.</p>
-              {organizer && (
+              {canCreate && (
                 <Link href="/organizer/events/new" className="btn btn-primary inline-flex">
                   <Plus className="w-4 h-4" />
                   Nowe wydarzenie

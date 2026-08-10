@@ -4,8 +4,9 @@ import type { Metadata } from 'next'
 import { format, parseISO } from 'date-fns'
 import { pl } from 'date-fns/locale'
 import { ArrowLeft, Calendar, Clock, CreditCard, Dog, FileText, Mail, User } from 'lucide-react'
-import { requireRole } from '@/lib/getServerUser'
-import { createAuthClient, createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
+import { getServerUser } from '@/lib/getServerUser'
+import { createServerClient } from '@/lib/supabaseServer'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 import type { TrainingBookingWithRelations } from '@/lib/trainingBookingRelations'
 import TrainerBookingActions from './TrainerBookingActions'
 
@@ -52,13 +53,12 @@ async function getTrainerBookingDetails(
   bookingId: string,
   role: string
 ): Promise<TrainerBookingDetails | null> {
-  const authClient = await createAuthClient()
-  const privilegedClient = hasServiceRoleKey() ? createServerClient() : null
-  const bookingClient = role === 'admin' && privilegedClient ? privilegedClient : authClient
+  const privilegedClient = createServerClient()
+  const bookingClient = privilegedClient
 
   const { data: rawBooking, error } = await bookingClient
     .from('training_bookings')
-    .select('*, training_types(id, slug, trainer_id, name, description, price_per_hour, duration_min, is_active, created_at, updated_at)')
+    .select('*, training_types(id, slug, trainer_id, business_profile_id, name, description, price_per_hour, duration_min, is_active, created_at, updated_at)')
     .eq('id', bookingId)
     .maybeSingle()
 
@@ -71,7 +71,10 @@ async function getTrainerBookingDetails(
     return null
   }
 
-  if (role !== 'admin' && booking.training_types.trainer_id !== trainerId) {
+  const businessAccess = booking.training_types.business_profile_id
+    ? await getBusinessProfileAccess(booking.training_types.business_profile_id)
+    : null
+  if (role !== 'admin' && booking.training_types.trainer_id !== trainerId && !businessAccess?.can('trainings.bookings')) {
     return null
   }
 
@@ -83,7 +86,7 @@ async function getTrainerBookingDetails(
     .select('id, booking_id, amount, currency, stripe_session_id, stripe_payment_intent_id, stripe_account_id, status, payment_method_id, created_at, updated_at')
     .eq('booking_id', bookingId)
 
-  if (privilegedClient) {
+  {
     const [{ data: profile }, authUserResult, dogResult] = await Promise.all([
       privilegedClient
         .from('profiles')
@@ -117,7 +120,8 @@ async function getTrainerBookingDetails(
 }
 
 export default async function TrainerBookingDetailPage({ params }: TrainerBookingDetailPageProps) {
-  const { user, role } = await requireRole(['trainer', 'admin'])
+  const { user, role } = await getServerUser()
+  if (!user) notFound()
   const { id } = await params
 
   const booking = await getTrainerBookingDetails(user.id, id, role)

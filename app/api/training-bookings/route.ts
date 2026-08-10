@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nieprawidłowy JSON' }, { status: 400 })
   }
 
-  const { training_type_id, dog_id, scheduled_at, duration_min, notes_user } = body
+  const { training_type_id, dog_id, scheduled_at, duration_min, notes_user, pass_id } = body
   if (
     typeof training_type_id !== 'string'
     || !training_type_id
@@ -81,6 +81,9 @@ export async function POST(req: Request) {
   }
   if (dog_id != null && typeof dog_id !== 'string') {
     return NextResponse.json({ error: 'Nieprawidłowy identyfikator psa' }, { status: 400 })
+  }
+  if (pass_id != null && typeof pass_id !== 'string') {
+    return NextResponse.json({ error: 'Nieprawidłowy identyfikator karnetu' }, { status: 400 })
   }
   if (notes_user != null && (typeof notes_user !== 'string' || notes_user.length > 2000)) {
     return NextResponse.json({ error: 'Notatka może mieć maksymalnie 2000 znaków' }, { status: 400 })
@@ -123,18 +126,41 @@ export async function POST(req: Request) {
     ? trainerPaymentProfile.stripe_account_id
     : null
   const priceAmount = Number(trainingType.price_per_hour) * actualDuration / 60
+  let selectedPass: { id: string } | null = null
+  if (pass_id) {
+    if (!dog_id) return NextResponse.json({ error: 'Karnet wymaga przypisania psa' }, { status: 400 })
+    const { data: pass } = await serviceClient.from('training_passes')
+      .select('id, user_id, dog_id, status, entries_remaining, expires_at, training_pass_products!inner(trainer_id, training_type_id)')
+      .eq('id', pass_id).eq('user_id', user.id).eq('dog_id', dog_id).maybeSingle()
+    const product = Array.isArray(pass?.training_pass_products) ? pass?.training_pass_products[0] : pass?.training_pass_products
+    const valid = Boolean(pass?.status === 'active' && Number(pass.entries_remaining) > 0
+      && (!pass.expires_at || pass.expires_at >= new Date().toISOString().slice(0, 10))
+      && product
+      && product?.trainer_id === trainingType.trainer_id
+      && (!product?.training_type_id || product.training_type_id === trainingType.id))
+    if (!valid || !pass) return NextResponse.json({ error: 'Ten karnet nie może zostać użyty do wybranego treningu' }, { status: 409 })
+    selectedPass = { id: pass.id }
+  }
   if (!Number.isFinite(priceAmount) || priceAmount < 0) {
     return NextResponse.json({ error: 'Nieprawidłowa cena treningu' }, { status: 500 })
   }
-  if (priceAmount > 0 && !stripeAccountId) {
+  if (priceAmount > 0 && !selectedPass && !stripeAccountId) {
     return NextResponse.json(
       { error: 'Trener nie skonfigurował jeszcze płatności dla tej oferty' },
       { status: 409 },
     )
   }
-  if (priceAmount > 0 && !stripe) {
+  if (priceAmount > 0 && !selectedPass && !stripe) {
     return NextResponse.json({ error: 'Płatności nie są skonfigurowane' }, { status: 503 })
   }
+
+  let businessProfileId = trainingType.business_profile_id ?? null
+  if (!businessProfileId) {
+    const { data: defaultProfile } = await serviceClient.from('business_profiles')
+      .select('id').eq('owner_id', trainingType.trainer_id).eq('is_default', true).maybeSingle()
+    businessProfileId = defaultProfile?.id ?? null
+  }
+  if (!businessProfileId) return NextResponse.json({ error: 'Oferta nie jest przypisana do profilu biznesowego' }, { status: 409 })
 
   const scheduledDate = new Date(scheduled_at as string)
   if (Number.isNaN(scheduledDate.getTime()) || actualDuration <= 0) {
@@ -211,6 +237,7 @@ export async function POST(req: Request) {
     .from('trainer_date_availability')
     .select('*')
     .eq('trainer_id', trainingType.trainer_id)
+    .eq('business_profile_id', businessProfileId)
     .eq('available_date', bookingDate)
     .eq('is_active', true)
 
@@ -238,12 +265,13 @@ export async function POST(req: Request) {
     )
   }
 
-  const isPaidBooking = priceAmount > 0
-  const initialBookingState = getInitialTrainingBookingState(priceAmount)
+  const isPaidBooking = priceAmount > 0 && !selectedPass
+  const initialBookingState = getInitialTrainingBookingState(isPaidBooking ? priceAmount : 0)
   const { data: booking, error } = await serviceClient
     .from('training_bookings')
     .insert([{
       training_type_id,
+      business_profile_id: businessProfileId,
       user_id: user.id,
       dog_id: (dog_id as string | null) || null,
       scheduled_at: scheduledDate.toISOString(),
@@ -264,6 +292,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 })
   }
 
+  if (selectedPass) {
+    const { error: passError } = await serviceClient.rpc('consume_training_pass_for_booking', {
+      target_pass_id: selectedPass.id,
+      target_booking_id: booking.id,
+      target_user_id: user.id,
+    })
+    if (passError) {
+      await serviceClient.from('training_bookings').update({
+        status: 'cancelled', cancellation_reason: 'Nie udało się rozliczyć karnetu',
+        cancellation_requested_by: 'user', cancellation_approved_at: new Date().toISOString(),
+      }).eq('id', booking.id)
+      return NextResponse.json({ error: 'Saldo karnetu zmieniło się. Wybierz termin ponownie.' }, { status: 409 })
+    }
+  }
+
   const userEmail = user.email || ''
   const userName = user.user_metadata?.full_name || 'Użytkownik'
   const formattedDate = formatEmailDateTime(scheduledDate.toISOString())
@@ -274,6 +317,7 @@ export async function POST(req: Request) {
       .from('training_payments')
       .insert([{
         booking_id: booking.id,
+        business_profile_id: businessProfileId,
         amount: priceAmount,
         currency: 'PLN',
         stripe_account_id: stripeAccountId,
@@ -377,7 +421,7 @@ export async function POST(req: Request) {
   }
 
   // Paid bookings are announced only after Stripe confirms payment in the webhook.
-  if (priceAmount === 0) {
+  if (!isPaidBooking) {
     await sendTrainingBookingConfirmation({
       to: userEmail,
       userName,
@@ -410,5 +454,6 @@ export async function POST(req: Request) {
     payment: isPaidBooking
       ? { amount: priceAmount, currency: 'PLN', status: 'pending' }
       : null,
+    paidWithPass: Boolean(selectedPass),
   }, { status: 201 })
 }

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/getServerUser', () => ({ getServerUser: mocks.getServerUser }))
 vi.mock('@/lib/supabaseServer', () => ({ hasServiceRoleKey: mocks.hasServiceRoleKey }))
 vi.mock('@/lib/eventReconciliation', () => ({ reconcileEventPayments: mocks.reconcileEventPayments }))
+vi.mock('@/lib/businessAccess', () => ({ getBusinessProfileAccess: vi.fn().mockResolvedValue(null) }))
 
 describe('/api/event-payments/reconcile', () => {
   beforeEach(() => {

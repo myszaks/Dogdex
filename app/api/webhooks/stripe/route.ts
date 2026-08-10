@@ -8,6 +8,8 @@ import {
 } from '@/lib/email'
 import { formatEmailDateTime } from '@/lib/emailDate'
 import { applyStripeRefundStatus } from '@/lib/eventRefund'
+import { applyTrainingCommerceRefundStatus } from '@/lib/trainingCommerceRefund'
+import { notifyTrainingCommercePaymentCompleted } from '@/lib/trainingCommerceNotifications'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -65,6 +67,22 @@ export async function POST(req: Request) {
     const stripeEventType = event.type as string
     if (stripeEventType === 'refund.created' || stripeEventType === 'refund.updated' || stripeEventType === 'refund.failed') {
       const refund = event.data.object as Stripe.Refund
+      if (refund.metadata?.payment_kind === 'training_commerce_refund') {
+        const trainingRefundId = refund.metadata.training_commerce_refund_id
+        if (!trainingRefundId) return NextResponse.json({ error: 'Training refund id missing' }, { status: 400 })
+        const { data: refundRow } = await supabase.from('training_commerce_refunds')
+          .select('id, training_commerce_payments(stripe_account_id)')
+          .eq('id', trainingRefundId).maybeSingle()
+        const relatedPayment = Array.isArray(refundRow?.training_commerce_payments)
+          ? refundRow?.training_commerce_payments[0]
+          : refundRow?.training_commerce_payments
+        if (!refundRow) return NextResponse.json({ error: 'Training refund not found' }, { status: 500 })
+        if (event.account && relatedPayment?.stripe_account_id !== event.account) {
+          return NextResponse.json({ error: 'Training refund account mismatch' }, { status: 400 })
+        }
+        await applyTrainingCommerceRefundStatus(refundRow.id, refund)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
       const metadataRefundId = refund.metadata?.event_refund_id
       const { data: refundRow } = metadataRefundId
         ? await supabase.from('event_refunds')
@@ -85,6 +103,53 @@ export async function POST(req: Request) {
     // Handle successful payment
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
+
+      if (session.metadata?.payment_kind === 'training_course' || session.metadata?.payment_kind === 'training_pass') {
+        const paymentId = session.metadata.training_commerce_payment_id
+        if (!paymentId) return NextResponse.json({ error: 'Training commerce payment id missing' }, { status: 400 })
+        const { data: payment, error: paymentLookupError } = await supabase
+          .from('training_commerce_payments')
+          .select('id, amount, currency, stripe_session_id, stripe_account_id, status')
+          .eq('id', paymentId)
+          .maybeSingle()
+        if (paymentLookupError || !payment) {
+          return NextResponse.json({ error: 'Training commerce payment not found' }, { status: 500 })
+        }
+        const paymentIntentId = typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id
+        const valid = session.payment_status === 'paid'
+          && Boolean(paymentIntentId)
+          && session.amount_total === Math.round(Number(payment.amount) * 100)
+          && session.currency?.toUpperCase() === payment.currency.toUpperCase()
+          && (!payment.stripe_session_id || payment.stripe_session_id === session.id)
+          && (!event.account || event.account === payment.stripe_account_id)
+        if (!valid || !paymentIntentId) {
+          return NextResponse.json({ error: 'Training commerce payment verification failed' }, { status: 400 })
+        }
+        const { error: transitionError } = await supabase.rpc('complete_training_commerce_checkout', {
+          target_payment_id: payment.id,
+          target_session_id: session.id,
+          target_payment_intent_id: paymentIntentId,
+        })
+        if (transitionError) {
+          console.error('[Webhook] Training commerce transition failed:', transitionError)
+          return NextResponse.json({ error: 'Training commerce update failed' }, { status: 500 })
+        }
+        try {
+          const intent = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] }, { stripeAccount: payment.stripe_account_id })
+          const charge = intent.latest_charge && typeof intent.latest_charge !== 'string' ? intent.latest_charge : null
+          await supabase.from('training_commerce_payments').update({
+            stripe_charge_id: charge?.id ?? null,
+            receipt_url: charge?.receipt_url ?? null,
+            last_reconciled_at: new Date().toISOString(),
+          }).eq('id', payment.id)
+        } catch (receiptError) {
+          console.error('[Webhook] Training commerce receipt lookup failed:', receiptError)
+        }
+        await notifyTrainingCommercePaymentCompleted(payment.id)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
 
       if (session.metadata?.payment_kind === 'event_registration') {
         const paymentId = session.metadata.event_payment_id
@@ -301,6 +366,20 @@ export async function POST(req: Request) {
     ) {
       const session = event.data.object as Stripe.Checkout.Session
 
+      if (session.metadata?.payment_kind === 'training_course' || session.metadata?.payment_kind === 'training_pass') {
+        const paymentId = session.metadata.training_commerce_payment_id
+        if (paymentId) {
+          const { error: commerceFailureError } = await supabase.rpc('fail_training_commerce_checkout', {
+            target_payment_id: paymentId,
+            target_session_id: session.id,
+          })
+          if (commerceFailureError) {
+            return NextResponse.json({ error: 'Training commerce update failed' }, { status: 500 })
+          }
+        }
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
       if (session.metadata?.payment_kind === 'event_registration') {
         const paymentId = session.metadata.event_payment_id
         if (paymentId) {
@@ -346,7 +425,7 @@ export async function POST(req: Request) {
         : charge.payment_intent?.id
 
       if (paymentIntentId) {
-        const [{ error: paymentError }, { data: eventPayment, error: eventPaymentError }] = await Promise.all([
+        const [{ error: paymentError }, { data: eventPayment, error: eventPaymentError }, { data: commercePayment, error: commercePaymentError }] = await Promise.all([
           supabase
           .from('training_payments')
           .update({ status: 'refunded' })
@@ -363,9 +442,21 @@ export async function POST(req: Request) {
             .eq('stripe_payment_intent_id', paymentIntentId)
             .select('id, refunded_amount')
             .maybeSingle(),
+          supabase
+            .from('training_commerce_payments')
+            .update({
+              status: charge.amount_refunded < charge.amount ? 'partially_refunded' : 'refunded',
+              refunded_amount: charge.amount_refunded / 100,
+              stripe_charge_id: charge.id,
+              receipt_url: charge.receipt_url,
+              last_reconciled_at: new Date().toISOString(),
+            })
+            .eq('stripe_payment_intent_id', paymentIntentId)
+            .select('id, enrollment_id, pass_id')
+            .maybeSingle(),
         ])
 
-        if (paymentError || eventPaymentError) {
+        if (paymentError || eventPaymentError || commercePaymentError) {
           console.error('[Webhook] Error marking payment as refunded:', paymentError)
           return NextResponse.json({ error: 'Payment update failed' }, { status: 500 })
         }
@@ -380,6 +471,22 @@ export async function POST(req: Request) {
               ? null
               : 'Stripe zawiera zwrot wykonany poza Dogdex; przypisz go ręcznie do zapisu.',
           }).eq('id', eventPayment.id)
+        }
+
+        const commerceFullyRefunded = charge.amount_refunded >= charge.amount
+        if (commerceFullyRefunded && commercePayment?.enrollment_id) {
+          const { data: cancelledEnrollment } = await supabase.from('training_course_enrollments')
+            .update({ payment_status: 'refunded', status: 'cancelled', cancelled_at: new Date().toISOString() })
+            .eq('id', commercePayment.enrollment_id)
+            .select('course_id').maybeSingle()
+          if (cancelledEnrollment?.course_id) {
+            await supabase.rpc('promote_training_course_waitlist', { target_course_id: cancelledEnrollment.course_id })
+          }
+        }
+        if (commerceFullyRefunded && commercePayment?.pass_id) {
+          await supabase.from('training_passes')
+            .update({ payment_status: 'refunded', status: 'cancelled' })
+            .eq('id', commercePayment.pass_id)
         }
 
         console.log(`[Webhook] Payment intent ${paymentIntentId} marked as refunded`)

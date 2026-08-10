@@ -6,6 +6,7 @@ import {
   isEventTeamPermission,
   type EventTeamPermission,
 } from '@/lib/eventPermissions'
+import { getBusinessProfileAccess } from '@/lib/businessAccess'
 
 export {
   EVENT_TEAM_PERMISSIONS,
@@ -20,6 +21,7 @@ export interface EventAccess {
     slug: string
     title: string
     created_by: string
+    business_profile_id?: string | null
     event_type_id?: string | null
     has_schedule?: boolean | null
     has_results?: boolean | null
@@ -30,6 +32,8 @@ export interface EventAccess {
   isAdmin: boolean
   permissions: EventTeamPermission[]
   canManageTeam: boolean
+  canEditEvent: boolean
+  canManageRefunds: boolean
   can: (permission: EventTeamPermission) => boolean
 }
 
@@ -39,10 +43,10 @@ export async function getEventAccess(identifier: string): Promise<EventAccess | 
   const { user, role } = await getServerUser()
   if (!user) return null
 
-  const supabase = await createAuthClient()
+  const supabase = createServerClient()
   const { data: event } = await supabase
     .from('events')
-    .select('id, slug, title, created_by, event_type_id, has_schedule, has_results')
+    .select('id, slug, title, created_by, business_profile_id, event_type_id, has_schedule, has_results')
     .eq(UUID_RE.test(identifier) ? 'id' : 'slug', identifier)
     .maybeSingle()
 
@@ -50,13 +54,16 @@ export async function getEventAccess(identifier: string): Promise<EventAccess | 
 
   const isAdmin = role === 'admin'
   const isOwner = event.created_by === user.id
+  const businessAccess = event.business_profile_id
+    ? await getBusinessProfileAccess(event.business_profile_id)
+    : null
   let permissions: EventTeamPermission[] = []
 
   if (!isAdmin && !isOwner) {
     const normalizedEmail = user.email?.trim().toLowerCase() ?? ''
     const { data: memberships } = await supabase
       .from('event_team_members')
-      .select('id, user_id, email, permissions, status')
+      .select('id, user_id, email, permissions, status, organizer_team_member_id')
       .eq('event_id', event.id)
       .in('status', ['pending', 'active'])
 
@@ -64,18 +71,24 @@ export async function getEventAccess(identifier: string): Promise<EventAccess | 
       member.user_id === user.id
       || (normalizedEmail && member.email.toLowerCase() === normalizedEmail)
     ))
-    if (!membership) return null
+    if (!membership && !businessAccess?.can('events.edit')) return null
 
-    permissions = Array.isArray(membership.permissions)
+    permissions = Array.isArray(membership?.permissions)
       ? membership.permissions.filter(isEventTeamPermission)
       : []
-    if (permissions.length === 0) return null
+    if (permissions.length === 0 && !businessAccess?.can('events.edit')) return null
 
-    if (membership.user_id !== user.id || membership.status !== 'active') {
+    if (membership && (membership.user_id !== user.id || membership.status !== 'active')) {
       await createServerClient()
         .from('event_team_members')
         .update({ user_id: user.id, status: 'active' })
         .eq('id', membership.id)
+    }
+    if (membership?.organizer_team_member_id) {
+      await createServerClient()
+        .from('organizer_team_members')
+        .update({ user_id: user.id, status: 'active' })
+        .eq('id', membership.organizer_team_member_id)
     }
   }
 
@@ -88,6 +101,8 @@ export async function getEventAccess(identifier: string): Promise<EventAccess | 
     isAdmin,
     permissions: fullAccess ? [...EVENT_TEAM_PERMISSIONS] : permissions,
     canManageTeam: fullAccess,
+    canEditEvent: fullAccess || Boolean(businessAccess?.can('events.edit')),
+    canManageRefunds: fullAccess || Boolean(businessAccess?.can('refunds.manage')),
     can: permission => fullAccess || permissions.includes(permission),
   }
 }

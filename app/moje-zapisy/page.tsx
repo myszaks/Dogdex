@@ -214,6 +214,7 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
                           status: registration.status as string,
                           created_at: registration.created_at as string,
                           form_data: registration.form_data as Record<string, unknown>,
+                          checkin_token: registration.checkin_token as string | null,
                         }}
                         participant={registration.participants as import('@/types').Participant}
                         pendingCancellationRequest={pendingRequestMap.get(registration.id as string) ?? null}
@@ -243,6 +244,7 @@ export default async function MyRegistrationsPage({ searchParams }: MyRegistrati
                           status: registration.status as string,
                           created_at: registration.created_at as string,
                           form_data: registration.form_data as Record<string, unknown>,
+                          checkin_token: registration.checkin_token as string | null,
                         }}
                         participant={registration.participants as import('@/types').Participant}
                       />

@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { CalendarDays, Clock3, ListChecks, ListOrdered, MapPin, Settings2, Users } from 'lucide-react'
-import { createAuthClient } from '@/lib/supabaseServer'
+import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
+import { getEventAccess } from '@/lib/eventAccess'
 import { effectiveStatus, formatDate } from '@/lib/utils'
 import EventAnnouncementsPanel from '@/components/EventAnnouncementsPanel'
 
@@ -25,8 +26,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function EventWorkspaceOverview({ params }: Props) {
   const { eventId } = await params
+  const access = await getEventAccess(eventId)
+  if (!access) notFound()
   const supabase = await createAuthClient()
-  const { data: event } = await supabase
+  const { data: event } = await createServerClient()
     .from('events')
     .select('*')
     .eq(UUID_RE.test(eventId) ? 'id' : 'slug', eventId)
@@ -114,16 +117,16 @@ export default async function EventWorkspaceOverview({ params }: Props) {
               : 'Zatwierdzaj uczestników, obsługuj rezygnacje i eksportuj listę.'}
           </p>
         </div>
-        <Link href={status === 'draft' ? `${baseHref}/edit` : `${baseHref}/registrations`} className="btn btn-primary shrink-0">
+        {(status === 'draft' ? access.canEditEvent : access.can('registrations')) && <Link href={status === 'draft' ? `${baseHref}/edit` : `${baseHref}/registrations`} className="btn btn-primary shrink-0">
           {status === 'draft' ? <Settings2 className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
           {status === 'draft' ? 'Otwórz ustawienia' : 'Otwórz zapisy'}
-        </Link>
+        </Link>}
       </div>
 
-      <EventAnnouncementsPanel
+      {access.can('registrations') && <EventAnnouncementsPanel
         eventId={event.id}
         initialAnnouncements={announcements.data ?? []}
-      />
+      />}
     </div>
   )
 }

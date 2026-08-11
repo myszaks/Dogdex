@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import { createServerClient, hasServiceRoleKey } from '@/lib/supabaseServer'
 
 export interface PublicRateLimitRule {
@@ -28,10 +28,13 @@ export function getRequestIp(req: Request): string {
   )
 }
 
-function hashIdentifier(scope: string, identifier: string): string {
-  const salt = process.env.RATE_LIMIT_SALT ?? ''
-  return createHash('sha256')
-    .update(`${salt}\0${scope}\0${identifier.trim().toLowerCase()}`)
+function hashIdentifier(scope: string, identifier: string): string | null {
+  const salt = process.env.RATE_LIMIT_SALT?.trim()
+    || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  if (!salt) return null
+
+  return createHmac('sha256', salt)
+    .update(`${scope}\0${identifier.trim().toLowerCase()}`)
     .digest('hex')
 }
 
@@ -42,9 +45,12 @@ export async function enforcePublicRateLimits(
 
   const supabase = createServerClient()
   for (const rule of rules) {
+    const identifierHash = hashIdentifier(rule.scope, rule.identifier)
+    if (!identifierHash) return { allowed: false, reason: 'unavailable' }
+
     const { data, error } = await supabase.rpc('consume_public_rate_limit', {
       p_scope: rule.scope,
-      p_identifier_hash: hashIdentifier(rule.scope, rule.identifier),
+      p_identifier_hash: identifierHash,
       p_limit: rule.limit,
       p_window_seconds: rule.windowSeconds,
     })

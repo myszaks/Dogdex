@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createServerClient = vi.fn()
 const hasServiceRoleKey = vi.fn()
@@ -12,9 +12,14 @@ vi.mock('@/lib/supabaseServer', () => ({
 describe('public rate limiting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('RATE_LIMIT_SALT', 'test-rate-limit-salt-with-enough-entropy')
     hasServiceRoleKey.mockReturnValue(true)
     createServerClient.mockReturnValue({ rpc })
     rpc.mockResolvedValue({ data: true, error: null })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('uses the first forwarded address as the client IP', async () => {
@@ -61,5 +66,19 @@ describe('public rate limiting', () => {
       p_window_seconds: 600,
     }))
     expect(JSON.stringify(rpc.mock.calls)).not.toContain('Person@Example.com')
+  })
+
+  it('fails closed when neither a dedicated salt nor the service key is configured', async () => {
+    vi.stubEnv('RATE_LIMIT_SALT', '')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
+    const { enforcePublicRateLimits } = await import('@/lib/publicRateLimit')
+
+    await expect(enforcePublicRateLimits([{
+      scope: 'contact-email',
+      identifier: 'person@example.com',
+      limit: 3,
+      windowSeconds: 600,
+    }])).resolves.toEqual({ allowed: false, reason: 'unavailable' })
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

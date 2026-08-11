@@ -56,5 +56,5 @@ export default function EventMap({ lat, lng, label }: Props) {
     }
   }, [lat, lng, label])
 
-  return <div ref={containerRef} className="w-full h-64 sm:h-80" />
+  return <div ref={containerRef} className="relative isolate z-0 w-full h-64 sm:h-80" />
 }

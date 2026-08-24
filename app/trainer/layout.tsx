@@ -11,8 +11,7 @@ export default async function TrainerLayout({ children }: LayoutProps) {
     notFound()
   }
 
-  // Ensure only organizers and admins can access trainer dashboard
-  await requireRole(['organizer', 'admin'])
+  await requireRole(['trainer', 'organizer', 'admin'])
 
   return children
 }

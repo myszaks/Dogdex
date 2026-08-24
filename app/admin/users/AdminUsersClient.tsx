@@ -9,10 +9,12 @@ type Profile = {
   created_at: string
 }
 
-const ALL_ROLES = ['user', 'organizer', 'admin']
+const ALL_ROLES = ['user', 'organizer', 'trainer', 'organizer_trainer', 'admin']
 const ROLE_LABELS: Record<string, string> = {
   user: 'Użytkownik',
   organizer: 'Organizator',
+  trainer: 'Trener',
+  organizer_trainer: 'Organizator i trener',
   admin: 'Administrator',
 }
 

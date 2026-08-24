@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { hasAnyRole } from '@/lib/roles'
 import { toSlug } from '@/lib/utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -30,8 +31,7 @@ export async function GET() {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  // Only organizers and admins can view their trainer profile
-  if (role !== 'organizer' && role !== 'admin') {
+  if (!hasAnyRole(role, ['trainer', 'organizer'])) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
@@ -54,8 +54,7 @@ export async function POST(req: Request) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  // Only organizers and admins can create/update trainer profile
-  if (role !== 'organizer' && role !== 'admin') {
+  if (!hasAnyRole(role, ['trainer', 'organizer'])) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 

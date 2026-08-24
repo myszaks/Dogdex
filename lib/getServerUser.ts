@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { createAuthClient } from './supabaseServer'
+import { hasAnyRole } from './roles'
+
+export { hasAnyRole } from './roles'
 
 export async function getServerUser() {
   const supabase = await createAuthClient()
@@ -24,7 +27,7 @@ export async function getServerUser() {
 export async function requireRole(roles: string[]) {
   const { user, role } = await getServerUser()
   if (!user) redirect('/')
-  if (role !== 'admin' && (!role || !roles.includes(role))) redirect('/')
+  if (!hasAnyRole(role, roles)) redirect('/')
   return { user: user!, role: role! }
 }
 
@@ -34,7 +37,7 @@ export async function checkRoleForApi(
 ): Promise<{ error: NextResponse } | { user: NonNullable<Awaited<ReturnType<typeof getServerUser>>['user']>; role: string }> {
   const { user, role } = await getServerUser()
   if (!user) return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 }) }
-  if (role !== 'admin' && (!role || !roles.includes(role))) {
+  if (!hasAnyRole(role, roles)) {
     return { error: NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 }) }
   }
   return { user: user!, role: role! }

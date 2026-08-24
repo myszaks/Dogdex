@@ -6,9 +6,9 @@ import {
   SIZE_CLASS_LABELS,
   getSizeClass,
   normalizeSizeClass,
-  computeSpeedKmh,
   formatRunTime,
   parseRunMs,
+  placementLabel,
 } from '@/lib/speedway'
 import type { SizeClass } from '@/lib/speedway'
 
@@ -648,7 +648,7 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h3 className="font-bold text-green-800 text-lg">✅ Klasa {classResultsView} — wyniki</h3>
-                <p className="text-sm text-green-600">Oba przebiegi ukończone</p>
+                <p className="text-sm text-green-600">Obie rundy zostały rozliczone</p>
               </div>
               {recalculating && <span className="text-xs text-slate-400 shrink-0">Przeliczam ranking...</span>}
             </div>
@@ -667,11 +667,11 @@ export default function SpeedwayLiveEntry({ eventId, eventSlug, initialTrackDist
                 <div
                   key={p.participantId}
                   className={`grid grid-cols-[auto_1fr_auto_auto_auto] items-center px-4 py-3 ${
-                    i === 0 ? 'bg-yellow-50' : ''
+                    best !== null && i === 0 ? 'bg-yellow-50' : ''
                   }`}
                 >
                   <span className="font-bold w-7 text-sm text-slate-500">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                    {placementLabel(best === null ? null : i + 1)}
                   </span>
                   <div className="pl-1 min-w-0">
                     <p className="font-medium text-slate-800 text-sm truncate">{p.dogName || '—'}</p>

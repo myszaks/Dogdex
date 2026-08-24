@@ -132,11 +132,11 @@ export default function RegistrationsClientList({
               </span>
             )}
             <CardTitle className="min-w-0 flex-1">
-              <span className="truncate block">
+              <span className="truncate block" title={p?.dog_name ?? undefined}>
                 🐕 {p?.dog_name ?? '—'}
               </span>
               {p?.dog_breed && (
-                <span className="text-xs font-normal text-muted-foreground block truncate">{p.dog_breed}</span>
+                <span className="text-xs font-normal text-muted-foreground block truncate" title={p.dog_breed}>{p.dog_breed}</span>
               )}
             </CardTitle>
           </div>
@@ -150,11 +150,11 @@ export default function RegistrationsClientList({
         </CardHeader>
 
         <CardContent className="pt-2 space-y-1">
-          <p className="text-sm font-medium text-foreground/90 truncate">
+          <p className="text-sm font-medium text-foreground/90 truncate" title={p?.owner_name ?? undefined}>
             👤 {p?.owner_name ?? '—'}
           </p>
           {p?.owner_email && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+            <p className="flex items-center gap-1 text-xs text-muted-foreground truncate" title={p.owner_email}>
               <Mail className="w-3 h-3 shrink-0" />
               {p.owner_email}
             </p>

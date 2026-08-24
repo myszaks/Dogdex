@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestMs, computeSpeedKmh, formatRunTime, parseRunMs } from '@/lib/speedway'
+import { bestMs, computeSpeedKmh, formatRunTime, parseRunMs, placementLabel } from '@/lib/speedway'
 
 describe('speedway helpers', () => {
   it('returns zero speed for invalid input values', () => {
@@ -14,5 +14,10 @@ describe('speedway helpers', () => {
   it('returns the best run time and formats invalid values safely', () => {
     expect(bestMs(5100, 4900)).toBe(4900)
     expect(formatRunTime(0)).toBe('—')
+  })
+
+  it('does not award a medal to an unclassified DNS/DNF result', () => {
+    expect(placementLabel(null)).toBe('—')
+    expect(placementLabel(1)).toBe('🥇')
   })
 })

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useId, useRef } from 'react'
 import { formatDateShort } from '@/lib/utils'
 import type { FormField, Dog } from '@/types'
 import useUser from '@/hooks/useUser'
@@ -119,6 +119,7 @@ function autofillFromDog(dog: Dog, fields: import('@/types').FormField[]): Recor
 
 
 export default function RegisterForm({ eventId, formFields = [], onSuccess }: Props) {
+  const formId = useId()
   const supabase = getSupabaseBrowserClient()
   const { user } = useUser()
   const isLoggedIn = !!user
@@ -202,6 +203,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         if (isEmpty) {
           setError(`Pole „${field.label}" jest wymagane.`)
           setLoading(false)
+          submittingRef.current = false
           return
         }
       }
@@ -209,7 +211,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
 
     try {
       setFieldErrors({})
-      const processedExtra: Record<string, any> = {}
+      const processedExtra: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(dynamic)) {
         const f = formFields.find(ff => ff.id === k)
         if (f && (f.type === 'multiselect' || f.type === 'multidate')) {
@@ -280,8 +282,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
 
           {userDogs.length > 0 && (
             <div>
-              <label className="form-label">Wybierz psa z profilu</label>
+              <label className="form-label" htmlFor={`${formId}-dog-picker`}>Wybierz psa z profilu</label>
               <select
+                id={`${formId}-dog-picker`}
                 className="form-input"
                 value={selectedDogId}
                 onChange={e => handleDogSelect(e.target.value)}
@@ -297,8 +300,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           )}
 
           <div>
-            <label className="form-label">Imię psa *</label>
+            <label className="form-label" htmlFor={`${formId}-dog-name`}>Imię psa *</label>
             <input
+              id={`${formId}-dog-name`}
               className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogName"
               value={base.dogName}
@@ -306,15 +310,18 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
               required
               placeholder="Burek"
               disabled={!!selectedDogId}
+              aria-describedby={fieldErrors.dogName ? `${formId}-dog-name-error` : undefined}
+              aria-invalid={Boolean(fieldErrors.dogName)}
             />
             {fieldErrors.dogName && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+              <p id={`${formId}-dog-name-error`} className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Rasa psa</label>
+            <label className="form-label" htmlFor={`${formId}-dog-breed`}>Rasa psa</label>
             <input
+              id={`${formId}-dog-breed`}
               className={`form-input ${selectedDogId ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
               name="dogBreed"
               value={base.dogBreed}
@@ -328,8 +335,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
         /* ── Niezalogowany: pełne pola ── */
         <>
           <div>
-            <label className="form-label">Imię i nazwisko właściciela *</label>
+            <label className="form-label" htmlFor={`${formId}-owner-name`}>Imię i nazwisko właściciela *</label>
             <input
+              id={`${formId}-owner-name`}
               className="form-input"
               name="ownerName"
               value={base.ownerName}
@@ -341,8 +349,9 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
           </div>
 
           <div>
-            <label className="form-label">Adres e-mail *</label>
+            <label className="form-label" htmlFor={`${formId}-owner-email`}>Adres e-mail *</label>
             <input
+              id={`${formId}-owner-email`}
               className="form-input"
               type="email"
               name="ownerEmail"
@@ -351,30 +360,36 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
               required
               placeholder="jan@example.com"
               autoComplete="email"
+              aria-describedby={fieldErrors.ownerEmail ? `${formId}-owner-email-error` : undefined}
+              aria-invalid={Boolean(fieldErrors.ownerEmail)}
             />
             {fieldErrors.ownerEmail && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
+              <p id={`${formId}-owner-email-error`} className="text-xs text-red-600 mt-1">{fieldErrors.ownerEmail}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Imię psa *</label>
+            <label className="form-label" htmlFor={`${formId}-dog-name`}>Imię psa *</label>
             <input
+              id={`${formId}-dog-name`}
               className="form-input"
               name="dogName"
               value={base.dogName}
               onChange={handleBase}
               required
               placeholder="Burek"
+              aria-describedby={fieldErrors.dogName ? `${formId}-dog-name-error` : undefined}
+              aria-invalid={Boolean(fieldErrors.dogName)}
             />
             {fieldErrors.dogName && (
-              <p className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
+              <p id={`${formId}-dog-name-error`} className="text-xs text-red-600 mt-1">{fieldErrors.dogName}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label">Rasa psa</label>
+            <label className="form-label" htmlFor={`${formId}-dog-breed`}>Rasa psa</label>
             <input
+              id={`${formId}-dog-breed`}
               className="form-input"
               name="dogBreed"
               value={base.dogBreed}
@@ -396,7 +411,7 @@ export default function RegisterForm({ eventId, formFields = [], onSuccess }: Pr
       ))}
 
       {error && (
-        <div className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
+        <div role="alert" className="text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
           ⚠️ {error}
         </div>
       )}
@@ -445,8 +460,9 @@ function DynamicField({
   value: string
   onChange: (val: string) => void
 }) {
+  const controlId = useId()
   const label = (
-    <label className="form-label">
+    <label className="form-label" htmlFor={controlId}>
       {field.label}
       {field.required && ' *'}
     </label>
@@ -461,8 +477,10 @@ function DynamicField({
       {
         const selected = value.split(',').filter(Boolean)
         return (
-          <div>
-            {label}
+          <fieldset>
+            <legend className="form-label">
+              {field.label}{field.required && ' *'}
+            </legend>
             {field.description && <p className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
             <div className="space-y-1.5 mt-1">
               {field.options?.map(opt => {
@@ -480,7 +498,7 @@ function DynamicField({
                       type="checkbox"
                       className="rounded"
                       checked={checked}
-                      onChange={e => {
+                      onChange={() => {
                         const next = checked
                           ? selected.filter(v => v !== opt)
                           : [...selected, opt]
@@ -495,14 +513,16 @@ function DynamicField({
             {field.required && !value && (
               <p className="text-xs text-orange-500 mt-1">Wybierz co najmniej jedną opcję</p>
             )}
-          </div>
+          </fieldset>
         )
       }
 
     case 'multiselect':
       return (
-        <div>
-          {label}
+        <fieldset>
+          <legend className="form-label">
+            {field.label}{field.required && ' *'}
+          </legend>
           {field.description && <p className="text-xs text-slate-400 mt-0.5 mb-2">{field.description}</p>}
           <div className="space-y-1.5 mt-1">
             {field.options?.map(opt => {
@@ -514,7 +534,7 @@ function DynamicField({
                     type="checkbox"
                     className="rounded"
                     checked={checked}
-                    onChange={e => {
+                    onChange={() => {
                       const next = checked
                         ? selected.filter(v => v !== opt)
                         : [...selected, opt]
@@ -529,7 +549,7 @@ function DynamicField({
           {field.required && !value && (
             <p className="text-xs text-orange-500 mt-1">Wybierz co najmniej jedną opcję</p>
           )}
-        </div>
+        </fieldset>
       )
 
     case 'select':
@@ -537,6 +557,7 @@ function DynamicField({
         <div>
           {label}
           <select
+            id={controlId}
             className="form-input"
             value={value}
             onChange={e => onChange(e.target.value)}
@@ -558,6 +579,7 @@ function DynamicField({
         <div>
           {label}
           <textarea
+            id={controlId}
             className="form-input"
             rows={3}
             value={value}
@@ -592,6 +614,7 @@ function DynamicField({
         <div>
           {label}
           <input
+            id={controlId}
             className="form-input"
             type={field.type}
             value={value}

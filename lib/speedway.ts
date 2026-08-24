@@ -237,6 +237,11 @@ export function medalEmoji(rank: number): string {
   return `#${rank}`
 }
 
+/** Etykieta miejsca; wynik niesklasyfikowany nigdy nie otrzymuje medalu. */
+export function placementLabel(rank: number | null): string {
+  return rank === null ? '—' : medalEmoji(rank)
+}
+
 /**
  * Wyciąga klasę startową z form_data rejestracji.
  * Obsługuje trzy przypadki:

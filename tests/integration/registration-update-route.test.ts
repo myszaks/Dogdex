@@ -100,6 +100,7 @@ describe('PATCH /api/registrations/[id]', () => {
       },
       events: {
         id: 'event-1',
+        created_by: 'organizer-1',
         max_participants: 2,
       },
     }
@@ -153,6 +154,7 @@ describe('PATCH /api/registrations/[id]', () => {
       },
       events: {
         id: 'event-1',
+        created_by: 'organizer-1',
         max_participants: 10,
       },
     }

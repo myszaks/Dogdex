@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabaseServer'
+import { createServiceRoleClient } from '@/lib/supabaseServer'
 import { notFound, redirect } from 'next/navigation'
 import LiveResults from '@/components/LiveResults'
 import LiveStartPanel from '@/components/LiveStartPanel'
@@ -14,11 +14,11 @@ export const dynamic = 'force-dynamic'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function resolveEvent(param: string) {
-  const supabase = createServerClient()
-  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).maybeSingle()
+  const supabase = createServiceRoleClient()
+  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).neq('status', 'draft').maybeSingle()
   if (bySlug) return { event: bySlug, redirectTo: null }
   if (UUID_RE.test(param)) {
-    const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
+    const { data: byId } = await supabase.from('events').select('*').eq('id', param).neq('status', 'draft').maybeSingle()
     if (byId) {
       const target = `/live/${byId.slug}`
       return { event: byId, redirectTo: target }
@@ -44,13 +44,13 @@ export default async function LivePage({ params }: Props) {
   if (!resolvedEvent) notFound()
   if (redirectTo) redirect(redirectTo)
 
-  const supabase = createServerClient()
+  const supabase = createServiceRoleClient()
   const resolvedId = resolvedEvent.id as string
 
   const [{ data: results }, { data: registrations }] = await Promise.all([
     supabase
       .from('results')
-      .select('*, participants(dog_name, owner_name, dog_breed)')
+      .select('id, event_id, participant_id, time_ms, rank, notes, run1_ms, run2_ms, run1_status, run2_status, best_ms, speed_kmh, size_class, class_rank, participants(dog_name, owner_name, dog_breed)')
       .eq('event_id', resolvedId)
       .order('rank', { ascending: true }),
     supabase
@@ -63,6 +63,13 @@ export default async function LivePage({ params }: Props) {
 
   const event = resolvedEvent
   if (!event.has_results) notFound()
+
+  const normalizedResults = (results ?? []).map(result => ({
+    ...result,
+    participants: Array.isArray(result.participants)
+      ? (result.participants[0] ?? null)
+      : result.participants,
+  }))
 
   const isPublic = event.results_public ?? true
   const isSpeedway = event.event_type_id === 'speedway'
@@ -125,7 +132,7 @@ export default async function LivePage({ params }: Props) {
               initialStartIndex={event.current_start_index ?? 0}
               initialLivePhase={event.live_phase ?? null}
               participants={speedwayParticipants}
-              initialResults={results ?? []}
+              initialResults={normalizedResults}
             />
           ) : (
             <>
@@ -134,7 +141,7 @@ export default async function LivePage({ params }: Props) {
                 initialStartIndex={event.current_start_index ?? 0}
                 participants={startParticipants}
               />
-              <LiveResults eventId={resolvedId} initialResults={results ?? []} />
+              <LiveResults eventId={resolvedId} initialResults={normalizedResults} />
             </>
           )}
         </>

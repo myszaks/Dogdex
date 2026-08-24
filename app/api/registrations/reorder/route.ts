@@ -21,9 +21,39 @@ export async function PATCH(req: Request) {
 
   // Validate each item
   for (const item of body.items) {
-    if (typeof item.id !== 'string' || typeof item.order_index !== 'number') {
+    if (
+      typeof item.id !== 'string' ||
+      !Number.isInteger(item.order_index) ||
+      item.order_index < 0
+    ) {
       return NextResponse.json({ error: 'Każdy item musi mieć id (string) i order_index (number)' }, { status: 400 })
     }
+  }
+
+  const itemIds = body.items.map(item => item.id)
+  if (new Set(itemIds).size !== itemIds.length) {
+    return NextResponse.json({ error: 'Lista zawiera powtórzone zgłoszenia' }, { status: 400 })
+  }
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, events(created_by)')
+    .in('id', itemIds)
+
+  if (registrationsError) {
+    return NextResponse.json({ error: registrationsError.message }, { status: 500 })
+  }
+  if ((registrations ?? []).length !== itemIds.length) {
+    return NextResponse.json({ error: 'Nie znaleziono części zgłoszeń' }, { status: 404 })
+  }
+
+  const unauthorized = (registrations ?? []).some(registration => {
+    const relation = registration.events
+    const event = (Array.isArray(relation) ? relation[0] : relation) as { created_by?: string } | null
+    return authResult.role !== 'admin' && event?.created_by !== authResult.user.id
+  })
+  if (unauthorized) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
   // Update each registration's order_index in parallel

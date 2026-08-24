@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .from('events')
     .select('title')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
+    .neq('status', 'draft')
     .maybeSingle()
   return { title: `Grafik – ${data?.title ?? 'Wydarzenie'}` }
 }
@@ -31,6 +32,7 @@ export default async function PublicSchedulePage({ params }: Props) {
     .from('events')
     .select('id, title, start_at, location, slug, form_fields')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param)
+    .neq('status', 'draft')
     .maybeSingle()
 
   if (!event) notFound()

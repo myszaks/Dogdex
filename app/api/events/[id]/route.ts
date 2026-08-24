@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 import { sendEventChangeEmail } from '@/lib/email'
 import {
   buildEventDateReplacements,
@@ -24,6 +24,11 @@ export async function GET(_req: Request, { params }: Params) {
     .single()
 
   if (error || !data) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  if (data.status === 'draft') {
+    const { user, role } = await getServerUser()
+    const canManage = role === 'admin' || (user?.id != null && data.created_by === user.id)
+    if (!canManage) return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 })
+  }
   return NextResponse.json(data)
 }
 

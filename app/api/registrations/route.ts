@@ -11,13 +11,26 @@ export async function GET(req: Request) {
   const supabase = await createAuthClient()
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('eventId')
+  if (!eventId) {
+    return NextResponse.json({ error: 'Brak eventId' }, { status: 400 })
+  }
 
-  let query = supabase
+  const { data: event } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  if (auth.role !== 'admin' && event.created_by !== auth.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
+
+  const query = supabase
     .from('registrations')
     .select('*, participants(*)')
+    .eq('event_id', eventId)
     .order('created_at', { ascending: true })
-
-  if (eventId) query = query.eq('event_id', eventId)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

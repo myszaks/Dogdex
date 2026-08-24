@@ -5,6 +5,7 @@ import type { SizeClass } from '@/lib/speedway'
 import CheckInClient from '@/components/CheckInClient'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { requireRole } from '@/lib/getServerUser'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -17,12 +18,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function CheckInPage({ params }: Props) {
   const { eventId: param } = await params
+  const { user, role } = await requireRole(['organizer', 'admin'])
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase
-    .from('events').select('id, slug, title, event_type_id')
+    .from('events').select('id, slug, title, event_type_id, created_by')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
+  if (role !== 'admin' && event.created_by !== user.id) notFound()
   const eventId = event.id
 
   const { data: registrations } = await supabase

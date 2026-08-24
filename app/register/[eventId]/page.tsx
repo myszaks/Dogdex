@@ -11,10 +11,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 async function resolveEvent(param: string) {
   const supabase = createServerClient()
-  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).maybeSingle()
+  const { data: bySlug } = await supabase.from('events').select('*').eq('slug', param).neq('status', 'draft').maybeSingle()
   if (bySlug) return { event: bySlug, redirectTo: null }
   if (UUID_RE.test(param)) {
-    const { data: byId } = await supabase.from('events').select('*').eq('id', param).maybeSingle()
+    const { data: byId } = await supabase.from('events').select('*').eq('id', param).neq('status', 'draft').maybeSingle()
     if (byId) {
       const target = `/register/${byId.slug}`
       return { event: byId, redirectTo: target }

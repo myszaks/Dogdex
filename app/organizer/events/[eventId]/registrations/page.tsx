@@ -7,6 +7,7 @@ import type { FormField } from '@/types'
 import RegistrationsClientList from '@/components/RegistrationsClientList'
 import CancellationRequestsPanel from '@/components/CancellationRequestsPanel'
 import Link from 'next/link'
+import { requireRole } from '@/lib/getServerUser'
 
 interface Props {
   params: Promise<{ eventId: string }>
@@ -19,12 +20,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function RegistrationsPage({ params }: Props) {
   const { eventId: param } = await params
+  const { user, role } = await requireRole(['organizer', 'admin'])
 
   const supabase = await createAuthClient()
 
   const { data: event } = await supabase.from('events').select('*')
     .eq(UUID_RE.test(param) ? 'id' : 'slug', param).single()
   if (!event) notFound()
+  if (role !== 'admin' && event.created_by !== user.id) notFound()
   const eventId = event.id
 
   const [

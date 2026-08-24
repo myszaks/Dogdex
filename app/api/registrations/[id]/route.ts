@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { hasAnyRole } from '@/lib/roles'
 import { sendRegistrationEmail, sendCancellationEmailToOrganizer } from '@/lib/email'
 
 interface Params {
@@ -14,7 +15,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { user, role } = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Brak uprawnień' }, { status: 401 })
 
-  const isOrganizerOrAdmin = role === 'organizer' || role === 'admin'
+  const hasOrganizerRole = hasAnyRole(role, ['organizer'])
 
   let body: Record<string, unknown>
   try {
@@ -34,18 +35,21 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const participantEmail = ((reg as Record<string, unknown>).participants as Record<string, string> | null)?.owner_email ?? null
   const isOwner = participantEmail && participantEmail.toLowerCase() === user.email?.toLowerCase()
+  const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+  const canManageEvent = role === 'admin' || (
+    hasOrganizerRole && event?.created_by === user.id
+  )
 
-  if (!isOrganizerOrAdmin && !isOwner) {
+  if ((!hasOrganizerRole || !canManageEvent) && !isOwner) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
   }
 
   // Owners can only cancel their own registration
-  if (isOwner && !isOrganizerOrAdmin && body.status !== 'cancelled') {
+  if (isOwner && !canManageEvent && body.status !== 'cancelled') {
     return NextResponse.json({ error: 'Możesz tylko anulować własny zapis' }, { status: 403 })
   }
 
-  if (isOwner && !isOrganizerOrAdmin && body.status === 'cancelled') {
-    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+  if (isOwner && !canManageEvent && body.status === 'cancelled') {
     const startAt = event?.start_at as string | null
     const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000)
     if (startAt && new Date(startAt) <= cutoff) {
@@ -68,8 +72,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const targetStatus = typeof body.status === 'string' ? body.status : null
   const targetIsActive = targetStatus === 'pending' || targetStatus === 'confirmed'
 
-  if (isOrganizerOrAdmin && targetIsActive) {
-    const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
+  if (canManageEvent && targetIsActive) {
     const participant = (reg as Record<string, unknown>).participants as Record<string, unknown> | null
     const activeStatuses = ['pending', 'confirmed']
     const matchingParticipantIds = new Set<string>()
@@ -154,7 +157,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   // Organizer partial date cancellation: cancelledDates = string[] → remove dates, null → cancel all
-  if (body.status === 'cancelled' && isOrganizerOrAdmin && 'cancelledDates' in body) {
+  if (body.status === 'cancelled' && canManageEvent && 'cancelledDates' in body) {
     const cancelledDates = body.cancelledDates as string[] | null
     if (cancelledDates !== null && Array.isArray(cancelledDates) && cancelledDates.length > 0) {
       const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
@@ -214,11 +217,11 @@ export async function PATCH(req: Request, { params }: Params) {
   const update: Record<string, unknown> = {}
   if ('status' in body) update.status = body.status
   // Organizer/admin can also update time_slot_id for schedule management
-  if ('time_slot_id' in body && isOrganizerOrAdmin) {
+  if ('time_slot_id' in body && canManageEvent) {
     update.time_slot_id = body.time_slot_id
   }
   // Organizer/admin can toggle check-in
-  if ('checked_in' in body && isOrganizerOrAdmin) {
+  if ('checked_in' in body && canManageEvent) {
     update.checked_in = Boolean(body.checked_in)
     update.checked_in_at = body.checked_in ? new Date().toISOString() : null
   }
@@ -233,7 +236,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Send email when organizer confirms a registration
-  if (update.status === 'confirmed' && isOrganizerOrAdmin) {
+  if (update.status === 'confirmed' && canManageEvent) {
     const participant = (data as Record<string, unknown>).participants as Record<string, string> | null
     const event = (data as Record<string, unknown>).events as Record<string, string> | null
     if (participant?.owner_email) {
@@ -250,7 +253,7 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   // Send email to organizer when participant cancels their own registration
-  if (update.status === 'cancelled' && isOwner && !isOrganizerOrAdmin) {
+  if (update.status === 'cancelled' && isOwner && !canManageEvent) {
     const participant = (reg as Record<string, unknown>).participants as Record<string, string> | null
     const event = (reg as Record<string, unknown>).events as Record<string, unknown> | null
     const createdBy = event?.created_by as string | null

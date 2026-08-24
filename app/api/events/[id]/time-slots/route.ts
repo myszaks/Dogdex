@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/lib/supabaseServer'
-import { checkRoleForApi } from '@/lib/getServerUser'
+import { checkRoleForApi, getServerUser } from '@/lib/getServerUser'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -9,6 +9,16 @@ interface Params {
 export async function GET(_req: Request, { params }: Params) {
   const { id } = await params
   const supabase = await createAuthClient()
+
+  const [{ data: event }, { user, role }] = await Promise.all([
+    supabase.from('events').select('status, created_by').eq('id', id).maybeSingle(),
+    getServerUser(),
+  ])
+  if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
+  const canManage = role === 'admin' || (user?.id != null && event.created_by === user.id)
+  if (event.status === 'draft' && !canManage) {
+    return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
+  }
 
   const { data, error } = await supabase
     .from('time_slots')

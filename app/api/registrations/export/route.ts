@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const supabase = await createAuthClient()
 
   const [{ data: event }, { data: registrations }] = await Promise.all([
-    supabase.from('events').select('title, form_fields').eq('id', eventId).single(),
+    supabase.from('events').select('title, form_fields, created_by').eq('id', eventId).single(),
     supabase
       .from('registrations')
       .select('*, participants(*)')
@@ -22,6 +22,9 @@ export async function GET(req: Request) {
   ])
 
   if (!event) return NextResponse.json({ error: 'Nie znaleziono wydarzenia' }, { status: 404 })
+  if (authResult.role !== 'admin' && event.created_by !== authResult.user.id) {
+    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 })
+  }
 
   const formFields: Array<{ id: string; label: string }> = Array.isArray(event.form_fields)
     ? event.form_fields

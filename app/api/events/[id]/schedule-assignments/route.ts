@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabaseServer'
+import { createServiceRoleClient } from '@/lib/supabaseServer'
 import { checkRoleForApi } from '@/lib/getServerUser'
 
 interface Params {
@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = createServiceRoleClient()
 
   const { data: event } = await supabase
     .from('events')
@@ -81,7 +81,7 @@ export async function POST(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = createServiceRoleClient()
 
   const { data: event } = await supabase
     .from('events')
@@ -181,7 +181,7 @@ export async function DELETE(req: Request, { params }: Params) {
   const authResult = await checkRoleForApi(['organizer', 'admin'])
   if ('error' in authResult) return authResult.error
 
-  const supabase = createServerClient()
+  const supabase = createServiceRoleClient()
 
   const { data: event } = await supabase.from('events').select('created_by').eq('id', id).single()
   if (!event) return NextResponse.json({ error: 'Nie znaleziono eventu' }, { status: 404 })
@@ -191,6 +191,21 @@ export async function DELETE(req: Request, { params }: Params) {
   let body: { assignment_id: string }
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Nieprawidłowe JSON' }, { status: 400 }) }
+
+  if (!body.assignment_id) {
+    return NextResponse.json({ error: 'Wymagane: assignment_id' }, { status: 400 })
+  }
+
+  const { data: assignment } = await supabase
+    .from('schedule_assignments')
+    .select('id, registrations!inner(event_id)')
+    .eq('id', body.assignment_id)
+    .eq('registrations.event_id', id)
+    .maybeSingle()
+
+  if (!assignment) {
+    return NextResponse.json({ error: 'Nie znaleziono przypisania' }, { status: 404 })
+  }
 
   const { error } = await supabase
     .from('schedule_assignments')

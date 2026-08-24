@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const createServerClient = vi.fn()
+const createServiceRoleClient = vi.fn()
 const checkRoleForApi = vi.fn()
 
 vi.mock('@/lib/supabaseServer', () => ({
-  createServerClient,
+  createServiceRoleClient,
 }))
 
 vi.mock('@/lib/getServerUser', () => ({
@@ -23,7 +23,7 @@ describe('GET /api/events/[id]/schedule-assignments', () => {
       role: 'organizer',
     })
 
-    createServerClient.mockReturnValue({
+    createServiceRoleClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') {
           return {
@@ -55,7 +55,7 @@ describe('GET /api/events/[id]/schedule-assignments', () => {
       role: 'organizer',
     })
 
-    createServerClient.mockReturnValue({
+    createServiceRoleClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') {
           return {
@@ -124,7 +124,7 @@ describe('GET /api/events/[id]/schedule-assignments', () => {
       role: 'organizer',
     })
 
-    createServerClient.mockReturnValue({
+    createServiceRoleClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') {
           return {
@@ -185,7 +185,7 @@ describe('GET /api/events/[id]/schedule-assignments', () => {
       role: 'organizer',
     })
 
-    createServerClient.mockReturnValue({
+    createServiceRoleClient.mockReturnValue({
       from: vi.fn((table: string) => {
         if (table === 'events') {
           return {

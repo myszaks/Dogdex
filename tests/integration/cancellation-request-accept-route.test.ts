@@ -24,7 +24,11 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
     vi.clearAllMocks()
   })
 
-  it('cancels the registration and removes every schedule assignment when no dates remain', async () => {
+  it.each([
+    { scope: 'all', remaining: [] },
+    { scope: 'some', remaining: ['2026-09-06'] },
+  ])('updates only the selected dates when cancelling $scope dates', async ({ remaining }) => {
+    const cancelsRegistration = remaining.length === 0
     getServerUser.mockResolvedValue({
       user: { id: 'organizer-1' },
       role: 'organizer',
@@ -62,8 +66,11 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
       })),
     }))
     const deleteAssignmentsForRegistration = vi.fn(async () => ({ error: null }))
+    const deleteAssignmentsForDates = vi.fn(async () => ({ error: null }))
     const assignmentDelete = vi.fn(() => ({
-      eq: deleteAssignmentsForRegistration,
+      eq: (column: string, value: string) => cancelsRegistration
+        ? deleteAssignmentsForRegistration(column, value)
+        : { in: deleteAssignmentsForDates },
     }))
 
     createServerClient.mockReturnValue({
@@ -80,6 +87,7 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
                     status: 'confirmed',
                     form_data: {
                       dates: ['2026-08-16', '2026-08-23', '2026-08-30'],
+                      ...(cancelsRegistration ? {} : { legacyDate: '2026-09-06' }),
                     },
                   },
                 }),
@@ -115,7 +123,10 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
                     created_by: 'organizer-1',
                     title: 'Full Focus',
                     start_at: '2026-08-01T04:00:00.000Z',
-                    form_fields: [{ id: 'dates', type: 'multidate' }],
+                    form_fields: [
+                      { id: 'dates', type: 'multidate' },
+                      ...(cancelsRegistration ? [] : [{ id: 'legacyDate', type: 'multidate' }]),
+                    ],
                   },
                 }),
               }),
@@ -125,6 +136,10 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
 
         if (table === 'schedule_assignments') {
           return { delete: assignmentDelete }
+        }
+
+        if (table === 'time_slots') {
+          return { select: () => ({ eq: () => ({ in: async () => ({ data: [], error: null }) }) }) }
         }
 
         throw new Error(`Unexpected table ${table}`)
@@ -144,14 +159,19 @@ describe('PATCH /api/cancellation-requests/[id]', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       action: 'accepted',
-      registrationCancelled: true,
+      registrationCancelled: cancelsRegistration,
     })
     expect(registrationUpdate).toHaveBeenCalledWith({
-      status: 'cancelled',
-      form_data: { dates: [] },
+      ...(cancelsRegistration ? { status: 'cancelled' } : {}),
+      form_data: { dates: [], ...(cancelsRegistration ? {} : { legacyDate: remaining }) },
     })
     expect(assignmentDelete).toHaveBeenCalledOnce()
-    expect(deleteAssignmentsForRegistration).toHaveBeenCalledWith('registration_id', 'reg-1')
+    if (cancelsRegistration) {
+      expect(deleteAssignmentsForRegistration).toHaveBeenCalledWith('registration_id', 'reg-1')
+    } else {
+      expect(deleteAssignmentsForRegistration).not.toHaveBeenCalled()
+      expect(deleteAssignmentsForDates).toHaveBeenCalledWith('item_date', request.cancelled_dates)
+    }
     expect(sendCancellationResultEmail).toHaveBeenCalledWith(expect.objectContaining({
       cancelledDates: request.cancelled_dates,
       eventDate: null,

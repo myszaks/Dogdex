@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient, createServerClient } from '@/lib/supabaseServer'
 import { getServerUser } from '@/lib/getServerUser'
+import { readCancellationDates } from '@/lib/cancellationDates'
 import { sendCancellationResultEmail } from '@/lib/email'
 
 interface Params {
@@ -123,7 +124,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     const selectedDatesBeforeCancellation = multidateFieldIds.flatMap(fieldId =>
-      Array.isArray(formData[fieldId]) ? formData[fieldId] as string[] : []
+      readCancellationDates(formData[fieldId])
     )
     const unknownCancelledDate = selectedDatesBeforeCancellation.length > 0
       && cancelledDates.some(date => !selectedDatesBeforeCancellation.includes(date))
@@ -134,7 +135,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const updated: Record<string, unknown> = { ...formData }
 
     for (const fieldId of multidateFieldIds) {
-      const existing = Array.isArray(formData[fieldId]) ? (formData[fieldId] as string[]) : []
+      const existing = readCancellationDates(formData[fieldId])
       updated[fieldId] = existing.filter(d => !cancelledDates.includes(d))
     }
 

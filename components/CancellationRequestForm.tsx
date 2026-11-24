@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { FormField } from '@/types'
+import { readCancellationDates } from '@/lib/cancellationDates'
 import { formatDateShort } from '@/lib/utils'
 
 interface Props {
@@ -16,11 +17,9 @@ export default function CancellationRequestForm({ registrationId, formFields, fo
   const [selectedDates, setSelectedDates] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const dates = [...new Set(formFields.filter(field => field.type === 'multidate').flatMap(field => {
-    const value = formData?.[field.id]
-    const values = Array.isArray(value) ? value : [value]
-    return values.filter((date): date is string => typeof date === 'string' && date.length > 0)
-  }))].sort()
+  const dates = [...new Set(formFields
+    .filter(field => field.type === 'multidate')
+    .flatMap(field => readCancellationDates(formData?.[field.id])))].sort()
 
   async function submit() {
     if (submitting || (dates.length > 0 && selectedDates.length === 0)) return

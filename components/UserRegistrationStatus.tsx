@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import useUser from '@/hooks/useUser'
 import type { FormField } from '@/types'
-import ConfirmModal from './ConfirmModal'
+import Modal from './Modal'
+import CancellationRequestForm from './CancellationRequestForm'
 import { formatPolishCount, POLISH_FORMS } from '@/lib/polish'
 
 interface Props {
@@ -16,15 +17,14 @@ type RegistrationWithParticipant = Record<string, unknown> & {
   id: string
   status: string
   participants?: Record<string, string | null>
+  form_data?: Record<string, unknown> | null
   pending_cancellation_request?: unknown
 }
 
-export default function UserRegistrationStatus({ eventId, eventStatus }: Props) {
+export default function UserRegistrationStatus({ eventId, eventTitle, formFields, eventStatus }: Props) {
   const { user } = useUser()
   // undefined = loading, [] = not found
   const [registrations, setRegistrations] = useState<RegistrationWithParticipant[] | undefined>(undefined)
-  const [cancellingId, setCancellingId] = useState<string | null>(null)
-  const [cancelErrors, setCancelErrors] = useState<Record<string, string>>({})
   const [requestSentIds, setRequestSentIds] = useState<Set<string>>(() => new Set())
   const [confirmRegistrationId, setConfirmRegistrationId] = useState<string | null>(null)
 
@@ -73,32 +73,7 @@ export default function UserRegistrationStatus({ eventId, eventStatus }: Props) 
     cancelled: 'Zapis anulowany',
   }
 
-  async function handleCancel(registrationId: string) {
-    setCancellingId(registrationId)
-    setCancelErrors(prev => ({ ...prev, [registrationId]: '' }))
-    try {
-      const res = await fetch(`/api/registrations/${registrationId}/cancel-request`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setCancelErrors(prev => ({
-          ...prev,
-          [registrationId]: json.error ?? 'Nie udało się wysłać wniosku o rezygnację',
-        }))
-      } else {
-        setRequestSentIds(prev => new Set(prev).add(registrationId))
-      }
-    } catch {
-      setCancelErrors(prev => ({
-        ...prev,
-        [registrationId]: 'Nie udało się wysłać wniosku o rezygnację',
-      }))
-    }
-    setCancellingId(null)
-  }
+  const selectedRegistration = registrations.find(reg => reg.id === confirmRegistrationId)
 
   return (
     <div className="space-y-3">
@@ -112,8 +87,6 @@ export default function UserRegistrationStatus({ eventId, eventStatus }: Props) 
         const status = reg.status
         const p = reg.participants
         const requestSent = requestSentIds.has(reg.id)
-        const cancelError = cancelErrors[reg.id]
-        const canRequestCancel = eventStatus === 'upcoming' && status !== 'cancelled' && !requestSent
 
         return (
           <div key={reg.id} className={`border rounded-xl p-4 space-y-3 ${statusStyles[status] ?? 'bg-slate-50 border-slate-200'}`}>
@@ -130,37 +103,36 @@ export default function UserRegistrationStatus({ eventId, eventStatus }: Props) 
                 Wniosek o rezygnację został wysłany i oczekuje na akceptację organizatora.
               </p>
             )}
-            {cancelError && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {cancelError}
-              </p>
-            )}
-            {canRequestCancel && (
+            {eventStatus === 'upcoming' && status !== 'cancelled' && !requestSent && (
               <button
                 onClick={() => setConfirmRegistrationId(reg.id)}
-                disabled={cancellingId === reg.id}
                 className="w-full text-sm text-red-600 border border-red-200 bg-white hover:bg-red-50 rounded-lg py-1.5 transition-colors disabled:opacity-50"
               >
-                {cancellingId === reg.id ? 'Wysyłanie...' : 'Zrezygnuj z udziału'}
+                Zrezygnuj z udziału
               </button>
             )}
           </div>
         )
       })}
 
-      <ConfirmModal
-        open={confirmRegistrationId !== null}
-        title="Zrezygnować z udziału?"
-        message="Czy na pewno chcesz wycofać ten zapis na wydarzenie?"
-        confirmLabel="Wyślij wniosek"
-        danger
-        onConfirm={() => {
-          const registrationId = confirmRegistrationId
-          setConfirmRegistrationId(null)
-          if (registrationId) handleCancel(registrationId)
-        }}
-        onCancel={() => setConfirmRegistrationId(null)}
-      />
+      {selectedRegistration && (
+        <Modal open title="Rezygnacja z udziału" onClose={() => setConfirmRegistrationId(null)}>
+          <p className="text-sm font-semibold mb-4">
+            {eventTitle}{selectedRegistration.participants?.dog_name ? ` · ${selectedRegistration.participants.dog_name}` : ''}
+          </p>
+          <CancellationRequestForm
+            key={selectedRegistration.id}
+            registrationId={selectedRegistration.id}
+            formFields={formFields}
+            formData={selectedRegistration.form_data}
+            onSuccess={() => {
+              setRequestSentIds(previous => new Set(previous).add(selectedRegistration.id))
+              setConfirmRegistrationId(null)
+            }}
+            onCancel={() => setConfirmRegistrationId(null)}
+          />
+        </Modal>
+      )}
     </div>
   )
 }
